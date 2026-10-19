@@ -28,3 +28,8 @@ Ground pyRevit answers in the real docs and the installed source. Don't rely on 
 - Cite the docs URL or the source file you used, and the pyRevit version (`pyrevit --version`).
 - If neither the docs nor the source mention it, say so. Don't invent a pyRevit function.
 - pyRevit scripts default to IronPython 2.7: no f-strings, no type hints. Check `__context__`, `__title__` and the `bundle.yaml` keys against the docs, not memory.
+
+## House rules (all am-* skills)
+
+- Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
+- When a task has independent parts (for example, several files to check or several Revit years to compare), do them in parallel with subagents. Keep steps that depend on each other in sequence.

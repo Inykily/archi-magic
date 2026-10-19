@@ -27,3 +27,8 @@ Ground Revit API answers in the documentation for the **Revit version the user a
 - If the script finds nothing, say "not found in Revit <year> docs on this machine". That's a scoped negative, not proof the API doesn't exist. Try a shorter query or `-AllYears` before concluding.
 - When code must run on several Revit years, check each one with `-AllYears` and branch on the differences.
 - pyRevit scripts run on IronPython 2.7 by default: no f-strings. Use `.Value` vs `.IntegerValue` according to the year.
+
+## House rules (all am-* skills)
+
+- Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
+- When a task has independent parts (for example, several files to check or several Revit years to compare), do them in parallel with subagents. Keep steps that depend on each other in sequence.
