@@ -1,0 +1,16 @@
+{
+  "name": "archi-magic",
+  "owner": {
+    "name": "zsenarchitect"
+  },
+  "metadata": {
+    "description": "Claude Code skills for architects working in Revit, Rhino and the AEC toolchain."
+  },
+  "plugins": [
+    {
+      "name": "archi-magic",
+      "source": "./",
+      "description": "AEC skills for Claude Code. All skills are prefixed am-*. First skill: am-pyrevit7-setup (pyRevit 7 + Agent Runtime, no admin rights)."
+    }
+  ]
+}

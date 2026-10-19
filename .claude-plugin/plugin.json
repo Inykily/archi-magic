@@ -1,0 +1,10 @@
+{
+  "name": "archi-magic",
+  "version": "0.1.0",
+  "description": "AEC skills for Claude Code. All skills are prefixed am-*.",
+  "author": {
+    "name": "zsenarchitect"
+  },
+  "repository": "https://github.com/zsenarchitect/archi-magic",
+  "keywords": ["revit", "pyrevit", "aec", "architecture", "bim"]
+}
