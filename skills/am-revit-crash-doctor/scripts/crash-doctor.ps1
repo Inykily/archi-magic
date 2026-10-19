@@ -564,6 +564,13 @@ foreach ($e in $Events) {
     }
     if ($best) { $e.Session = $best.Journal; $best.Events.Add($e) }
 }
+# A Windows crash or hang event inside a session that ended abruptly confirms the crash.
+foreach ($s in ($Sessions | Where-Object { $_.Status -eq 'ABRUPT_END' })) {
+    $ce = @($s.Events | Where-Object { $_.Kind -in 'CRASH', 'DOTNET_ERROR' }) | Select-Object -First 1
+    $he = @($s.Events | Where-Object { $_.Kind -eq 'HANG' }) | Select-Object -First 1
+    if ($ce) { $s.Status = 'CRASH'; $s.StatusNote = "Revit crashed: Windows recorded a Revit crash at $($ce.Time.ToString('yyyy-MM-dd HH:mm:ss'))." }
+    elseif ($he) { $s.StatusNote = "Revit froze: Windows recorded that Revit stopped responding at $($he.Time.ToString('yyyy-MM-dd HH:mm:ss')), and it was closed." }
+}
 foreach ($r in ($CerReports | Where-Object { $_.Product -eq 'Revit' })) {
     foreach ($s in $Sessions) {
         if (-not $s.Start -or $s.Status -eq 'IN_PROGRESS') { continue }
@@ -592,7 +599,9 @@ function Classify($s) {
     $c = New-Object System.Collections.Generic.List[object]
     function Add-C($cls, $conf, $ev) { $c.Add([pscustomobject]@{ Class = $cls; Confidence = $conf; Evidence = $ev }) }
     $third = Get-ThirdParty $s
+    $addinName = ''
     $crashEvents = @($s.Events | Where-Object { $_.Kind -in 'CRASH', 'DOTNET_ERROR' })
+    $hasMarker = ($s.Status -eq 'CRASH') -or (@($s.Events | Where-Object { $_.Kind -in 'CRASH', 'HANG', 'DOTNET_ERROR' }).Count -gt 0)
     foreach ($e in $crashEvents) {
         $mod = "$($e.Module)"; if (-not $mod) { continue }
         $modLeaf = Leaf $mod; $modBase = [IO.Path]::GetFileNameWithoutExtension($modLeaf)
@@ -603,7 +612,7 @@ function Classify($s) {
             ($_.Class -and ($_.Class -split '\.')[0] -ieq $modBase) -or
             ($e.ModulePath -and $_.Assembly -and (Split-Path -Parent $_.Assembly) -and $e.ModulePath.StartsWith((Split-Path -Parent $_.Assembly), [StringComparison]::OrdinalIgnoreCase))
         } | Select-Object -First 1
-        if ($hit) { Add-C 'ADDIN' 3 "$ev; this file belongs to the add-in '$($hit.Name)' ($(Leaf $hit.Assembly))" }
+        if ($hit) { Add-C 'ADDIN' 3 "$ev; this file belongs to the add-in '$($hit.Name)' ($(Leaf $hit.Assembly))"; $addinName = $hit.Name }
         elseif ($modLeaf -match $RxGraphics) { Add-C 'GRAPHICS' 3 "$ev; this is a graphics driver or DirectX file" }
         elseif ($e.ModulePath -match '(?i)\\Autodesk\\Revit 20\d\d\\' -or $modLeaf -match '(?i)^(Revit|RevitDB|RevitUI|RevitAPI|Graphics|AdWindows|ADSK|AdskRcp|DBG|Foundation|Geom|Math|UIFramework)') { Add-C 'REVIT_CORE' 2 "$ev; this is a Revit program file" }
         elseif ($modLeaf -match $RxRuntime) { Add-C 'UNKNOWN' 1 "$ev; this is a general Windows or .NET file, so the real cause is earlier in the chain" }
@@ -631,8 +640,10 @@ function Classify($s) {
     $last3 = @($s.LastCommands | Select-Object -Last 3)
     $ext = $last3 | Where-Object { $_.External } | Select-Object -Last 1
     if ($ext -and $ext.External -notmatch '^(Autodesk|Revit)') {
-        $conf = if ($s.ExceptionCode -eq '0xe0434352') { 2 } else { 1 }
+        # A command alone is only a hint. It can lead only when there is real crash evidence.
+        $conf = if (-not $hasMarker) { 0 } elseif ($s.ExceptionCode -eq '0xe0434352') { 2 } else { 1 }
         Add-C 'ADDIN' $conf "one of the last 3 commands before the end was an $($ext.Text)"
+        if (-not $addinName) { $addinName = $ext.External }
     }
     if ($s.ExceptionCode -eq '0xe0434352') { Add-C 'REVIT_CORE' 1 "exception code 0xe0434352 is a .NET error. Revit caught it, so Windows has no faulting module. It can come from Revit or from an add-in." }
     elseif ($s.ExceptionCode) { Add-C 'REVIT_CORE' 1 "exception code $($s.ExceptionCode) in the journal" }
@@ -641,7 +652,7 @@ function Classify($s) {
     $sync = @($s.LastCommands | Select-Object -Last 5 | Where-Object { $_.Time -and $stopAt -and ($stopAt - $_.Time).TotalSeconds -le 180 } | Where-Object { $_.Text -match '(?i)SAVE_TO_CENTRAL|SYNCHRONIZE|RELOAD_LATEST|ID_FILE_SAVE|ID_FILE_OPEN|ID_REVIT_FILE_OPEN|ID_APP_OPEN' })
     $fileErr = @($s.Errors | Where-Object { $_ -match '(?i)\\\\[^\\]+\\|access (is )?denied|being used by another process|locked|FaultException' })
     if ($sync.Count -gt 0) {
-        $conf = if ($fileErr.Count -gt 0 -and $s.Worksharing.Count -gt 0) { 2 } else { 1 }
+        $conf = if (-not $hasMarker) { 0 } elseif ($fileErr.Count -gt 0 -and $s.Worksharing.Count -gt 0) { 2 } else { 1 }
         Add-C 'FILE_ACCESS' $conf ("save or sync with the central model shortly before the end: " + ($sync | Select-Object -Last 1).Text + $(if ($s.Worksharing.Count) { "; model type: " + ($s.Worksharing -join ', ') } else { '' }))
     } elseif ($fileErr.Count -gt 0 -and $s.Worksharing.Count -gt 0) {
         Add-C 'FILE_ACCESS' 1 ("file or server error lines in a work-shared session: " + (Redact ($fileErr | Select-Object -Last 1)))
@@ -649,15 +660,17 @@ function Classify($s) {
     # Tie order: evidence AT the crash (module, command) before evidence from earlier in the session.
     $order = @{ ADDIN = 5; GRAPHICS = 4; FILE_ACCESS = 3; REVIT_CORE = 2; MEMORY = 1; UNKNOWN = 0 }
     $ranked = @($c | Sort-Object @{ Expression = { $_.Confidence }; Descending = $true }, @{ Expression = { $order[$_.Class] }; Descending = $true })
-    $names = @{ 3 = 'HIGH'; 2 = 'MEDIUM'; 1 = 'LOW' }
-    if ($ranked.Count -eq 0 -or $ranked[0].Class -eq 'UNKNOWN' -and $ranked[0].Confidence -lt 2) {
-        $ev = @($ranked | ForEach-Object { $_.Evidence })
-        return [pscustomobject]@{ Class = 'UNKNOWN'; Confidence = 'LOW'; Evidence = $ev; AlsoPossible = @() }
+    $names = @{ 3 = 'HIGH'; 2 = 'MEDIUM'; 1 = 'LOW'; 0 = 'HINT ONLY' }
+    $lead = @($ranked | Where-Object { $_.Confidence -ge 1 })
+    if ($lead.Count -eq 0 -or $lead[0].Class -eq 'UNKNOWN' -and $lead[0].Confidence -lt 2) {
+        $ev = @($ranked | Where-Object { $_.Class -eq 'UNKNOWN' } | ForEach-Object { $_.Evidence })
+        $also = @($ranked | Where-Object { $_.Class -ne 'UNKNOWN' } | ForEach-Object { "$($_.Class) ($($names[$_.Confidence])): $($_.Evidence)" })
+        return [pscustomobject]@{ Class = 'UNKNOWN'; Confidence = 'LOW'; Evidence = $ev; AlsoPossible = $also; AddinName = $addinName }
     }
-    $top = $ranked[0]
+    $top = $lead[0]
     $evid = @($ranked | Where-Object { $_.Class -eq $top.Class } | ForEach-Object { $_.Evidence })
     $also = @($ranked | Where-Object { $_.Class -ne $top.Class -and $_.Class -ne 'UNKNOWN' } | ForEach-Object { "$($_.Class) ($($names[$_.Confidence])): $($_.Evidence)" })
-    return [pscustomobject]@{ Class = $top.Class; Confidence = $names[$top.Confidence]; Evidence = $evid; AlsoPossible = $also }
+    return [pscustomobject]@{ Class = $top.Class; Confidence = $names[$top.Confidence]; Evidence = $evid; AlsoPossible = $also; AddinName = $addinName }
 }
 
 $NextSteps = @{
@@ -736,7 +749,11 @@ foreach ($s in ($Problem | Sort-Object { $_.Start })) {
     foreach ($x in $dg.Evidence) { O "    evidence: $x" }
     foreach ($x in $dg.AlsoPossible) { O "    also possible: $x" }
     O '  Next steps (one at a time):'
-    $i = 1; foreach ($x in $NextSteps[$dg.Class]) { O "    $i. $x"; $i++ }
+    $i = 1
+    foreach ($x in $NextSteps[$dg.Class]) {
+        if ($dg.Class -eq 'ADDIN' -and $dg.AddinName) { $x = $x -replace 'the named add-in', "the add-in '$($dg.AddinName)'" }
+        O "    $i. $x"; $i++
+    }
     O ''
 }
 
@@ -778,7 +795,8 @@ if ($Json) {
                     status = $s.Status; note = $s.StatusNote; models = @($s.Models | ForEach-Object { Redact $_ }); modelType = @($s.Worksharing)
                     crashTime = if ($s.CrashTime) { $s.CrashTime.ToString('s') } else { $null }; exceptionCode = $s.ExceptionCode
                     activeTool = (Redact $s.Antecedent); rolledBack = @($s.UndoAfterCrash | ForEach-Object { Redact $_ })
-                    lastRam = $s.LastRam; lastCommands = @($s.LastCommands | ForEach-Object { Redact $_.Text })
+                    lastRam = if ($s.LastRam) { [ordered]@{ availMB = $s.LastRam.AvailMB; totalMB = $s.LastRam.TotalMB; revitInUseMB = $s.LastRam.RevitInUseMB; revitPeakMB = $s.LastRam.RevitPeakMB; time = $(if ($s.LastRam.Time) { $s.LastRam.Time.ToString('s') } else { $null }) } } else { $null }
+                    lastCommands = @($s.LastCommands | ForEach-Object { Redact $_.Text })
                     errors = @($s.Errors | Select-Object -Last 15 | ForEach-Object { Redact $_ })
                     dumps = @($s.Dumps | ForEach-Object { $_.Name }); events = @($s.Events | ForEach-Object { "$($_.Time.ToString('s')) $($_.Kind) $($_.Module)".Trim() })
                     diagnosis = if ($s.Diagnosis) { [ordered]@{ class = $s.Diagnosis.Class; confidence = $s.Diagnosis.Confidence; evidence = @($s.Diagnosis.Evidence | ForEach-Object { Redact $_ }); alsoPossible = @($s.Diagnosis.AlsoPossible | ForEach-Object { Redact $_ }) } } else { $null }
