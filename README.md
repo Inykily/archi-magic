@@ -25,6 +25,8 @@ Every release raises the plugin `version` (`scripts/bump-version.ps1`). Claude C
 | `am-pyrevit7-setup` | Installs pyRevit 7 per-user **without admin rights** and repoints Revit 2024–2026 to it, even when IT installed pyRevit 6.x machine-wide. It also enables the pyRevit Agent Runtime and connects it to Claude Code, so Claude can work with your open Revit model. To use it, ask Claude to "set up pyRevit 7". |
 | `am-revit-api-docs` | Looks up the Revit API in the documentation installed with **your** Revit version, so code uses members that exist in your year. It can also compare years. Ask, for example, "does Revit 2024 have ElementId.Value?" |
 | `am-pyrevit-docs` | Searches the official pyRevit documentation and the installed pyRevit source before Claude writes pyRevit tools. Ask, for example, "how do I show a table in the pyRevit output window?" |
+| `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan or design until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
+| `am-grilling` | The interview method behind `am-grill-me`. It also starts when you say "grill me" about a plan, decision or idea. Adapted from Matt Pocock (MIT). |
 
 The pyRevit setup script also works without Claude. Run `skills/am-pyrevit7-setup/scripts/Setup-pyRevit7.cmd`. See [kit-README.md](skills/am-pyrevit7-setup/kit-README.md).
 

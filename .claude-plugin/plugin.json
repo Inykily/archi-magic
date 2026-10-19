@@ -1,6 +1,6 @@
 {
   "name": "archi-magic",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AEC skills for Claude Code. All skills are prefixed am-*.",
   "author": {
     "name": "zsenarchitect"
