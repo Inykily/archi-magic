@@ -56,7 +56,7 @@ def jsonable(value):
     """Keep non-ASCII names intact through the runtime's json.dumps on IronPython 2.7.
     See am-model-health/scripts/model_health.py for the reason."""
     if isinstance(value, dict):
-        return dict((k, jsonable(v)) for k, v in value.items())
+        return dict((jsonable(k), jsonable(v)) for k, v in value.items())
     if isinstance(value, (list, tuple)):
         return [jsonable(v) for v in value]
     if IRONPYTHON and isinstance(value, basestring):  # noqa: F821

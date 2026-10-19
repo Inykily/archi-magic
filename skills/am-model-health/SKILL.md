@@ -35,11 +35,11 @@ It drives the `pyrevit` MCP tools (the pyRevit Agent Runtime). If those tools ar
 | `in_place_families` | In-place families (instances grouped by family) | 10 / 30 |
 | `rooms_unplaced` | Rooms with no location | 0 / 20 |
 | `rooms_not_enclosed` | Placed rooms with zero area | 0 / 10 |
-| `rooms_redundant` | Rooms in "Multiple Rooms are in the same enclosed region" warnings | 0 / 10 |
+| `rooms_redundant` | Rooms in "Multiple Rooms are in the same enclosed region" warnings (English Revit only) | 0 / 10 |
 | `duplicate_marks` | Model elements that share a Mark in the same category | 0 / 50 |
 | `cad_imported` | Imported (not linked) CAD | 0 / 5 |
 | `cad_linked` | Linked CAD | information |
-| `views_not_on_sheets` | Printable views that are not on a sheet | 150 / 400 |
+| `views_not_on_sheets` | Printable views and schedules that are not on a sheet | 150 / 400 |
 | `file_size` | Size of the local .rvt file, in MB | 300 / 600 |
 
 The two link hints are not proof. The Revit API has no simple "uses shared coordinates" flag. Say "hint" when you report them.
@@ -60,7 +60,7 @@ Run the script. Then write, in plain words for an architect:
 
 ## Step 2b: Dashboard
 
-1. Run the script. Keep the `result` JSON.
+1. Run the script. Keep the `result` JSON. If the response says the result is truncated, call `get_run` and use its full `result`. Never save a truncated result as a snapshot.
 2. Pick the snapshot folder. Default: `<model folder>\archi-magic-health\<model name>\` (take the folder from `result.path`). If `path` is empty, is a cloud path, or the folder is not writable, ask with AskUserQuestion: **Documents folder (Recommended)** (`%USERPROFILE%\Documents\archi-magic-health\<model name>\`), **Choose a folder** (the user types a path), or **Do not save a snapshot** (no trend).
 3. Write `result` as UTF-8 JSON to `<folder>\<yyyy-MM-dd_HHmm>.json`. This is a file you write, not the Revit script; the query stays read-only.
 4. Render the page:

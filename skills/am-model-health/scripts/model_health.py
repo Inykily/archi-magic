@@ -48,7 +48,7 @@ def jsonable(value):
     Tested live on Revit 2026 / IronPython 2.7.12. CPython needs no change.
     """
     if isinstance(value, dict):
-        return dict((k, jsonable(v)) for k, v in value.items())
+        return dict((jsonable(k), jsonable(v)) for k, v in value.items())
     if isinstance(value, (list, tuple)):
         return [jsonable(v) for v in value]
     if IRONPYTHON and isinstance(value, basestring):  # noqa: F821
@@ -182,7 +182,11 @@ def check_rooms(warning_rows):
     for row in warning_rows:
         if "Multiple Rooms" in row["label"] or "redundant" in row["label"].lower():
             redundant.extend(row["ids"])
-    return total, unplaced, not_enclosed, sorted(set(redundant))
+    redundant = sorted(set(redundant))
+    # A redundant room can also report zero area; count it once, as redundant.
+    red = set(redundant)
+    not_enclosed = [i for i in not_enclosed if i not in red]
+    return total, unplaced, not_enclosed, redundant
 
 
 def check_duplicate_marks():
@@ -231,8 +235,17 @@ def check_views():
     for s in sheets:
         for vid in s.GetAllPlacedViews():
             placed.add(eid(vid))
+    # GetAllPlacedViews does not return schedules; those sit on sheets as ScheduleSheetInstance.
+    for ssi in collect(cls=DB.ScheduleSheetInstance):
+        placed.add(eid(ssi.ScheduleId))
+
+    def internal(v):
+        if isinstance(v, DB.ViewSchedule):
+            return v.IsTitleblockRevisionSchedule or v.IsInternalKeynoteSchedule
+        return False
     loose = [v for v in views
-             if not isinstance(v, DB.ViewSheet) and v.CanBePrinted and eid(v.Id) not in placed]
+             if not isinstance(v, DB.ViewSheet) and v.CanBePrinted and not internal(v)
+             and eid(v.Id) not in placed]
     return views, sheets, loose
 
 

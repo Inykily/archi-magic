@@ -16,6 +16,7 @@ It drives the `pyrevit` MCP tools (the pyRevit Agent Runtime). If those tools ar
 - Do not rewrite the check script. Read `scripts/param_qa.py` in this skill's folder, pass its full text as the `script` argument of `run_query`, and pass the rules as `inputs`.
 - The script runs on IronPython 2.7 (no f-strings). It reads ElementIds with `.Value` (Revit 2024+) and falls back to `.IntegerValue`.
 - If `run_query` returns `revit_busy`, wait about 20 seconds and try again (max 5 times).
+- Big categories (for example all walls) can give a truncated response. Then call `get_run` for the full `result`, or lower `max_rows` and `max_ids`.
 - Anything the script reads is sent to the AI provider. Use it only on projects where that is allowed.
 
 ## Step 1: Decide the rules
