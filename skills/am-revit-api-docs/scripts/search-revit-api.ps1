@@ -20,16 +20,24 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+# Shared archi-magic log (optional; missing helper = no log, same behavior).
+$amLogPath = Join-Path $PSScriptRoot '..\..\..\scripts\lib\am-log.ps1'
+if (Test-Path -LiteralPath $amLogPath) {
+    try { . $amLogPath } catch { Write-Warning "archi-magic log helper not loaded: $($_.Exception.Message)" }
+}
+if (-not (Get-Command Write-AmLog -ErrorAction SilentlyContinue)) { function Write-AmLog { } }
 $installed = @(Get-ChildItem 'C:\Program Files\Autodesk\Revit 20*\RevitAPI.xml' -ErrorAction SilentlyContinue |
     ForEach-Object { [int]($_.Directory.Name -replace '\D', '') } | Sort-Object -Descending)
 if ($installed.Count -eq 0) {
     Write-Host 'No RevitAPI.xml found under C:\Program Files\Autodesk\Revit 20*. Revit is not installed here.'
     Write-Host 'Fall back to the online docs: https://www.revitapidocs.com/<year>/'
+    Write-AmLog -Skill 'am-revit-api-docs' -Step 'find-docs' -Level 'warn' -Message 'No RevitAPI.xml found under Program Files.' -ExitCode 2
     exit 2
 }
 if ($Year -eq 0) { $Year = $installed[0] }
 if ($installed -notcontains $Year) {
     Write-Host "Revit $Year is not installed. Installed: $($installed -join ', '). Use -Year with one of those, or https://www.revitapidocs.com/$Year/"
+    Write-AmLog -Skill 'am-revit-api-docs' -Step 'find-docs' -Level 'warn' -Message "Requested Revit $Year is not installed." -ExitCode 2 -Data @{ year = $Year; installed = ($installed -join ',') }
     exit 2
 }
 
@@ -83,6 +91,7 @@ $hits = @(Find-Matches $members)
 if ($hits.Count -eq 0) {
     Write-Host "No member matching '$Query' in Revit $Year RevitAPI.xml + RevitAPIUI.xml ($($members.Count) members searched)."
     Write-Host "Not found here does not mean it does not exist: try a shorter query, -AllYears, or https://www.revitapidocs.com/$Year/"
+    Write-AmLog -Skill 'am-revit-api-docs' -Step 'search' -Level 'info' -Message 'No member matched the query.' -ExitCode 1 -Data @{ year = $Year; kind = $Kind; tokens = $tokens.Count }
     exit 1
 }
 

@@ -52,10 +52,24 @@ $MachineAddins = 'C:\ProgramData\Autodesk\Revit\Addins'
 $UserAddins    = Join-Path $env:APPDATA 'Autodesk\Revit\Addins'
 $script:Problems = New-Object System.Collections.Generic.List[string]
 
+# Shared archi-magic log (scripts\lib\am-log.ps1 at the plugin root). Optional: the standalone kit
+# has no plugin root, so a missing helper means "no shared log", never a behavior change.
+$script:AmStep = 'start'
+$amLogPath = Join-Path $PSScriptRoot '..\..\..\scripts\lib\am-log.ps1'
+if (Test-Path -LiteralPath $amLogPath) {
+    try { . $amLogPath } catch { Write-Warning "archi-magic log helper not loaded: $($_.Exception.Message)" }
+} else { Write-Verbose "archi-magic log helper not found at $amLogPath; shared log is off." }
+if (-not (Get-Command Write-AmLog -ErrorAction SilentlyContinue)) { function Write-AmLog { } }
+function AmLog($level, $msg, $code) {
+    if ($null -ne $code) { Write-AmLog -Skill 'am-pyrevit7-setup' -Step $script:AmStep -Level $level -Message $msg -ExitCode $code }
+    else { Write-AmLog -Skill 'am-pyrevit7-setup' -Step $script:AmStep -Level $level -Message $msg }
+}
+
 function Say($msg)  { Write-Host "[pyrevit7] $msg" }
-function Warn($msg) { Write-Host "[pyrevit7] WARNING: $msg" -ForegroundColor Yellow; $script:Problems.Add($msg) }
+function Warn($msg) { Write-Host "[pyrevit7] WARNING: $msg" -ForegroundColor Yellow; $script:Problems.Add($msg); AmLog 'warn' $msg $null }
 function Fail($code, $msg) {
     Write-Host "[pyrevit7] FAILED: $msg" -ForegroundColor Red
+    AmLog 'error' $msg $code
     Say "Log: $LogFile"
     Stop-Transcript | Out-Null
     exit $code
@@ -86,9 +100,11 @@ function Find-ClaudeCli {
 }
 
 Say "Log file: $LogFile"
+AmLog 'info' ("Setup started. Install={0} Repoint={1} EnableAgent={2} Verify={3} Force={4}" -f [bool]$Install, [bool]$Repoint, [bool]$EnableAgent, [bool]$Verify, [bool]$Force) $null
 
 # ---------------------------------------------------------------- Install
 if ($Install) {
+    $script:AmStep = 'install'; AmLog 'info' 'Install step started.' $null
     Say '== Install =='
     $ver = Get-Py7Version
     if ($ver -and $ver.Major -ge 7 -and -not $Force) {
@@ -134,10 +150,12 @@ if ($Install) {
         if (-not $ver -or $ver.Major -lt 7) { Fail 3 "After install, $Py7 does not report version 7+." }
         Say "Installed pyRevit $ver"
     }
+    AmLog 'info' 'Install step finished.' $null
 }
 
 # ---------------------------------------------------------------- Repoint
 if ($Repoint) {
+    $script:AmStep = 'repoint'; AmLog 'info' 'Repoint step started.' $null
     Say '== Repoint Revit to pyRevit 7 =='
     if (-not (Test-Path $Py7)) { Fail 4 "pyRevit 7 not found at $Py7. Run with -Install first." }
     if (Test-RevitRunning) { Say 'Revit is running: changes apply the next time Revit starts.' }
@@ -170,10 +188,12 @@ if ($Repoint) {
         }
         if (Test-Path $BackupDir) { Say "Previous per-user manifests backed up to $BackupDir" }
     }
+    AmLog 'info' 'Repoint step finished.' $null
 }
 
 # ---------------------------------------------------------------- EnableAgent
 if ($EnableAgent) {
+    $script:AmStep = 'enable-agent'; AmLog 'info' 'EnableAgent step started.' $null
     Say '== Agent Runtime + Claude Code MCP =='
     if (-not (Test-Path $Py7)) { Fail 5 "pyRevit 7 not found at $Py7. Run with -Install first." }
 
@@ -210,10 +230,12 @@ if ($EnableAgent) {
         }
     }
     if (Test-RevitRunning) { Say 'Revit is running: restart Revit (or pyRevit > Reload) so it picks up the agent setting.' }
+    AmLog 'info' 'EnableAgent step finished.' $null
 }
 
 # ---------------------------------------------------------------- Verify
 if ($Verify) {
+    $script:AmStep = 'verify'; AmLog 'info' 'Verify step started.' $null
     Say '== Verify =='
     $ver = Get-Py7Version
     if ($ver -and $ver.Major -ge 7) { Say "pyRevit (per-user): $ver" } else { Warn "pyRevit 7 not installed at $Py7" }
@@ -248,9 +270,12 @@ if ($Verify) {
         if ($reg -match [regex]::Escape($Py7)) { Say 'Claude Code MCP: pyrevit registered with the pyRevit 7 path.' }
         else { Warn 'Claude Code MCP: pyrevit is not registered with the pyRevit 7 path. Run -EnableAgent.' }
     } else { Warn 'Claude Code CLI not found; cannot check the MCP registration.' }
+    AmLog 'info' 'Verify step finished.' $null
 }
 
 Say "Log: $LogFile"
+$script:AmStep = 'end'
+if ($script:Problems.Count -gt 0) { AmLog 'warn' "Setup finished with $($script:Problems.Count) problem(s)." 6 } else { AmLog 'info' 'Setup finished. No problems found.' 0 }
 Stop-Transcript | Out-Null
 if ($script:Problems.Count -gt 0) {
     Write-Host ''

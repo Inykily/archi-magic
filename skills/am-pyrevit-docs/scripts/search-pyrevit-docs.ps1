@@ -24,6 +24,13 @@ $Base = 'https://docs.pyrevitlabs.io/'
 $CacheDir = Join-Path $env:LOCALAPPDATA 'archi-magic\cache'
 New-Item -ItemType Directory -Force $CacheDir | Out-Null
 
+# Shared archi-magic log (optional; missing helper = no log, same behavior).
+$amLogPath = Join-Path $PSScriptRoot '..\..\..\scripts\lib\am-log.ps1'
+if (Test-Path -LiteralPath $amLogPath) {
+    try { . $amLogPath } catch { Write-Warning "archi-magic log helper not loaded: $($_.Exception.Message)" }
+}
+if (-not (Get-Command Write-AmLog -ErrorAction SilentlyContinue)) { function Write-AmLog { } }
+
 function Get-Cached([string]$url, [string]$file) {
     $path = Join-Path $CacheDir $file
     $fresh = (Test-Path $path) -and ((Get-Date) - (Get-Item $path).LastWriteTime).TotalDays -lt 7
@@ -34,8 +41,10 @@ function Get-Cached([string]$url, [string]$file) {
         } catch {
             if (Test-Path $path) {
                 Write-Host "WARNING: could not refresh $url ($($_.Exception.Message)). Using cached copy from $((Get-Item $path).LastWriteTime)."
+                Write-AmLog -Skill 'am-pyrevit-docs' -Step 'cache-refresh' -Level 'warn' -Message "Docs refresh failed; cached copy in use: $url ($($_.Exception.Message))" -Data @{ file = $file }
             } else {
                 Write-Host "Docs index unavailable: $url ($($_.Exception.Message)) and no cached copy."
+                Write-AmLog -Skill 'am-pyrevit-docs' -Step 'cache-refresh' -Level 'error' -Message "Docs refresh failed and no cached copy: $url ($($_.Exception.Message))" -ExitCode 2 -Data @{ file = $file }
                 exit 2
             }
         }
@@ -47,7 +56,7 @@ if ($Index) {
     Get-Content (Get-Cached ($Base + 'llms.txt') 'pyrevit-llms.txt')
     exit 0
 }
-if (-not $Query) { Write-Host 'Give -Query "words" or -Index.'; exit 1 }
+if (-not $Query) { Write-Host 'Give -Query "words" or -Index.'; Write-AmLog -Skill 'am-pyrevit-docs' -Step 'args' -Level 'info' -Message 'No -Query and no -Index given.' -ExitCode 1; exit 1 }
 
 $si = [IO.File]::ReadAllText((Get-Cached ($Base + 'search/search_index.json') 'pyrevit-search_index.json')) | ConvertFrom-Json
 $tokens = @($Query.ToLowerInvariant() -split '\s+' | Where-Object { $_ })
@@ -68,6 +77,7 @@ $hits = @($hits | Sort-Object Score -Descending)
 if ($hits.Count -eq 0) {
     Write-Host "No pyRevit docs section contains all of: $($tokens -join ', '). ($($si.docs.Count) sections searched.)"
     Write-Host 'Try fewer or different words, -Index to browse pages, or search the source: %APPDATA%\pyRevit-Master\pyrevitlib'
+    Write-AmLog -Skill 'am-pyrevit-docs' -Step 'search' -Level 'info' -Message 'No docs section matched the query.' -ExitCode 1 -Data @{ tokens = $tokens.Count }
     exit 1
 }
 
