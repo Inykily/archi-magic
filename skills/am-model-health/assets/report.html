@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Health Report</title>
+<!-- archi-magic am-model-health dashboard template.
+     scripts/render-report.ps1 replaces the REPORT_DATA token below with the run JSON and history.
+     No script libraries: charts are inline SVG, so the page works offline. Fonts fall back to local fonts. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo+Narrow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --paper: #f3f0e8;
+  --sheet: #fbfaf6;
+  --ink: #1d1c1a;
+  --ink-2: #57544d;
+  --ink-3: #8c887e;
+  --rule: #d8d3c6;
+  --grid: rgba(29, 28, 26, 0.045);
+  --accent: #c8401f;
+  --ok: #2f6f4f;
+  --warn: #b7791f;
+  --bad: #c8401f;
+  --info: #4a5a78;
+  --chip-ok: #dcebe2;
+  --chip-warn: #f5e6c8;
+  --chip-bad: #f6d9cf;
+  --chip-info: #dfe3ec;
+  --bar: #1d1c1a;
+  --focus: #c8401f;
+  --shadow: 0 1px 0 rgba(29, 28, 26, 0.06), 0 8px 24px -16px rgba(29, 28, 26, 0.25);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12161b;
+    --sheet: #181d23;
+    --ink: #e9e5da;
+    --ink-2: #b4afa3;
+    --ink-3: #7f7b72;
+    --rule: #2c333c;
+    --grid: rgba(233, 229, 218, 0.04);
+    --accent: #ff7a52;
+    --ok: #6fc49a;
+    --warn: #e7b357;
+    --bad: #ff7a52;
+    --info: #9fb2d6;
+    --chip-ok: #1d3a2d;
+    --chip-warn: #3d3018;
+    --chip-bad: #45231a;
+    --chip-info: #232c3d;
+    --bar: #e9e5da;
+    --focus: #ff7a52;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12161b;
+  --sheet: #181d23;
+  --ink: #e9e5da;
+  --ink-2: #b4afa3;
+  --ink-3: #7f7b72;
+  --rule: #2c333c;
+  --grid: rgba(233, 229, 218, 0.04);
+  --accent: #ff7a52;
+  --ok: #6fc49a;
+  --warn: #e7b357;
+  --bad: #ff7a52;
+  --info: #9fb2d6;
+  --chip-ok: #1d3a2d;
+  --chip-warn: #3d3018;
+  --chip-bad: #45231a;
+  --chip-info: #232c3d;
+  --bar: #e9e5da;
+  --focus: #ff7a52;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: "Archivo Narrow", "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.mono { font-family: "JetBrains Mono", Consolas, monospace; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+
+/* Title block, like the corner of a drawing sheet */
+.titleblock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5px; /* the gap shows the ink background as the divider line */
+  background: var(--ink);
+  border: 1.5px solid var(--ink);
+  box-shadow: var(--shadow);
+  animation: rise .5s ease both;
+}
+.tb-main { padding: 22px 24px 18px; background: var(--sheet); }
+.tb-kicker { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+.tb-title { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: clamp(30px, 5vw, 48px); line-height: 1.02; margin: 6px 0 12px; overflow-wrap: anywhere; }
+.tb-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); font-size: 13px; }
+.tb-meta b { color: var(--ink); font-weight: 600; }
+.tb-score { background: var(--sheet); padding: 18px 26px; min-width: 210px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+.tb-score .num { font-family: "Instrument Serif", Georgia, serif; font-size: 76px; line-height: .9; }
+.tb-score .num small { font-size: 24px; color: var(--ink-3); }
+.tb-score .lbl { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
+.tb-tally { display: flex; gap: 10px; margin-top: 10px; }
+.toolbar { display: flex; justify-content: flex-end; gap: 8px; margin: 14px 0 0; }
+button, .btn {
+  font: inherit; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink);
+  padding: 7px 12px; cursor: pointer; border-radius: 0;
+}
+button:hover { background: var(--ink); color: var(--sheet); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { filter: brightness(.92); background: var(--accent); color: #fff; }
+
+h2 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 30px; margin: 44px 0 4px; display: flex; align-items: baseline; gap: 12px; }
+h2 .idx { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--accent); letter-spacing: .1em; }
+.sub { color: var(--ink-2); margin: 0 0 16px; font-size: 14px; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { background: var(--chip-ok); color: var(--ok); }
+.chip.warn { background: var(--chip-warn); color: var(--warn); }
+.chip.bad { background: var(--chip-bad); color: var(--bad); }
+.chip.info { background: var(--chip-info); color: var(--info); }
+
+/* Metric cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.card {
+  background: var(--sheet); border: 1px solid var(--rule); padding: 14px 16px 12px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px; text-align: left; color: var(--ink);
+  font-weight: 400; letter-spacing: 0; transition: transform .15s ease, border-color .15s ease;
+  animation: rise .5s ease both;
+}
+.card:hover { transform: translateY(-2px); border-color: var(--ink); background: var(--sheet); color: var(--ink); }
+.card.active { border: 1.5px solid var(--accent); }
+.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card .score { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--ink-3); }
+.card .label { font-size: 15px; font-weight: 600; line-height: 1.25; }
+.card .value { font-family: "Instrument Serif", Georgia, serif; font-size: 42px; line-height: 1; }
+.card .value small { font-family: "Archivo Narrow", sans-serif; font-size: 14px; color: var(--ink-3); margin-left: 4px; }
+.card .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
+.card .thr { font-size: 12px; color: var(--ink-3); }
+.card .hint { font-size: 13px; color: var(--ink-2); }
+.spark { width: 96px; height: 30px; }
+
+/* Charts */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.panel { background: var(--sheet); border: 1px solid var(--rule); padding: 16px; min-width: 0; }
+.panel h3 { margin: 0 0 12px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); font-weight: 700; }
+.bars { display: flex; flex-direction: column; gap: 7px; }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 10px; align-items: center; cursor: pointer; }
+.bar .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .track { grid-column: 1 / 2; height: 8px; background: var(--grid); position: relative; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar); transform-origin: left; animation: grow .7s cubic-bezier(.2, .7, .2, 1) both; }
+.bar .fill.bad { background: var(--bad); }
+.bar .fill.warn { background: var(--warn); }
+.bar .n { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+.bar:hover .name { color: var(--accent); }
+.empty { color: var(--ink-3); font-size: 13px; font-style: italic; }
+
+/* Trend */
+.trend-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.trend-svg { width: 100%; height: 220px; display: block; }
+select { font: inherit; font-size: 13px; color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink); padding: 6px 8px; border-radius: 0; max-width: 100%; }
+
+/* Table */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.filters input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink); padding: 7px 10px; border-radius: 0; }
+.pill { font-size: 12px; padding: 5px 10px; border: 1px solid var(--rule); background: var(--sheet); font-weight: 600; }
+.pill.on { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+.tablewrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--rule); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; position: sticky; top: 0; background: var(--sheet); }
+td.ids { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--ink-2); min-width: 200px; max-width: 360px; overflow-wrap: break-word; }
+td.num { font-family: "JetBrains Mono", Consolas, monospace; text-align: right; }
+tr:hover td { background: var(--grid); }
+.copybar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
+.note { font-size: 13px; color: var(--ink-2); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--sheet); padding: 10px 16px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; }
+footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+@media (max-width: 640px) {
+  .titleblock { grid-template-columns: 1fr; }
+  .tb-score { min-width: 0; }
+  .tb-score .num { font-size: 60px; }
+  h2 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="titleblock">
+    <div class="tb-main">
+      <div class="tb-kicker">archi-magic &middot; Model health report</div>
+      <h1 class="tb-title" id="model">Model</h1>
+      <div class="tb-meta">
+        <span>Revit <b id="year">-</b></span>
+        <span>Run <b id="when" class="mono">-</b></span>
+        <span>Snapshots <b id="runs" class="mono">-</b></span>
+        <span id="pathwrap">File <b id="path" class="mono">-</b></span>
+      </div>
+    </div>
+    <div class="tb-score">
+      <div class="num"><span id="score">-</span><small>/100</small></div>
+      <div class="lbl">Health score</div>
+      <div class="tb-tally" id="tally"></div>
+    </div>
+  </header>
+  <div class="toolbar">
+    <button type="button" id="theme">Dark / light</button>
+  </div>
+
+  <h2><span class="idx">01</span>Checks</h2>
+  <p class="sub">Each check gets a score: OK is 100, WARN is 60, BAD is 20. Information checks have no score. Click a check to filter the table.</p>
+  <div class="cards" id="cards"></div>
+
+  <h2><span class="idx">02</span>Breakdown</h2>
+  <p class="sub">Click a bar to filter the table to that row.</p>
+  <div class="charts" id="charts"></div>
+
+  <h2><span class="idx">03</span>Trend</h2>
+  <p class="sub">Each point is one saved snapshot of this model.</p>
+  <div class="panel">
+    <div class="trend-head">
+      <h3 style="margin:0">Across runs</h3>
+      <select id="trendpick" aria-label="Trend series"></select>
+    </div>
+    <svg class="trend-svg" id="trend" role="img" aria-label="Trend chart"></svg>
+  </div>
+
+  <h2><span class="idx">04</span>Elements</h2>
+  <p class="sub">This page cannot talk to Revit. Copy the element IDs and paste them to Claude. Claude then selects them in Revit for you.</p>
+  <div class="filters">
+    <input id="q" type="search" placeholder="Filter by text, for example a warning or family name" aria-label="Filter rows">
+    <div id="pills" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Check</th><th>Item</th><th style="text-align:right">Count</th><th>Element IDs</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="copybar">
+    <span class="note" id="rowcount"></span>
+    <button type="button" class="primary" id="copyall">Copy element IDs (shown rows)</button>
+  </div>
+
+  <footer>
+    <span>Generated by archi-magic am-model-health. Read-only: nothing in the model changed.</span>
+    <span class="mono" id="gen"></span>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+var DATA = /*__REPORT_DATA__*/null;
+</script>
+<script>
+(function () {
+  "use strict";
+  var SCORE = { ok: 100, warn: 60, bad: 20 };
+  var CHARTS = [
+    { title: "Warnings by type", metric: "warnings" },
+    { title: "In-place families", metric: "in_place_families" },
+    { title: "Revit links", ids: ["links_total", "links_unloaded", "links_unpinned", "links_not_shared", "links_far"] },
+    { title: "Rooms", ids: ["rooms_unplaced", "rooms_not_enclosed", "rooms_redundant"] }
+  ];
+  var state = { metric: null, label: null, q: "" };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function fmt(v) { return (typeof v === "number" && Math.round(v) !== v) ? v.toFixed(1) : String(v); }
+  function toast(msg) { var t = $("toast"); t.textContent = msg; t.className = "toast show"; clearTimeout(toast.h); toast.h = setTimeout(function () { t.className = "toast"; }, 2600); }
+  function scoreOf(metrics) {
+    var s = 0, n = 0;
+    metrics.forEach(function (m) { if (SCORE[m.status] != null) { s += SCORE[m.status]; n++; } });
+    return n ? Math.round(s / n) : null;
+  }
+
+  // Theme toggle (remembered per viewer; storage can fail, so wrap it).
+  try { var saved = localStorage.getItem("am-health-theme"); if (saved) document.documentElement.setAttribute("data-theme", saved); } catch (e) {}
+  $("theme").addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("am-health-theme", next); } catch (e) {}
+  });
+
+  if (!DATA || !DATA.current || !DATA.current.metrics) {
+    $("model").textContent = "No report data";
+    $("cards").innerHTML = '<p class="empty">Run scripts/render-report.ps1 to fill this page.</p>';
+    return;
+  }
+  var cur = DATA.current;
+  var metrics = cur.metrics;
+  var byId = {};
+  metrics.forEach(function (m) { byId[m.id] = m; });
+
+  // History: sort by timestamp, drop duplicates of the same timestamp, include current.
+  var seen = {}, hist = [];
+  (DATA.history || []).concat([cur]).forEach(function (h) {
+    if (!h || !h.timestamp || !h.metrics || seen[h.timestamp]) return;
+    seen[h.timestamp] = 1; hist.push(h);
+  });
+  hist.sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : 1; });
+
+  // Title block
+  $("model").textContent = cur.model || "Model";
+  $("year").textContent = cur.revit_year || "-";
+  $("when").textContent = (cur.timestamp || "").replace("T", " ");
+  $("runs").textContent = String(hist.length);
+  if (cur.path) $("path").textContent = cur.path; else $("pathwrap").style.display = "none";
+  var sc = scoreOf(metrics);
+  $("score").textContent = sc == null ? "-" : sc;
+  var tally = { bad: 0, warn: 0, ok: 0 };
+  metrics.forEach(function (m) { if (tally[m.status] != null) tally[m.status]++; });
+  $("tally").innerHTML = ["bad", "warn", "ok"].map(function (k) { return '<span class="chip ' + k + '">' + tally[k] + " " + k + "</span>"; }).join("");
+  $("gen").textContent = "Rendered " + (DATA.rendered || "");
+
+  // Sparkline for one metric across history
+  function spark(id) {
+    var pts = hist.map(function (h) { var m = (h.metrics || []).filter(function (x) { return x.id === id; })[0]; return m ? Number(m.value) : null; }).filter(function (v) { return v != null && !isNaN(v); });
+    if (pts.length < 2) return "";
+    var w = 96, hgt = 30, mx = Math.max.apply(null, pts), mn = Math.min.apply(null, pts), rng = (mx - mn) || 1;
+    var d = pts.map(function (v, i) { return (i ? "L" : "M") + (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + " " + (hgt - 3 - (v - mn) / rng * (hgt - 6)).toFixed(1); }).join(" ");
+    var last = pts[pts.length - 1], prev = pts[pts.length - 2];
+    var col = last > prev ? "var(--bad)" : last < prev ? "var(--ok)" : "var(--ink-3)";
+    return '<svg class="spark" viewBox="0 0 ' + w + " " + hgt + '" aria-hidden="true"><path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6"/></svg>';
+  }
+
+  // Cards: bad first, then warn, ok, info
+  var order = { bad: 0, warn: 1, ok: 2, info: 3 };
+  var sorted = metrics.slice().sort(function (a, b) { return (order[a.status] - order[b.status]) || (Number(b.value) - Number(a.value)); });
+  $("cards").innerHTML = sorted.map(function (m, i) {
+    var t = m.threshold || {};
+    var thr = (t.warn == null && t.bad == null) ? "Information only" : "WARN above " + fmt(t.warn) + (t.bad != null ? " &middot; BAD above " + fmt(t.bad) : "");
+    var s = SCORE[m.status];
+    return '<button type="button" class="card" data-metric="' + esc(m.id) + '" style="animation-delay:' + (i * 35) + 'ms">' +
+      '<div class="top"><span class="chip ' + esc(m.status) + '">' + esc(m.status) + '</span><span class="score">' + (s == null ? "" : s + "/100") + "</span></div>" +
+      '<div class="label">' + esc(m.label) + "</div>" +
+      '<div class="row"><div class="value">' + esc(fmt(m.value)) + (m.unit ? "<small>" + esc(m.unit) + "</small>" : "") + "</div>" + spark(m.id) + "</div>" +
+      '<div class="thr">' + thr + "</div>" +
+      '<div class="hint">' + esc(m.hint) + "</div></button>";
+  }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll(".card"), function (c) {
+    c.addEventListener("click", function () { setMetric(state.metric === c.getAttribute("data-metric") ? null : c.getAttribute("data-metric")); });
+  });
+
+  // Charts
+  function barsHtml(items, metricId) {
+    if (!items.length) return '<p class="empty">Nothing to show. Good.</p>';
+    var mx = Math.max.apply(null, items.map(function (x) { return x.count; })) || 1;
+    return '<div class="bars">' + items.map(function (x, i) {
+      return '<div class="bar" role="button" tabindex="0" data-metric="' + esc(x.metric || metricId) + '" data-label="' + esc(x.rowLabel || "") + '" title="' + esc(x.label) + '">' +
+        '<span class="name">' + esc(x.label) + '</span><span class="n">' + esc(fmt(x.count)) + "</span>" +
+        '<span class="track"><span class="fill ' + esc(x.status || "") + '" style="width:' + (x.count / mx * 100).toFixed(1) + "%;animation-delay:" + (i * 40) + 'ms"></span></span></div>';
+    }).join("") + "</div>";
+  }
+  $("charts").innerHTML = CHARTS.map(function (c) {
+    var items;
+    if (c.metric) {
+      var m = byId[c.metric];
+      items = m ? (m.details || []).slice(0, 15).map(function (d) { return { label: d.label, count: d.count, rowLabel: d.label }; }) : [];
+    } else {
+      items = c.ids.filter(function (id) { return byId[id]; }).map(function (id) { var m = byId[id]; return { label: m.label, count: Number(m.value) || 0, metric: id, status: m.status === "info" ? "" : m.status }; });
+    }
+    return '<div class="panel"><h3>' + esc(c.title) + "</h3>" + barsHtml(items, c.metric) + "</div>";
+  }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll(".bar"), function (b) {
+    function go() { state.label = b.getAttribute("data-label") || null; setMetric(b.getAttribute("data-metric"), true); $("rows").scrollIntoView({ behavior: "smooth", block: "start" }); }
+    b.addEventListener("click", go);
+    b.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+
+  // Trend
+  var pick = $("trendpick");
+  pick.innerHTML = '<option value="__score">Health score</option>' + metrics.map(function (m) { return '<option value="' + esc(m.id) + '">' + esc(m.label) + "</option>"; }).join("");
+  function drawTrend() {
+    var key = pick.value, svg = $("trend");
+    var pts = hist.map(function (h) {
+      var v = key === "__score" ? scoreOf(h.metrics) : (function () { var m = h.metrics.filter(function (x) { return x.id === key; })[0]; return m ? Number(m.value) : null; })();
+      return { t: h.timestamp, v: v };
+    }).filter(function (p) { return p.v != null && !isNaN(p.v); });
+    var W = Math.max(320, svg.clientWidth || 600), H = 220, L = 44, R = 14, T = 14, B = 34;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    if (!pts.length) { svg.innerHTML = '<text x="' + L + '" y="' + H / 2 + '" fill="var(--ink-3)" font-size="13">No history yet. Save more snapshots to see a trend.</text>'; return; }
+    var vals = pts.map(function (p) { return p.v; });
+    var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
+    if (key === "__score") { mn = 0; mx = 100; } else { mn = Math.min(0, mn); if (mx === mn) mx = mn + 1; }
+    function x(i) { return pts.length === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (pts.length - 1); }
+    function y(v) { return T + (1 - (v - mn) / (mx - mn)) * (H - T - B); }
+    var g = "";
+    [0, 0.5, 1].forEach(function (f) { var v = mn + f * (mx - mn); g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--rule)"/><text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace">' + fmt(Math.round(v * 10) / 10) + "</text>"; });
+    var d = pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1); }).join(" ");
+    g += '<path d="' + d + '" fill="none" stroke="var(--accent)" stroke-width="2"/>';
+    var step = Math.ceil(pts.length / 6);
+    pts.forEach(function (p, i) {
+      g += '<circle cx="' + x(i) + '" cy="' + y(p.v) + '" r="4" fill="var(--sheet)" stroke="var(--accent)" stroke-width="2"><title>' + esc(p.t.replace("T", " ") + ": " + fmt(p.v)) + "</title></circle>";
+      if (i % step === 0 || i === pts.length - 1) g += '<text x="' + x(i) + '" y="' + (H - 10) + '" text-anchor="middle" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace">' + esc(p.t.slice(0, 10)) + "</text>";
+    });
+    svg.innerHTML = g;
+  }
+  pick.addEventListener("change", drawTrend);
+  window.addEventListener("resize", function () { clearTimeout(drawTrend.h); drawTrend.h = setTimeout(drawTrend, 120); });
+
+  // Table
+  var allRows = [];
+  metrics.forEach(function (m) {
+    (m.details || []).forEach(function (d) { allRows.push({ metric: m.id, mlabel: m.label, status: m.status, label: d.label, count: d.count, ids: d.ids || [] }); });
+  });
+  var withRows = metrics.filter(function (m) { return (m.details || []).length; });
+  $("pills").innerHTML = '<button type="button" class="pill" data-metric="">All</button>' + withRows.map(function (m) { return '<button type="button" class="pill" data-metric="' + esc(m.id) + '">' + esc(m.label) + "</button>"; }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll(".pill"), function (p) {
+    p.addEventListener("click", function () { setMetric(p.getAttribute("data-metric") || null); });
+  });
+  $("q").addEventListener("input", function () { state.q = this.value.toLowerCase(); state.label = null; renderRows(); });
+
+  function shown() {
+    return allRows.filter(function (r) {
+      if (state.metric && r.metric !== state.metric) return false;
+      if (state.label && r.label !== state.label) return false;
+      if (state.q && (r.mlabel + " " + r.label + " " + r.ids.join(" ")).toLowerCase().indexOf(state.q) < 0) return false;
+      return true;
+    });
+  }
+  function renderRows() {
+    var rows = shown();
+    $("rows").innerHTML = rows.length ? rows.map(function (r, i) {
+      var ids = r.ids.slice(0, 40).join(", ") + (r.ids.length > 40 ? " ... (+" + (r.ids.length - 40) + ")" : "");
+      return "<tr><td><span class=\"chip " + esc(r.status) + "\">" + esc(r.status) + "</span> " + esc(r.mlabel) + "</td><td>" + esc(r.label) + '</td><td class="num">' + esc(r.count) + '</td><td class="ids">' + esc(ids || "-") + "</td><td>" +
+        (r.ids.length ? '<button type="button" data-row="' + i + '">Copy</button>' : "") + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty">No rows match.</td></tr>';
+    Array.prototype.forEach.call($("rows").querySelectorAll("button[data-row]"), function (b) {
+      b.addEventListener("click", function () { copyIds(rows[Number(b.getAttribute("data-row"))].ids); });
+    });
+    var n = 0; rows.forEach(function (r) { n += r.ids.length; });
+    $("rowcount").textContent = rows.length + " rows, " + n + " element IDs shown.";
+    Array.prototype.forEach.call(document.querySelectorAll(".card"), function (c) { c.classList.toggle("active", c.getAttribute("data-metric") === state.metric); });
+    Array.prototype.forEach.call(document.querySelectorAll(".pill"), function (p) { p.classList.toggle("on", (p.getAttribute("data-metric") || null) === state.metric); });
+  }
+  function setMetric(id, keepLabel) { state.metric = id; if (!keepLabel) state.label = null; renderRows(); }
+
+  function copyIds(ids) {
+    var uniq = [], s = {};
+    ids.forEach(function (i) { if (!s[i]) { s[i] = 1; uniq.push(i); } });
+    if (!uniq.length) { toast("No element IDs in the shown rows."); return; }
+    var text = "Select these elements in Revit: " + uniq.join(", ");
+    function done() { toast("Copied " + uniq.length + " element IDs. Paste them to Claude."); }
+    function fallback() {
+      var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) { toast("Copy failed. Select the IDs in the table by hand."); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  $("copyall").addEventListener("click", function () { var ids = []; shown().forEach(function (r) { ids = ids.concat(r.ids); }); copyIds(ids); });
+
+  renderRows();
+  drawTrend();
+})();
+</script>
+</body>
+</html>
