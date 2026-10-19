@@ -16,6 +16,7 @@ Revit API members used were checked for 2024, 2025 and 2026 with the
 am-revit-api-docs search script. ElementId.IntegerValue is gone in 2026,
 so the id comes from ElementId.Value (present in 2024+).
 """
+import codecs
 import json
 import os
 
@@ -29,6 +30,8 @@ from Autodesk.Revit.DB import (
     Solid,
     SpecTypeId,
     StorageType,
+    ViewDetailLevel,
+    ViewType,
 )
 
 # ---- settings -------------------------------------------------------------
@@ -38,6 +41,11 @@ CATEGORIES = []
 MAX_ELEMENTS = 5000
 MAX_TRIANGLES = 1500000
 MAX_PARAMS = 40
+# "auto": the active view when it is a 3D view, else the whole model.
+# "view": always the active view. "model": always the whole model.
+SOURCE = "auto"
+# Leave LEVEL empty for all levels, or give a level name, for example "Level 1".
+LEVEL = ""
 OUT_PATH = None  # None: %TEMP%\am-bim-viewer\<model title>.json
 # ---------------------------------------------------------------------------
 
@@ -174,13 +182,20 @@ def export():
     doc = uidoc.Document
     view = uidoc.ActiveView
 
+    use_view = SOURCE == "view" or (
+        SOURCE == "auto" and view is not None and view.ViewType == ViewType.ThreeD and not view.IsTemplate)
     options = Options()
     options.ComputeReferences = False
     options.IncludeNonVisibleObjects = False
-    if view is not None and not view.IsTemplate:
+    if use_view:
         options.View = view  # also sets the detail level from the view
-
-    collector = FilteredElementCollector(doc, view.Id).WhereElementIsNotElementType()
+        collector = FilteredElementCollector(doc, view.Id)
+        source_name = view.Name
+    else:
+        options.DetailLevel = ViewDetailLevel.Medium
+        collector = FilteredElementCollector(doc)
+        source_name = "Whole model"
+    collector = collector.WhereElementIsNotElementType()
     wanted = set(CATEGORIES)
     elements = []
     skipped = {"no_category": 0, "not_model": 0, "filtered": 0, "no_geometry": 0,
@@ -196,6 +211,9 @@ def export():
             skipped["not_model"] += 1
             continue
         if wanted and category.Name not in wanted:
+            skipped["filtered"] += 1
+            continue
+        if LEVEL and level_name(doc, element) != LEVEL:
             skipped["filtered"] += 1
             continue
         if len(elements) >= MAX_ELEMENTS:
@@ -232,7 +250,7 @@ def export():
     data = {
         "schema": "am-bim-viewer/1",
         "units": "ft",
-        "source": {"title": doc.Title, "view": view.Name, "generator": "export_bim_json.py"},
+        "source": {"title": doc.Title, "view": source_name, "generator": "export_bim_json.py"},
         "elements": elements,
         "annotations": [{"text": "Internal origin", "position": [0, 0, 0]}],
     }
@@ -244,10 +262,13 @@ def export():
             os.makedirs(folder)
         safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in doc.Title)
         path = os.path.join(folder, safe + ".json")
-    with open(path, "w") as handle:
-        json.dump(data, handle, separators=(",", ":"))
+    # ensure_ascii=False: IronPython's ASCII path tries to .decode() .NET
+    # strings and fails on characters such as the degree sign. Write UTF-8.
+    text = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    with codecs.open(path, "w", "utf-8") as handle:
+        handle.write(text)
 
-    print(json.dumps({"path": path, "elements": len(elements), "triangles": triangles, "skipped": skipped}))
+    print(json.dumps({"path": path, "source": source_name, "elements": len(elements), "triangles": triangles, "skipped": skipped}))
 
 
 export()

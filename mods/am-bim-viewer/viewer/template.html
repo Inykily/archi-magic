@@ -4,51 +4,138 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* Drawing-set look: vellum and graphite by day, blueprint by night.
+     One sharp accent (redline orange) marks what you selected. */
   :root {
-    --bg: #f4f3ef; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #dddbd4;
-    --chip: #eceae4; --accent: #1f5fbf; --sel: #ffb000; --view: #e9ecef;
+    --paper: #f1ede3;
+    --sheet: #f8f6f0;
+    --ink: #22221f;
+    --ink-2: #5d5a52;
+    --ink-3: #8c887d;
+    --rule: #d8d2c3;
+    --view: #e9e5da;
+    --chip: #ebe6da;
+    --chip-on: #22221f;
+    --chip-on-ink: #f8f6f0;
+    --accent: #e2541b;
+    --accent-soft: rgba(226, 84, 27, .12);
+    --hover: #3c7dd9;
+    --edge: #3a3833;
+    --shadow: 0 1px 0 rgba(0, 0, 0, .04), 0 8px 24px rgba(40, 32, 16, .08);
+    --ui: 'Archivo', 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #17181a; --panel: #202226; --ink: #ecebe7; --muted: #a09e98; --line: #34363b;
-      --chip: #2b2d32; --accent: #7fb0ff; --sel: #ffb000; --view: #1b1d21; }
+    :root:not([data-theme="light"]) {
+      --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
+      --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
+      --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
+      --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
+    --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
+    --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
+    --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  #app { display: grid; grid-template-columns: 1fr 320px; grid-template-rows: auto 1fr auto; height: 100%; }
-  header { grid-column: 1 / 3; display: flex; gap: 6px; align-items: center; padding: 8px 12px;
-    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  header h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; }
-  header button { font: inherit; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px;
-    background: var(--chip); color: var(--ink); cursor: pointer; }
-  header button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
-  #viewport { position: relative; overflow: hidden; background: var(--view); min-height: 240px; }
-  #viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-  #labels { position: absolute; inset: 0; pointer-events: none; }
-  .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 4px;
-    background: rgba(20, 20, 20, .72); color: #fff; font-size: 11px; white-space: nowrap; }
-  #gizmo { position: absolute; left: 10px; bottom: 10px; width: 96px; height: 96px; pointer-events: none; }
-  #viewname { position: absolute; left: 10px; top: 8px; font-weight: 600; color: var(--muted); pointer-events: none; }
-  aside { background: var(--panel); box-shadow: inset 1px 0 0 var(--line); overflow: auto; padding: 12px; grid-row: 2 / 4; grid-column: 2; }
-  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 6px; }
-  aside h2:first-child { margin-top: 0; }
-  #props table { width: 100%; border-collapse: collapse; }
-  #props td { padding: 3px 4px; vertical-align: top; border-bottom: 1px solid var(--line); word-break: break-word; }
-  #props td:first-child { color: var(--muted); width: 42%; }
-  #props .name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-  #props .empty { color: var(--muted); }
-  #cats label { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
-  #cats .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-  #cats .n { margin-left: auto; color: var(--muted); }
-  footer { grid-column: 1; padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-  kbd { background: var(--chip); border-radius: 4px; padding: 0 4px; font: inherit; }
-  @media (max-width: 720px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: auto 60vh auto auto; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    font: 13px/1.45 var(--ui); font-stretch: 100%; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+
+  /* Title block */
+  header { grid-column: 1 / 3; display: flex; align-items: stretch; gap: 0; background: var(--sheet);
+    box-shadow: inset 0 -1px 0 var(--rule); min-height: 56px; flex-wrap: wrap; }
+  .tb { display: flex; flex-direction: column; justify-content: center; padding: 8px 16px; box-shadow: inset -1px 0 0 var(--rule); }
+  .tb small { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-stretch: 80%; font-weight: 600; }
+  .tb strong { font-size: 15px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
+  .tb.meta strong { font: 500 12px var(--mono); }
+  .tools { display: flex; align-items: center; gap: 10px; padding: 8px 16px; margin-left: auto; flex-wrap: wrap; }
+  .seg { display: inline-flex; background: var(--chip); border-radius: 9px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer;
+    font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--ink-2); transition: background .15s, color .15s; }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+  .act { border: 0; background: var(--chip-on); color: var(--chip-on-ink); padding: 7px 12px; border-radius: 8px;
+    font-weight: 600; font-size: 12px; cursor: pointer; }
+  .act.ghost { background: var(--chip); color: var(--ink); }
+  .act:disabled { opacity: .4; cursor: default; }
+
+  /* Viewport. The grid is a world-space ground plane in the 3D scene. */
+  #viewport { position: relative; overflow: hidden; background: var(--view); min-height: 260px; }
+  #viewport canvas { position: relative; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  #labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  .tag { position: absolute; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 4px;
+    background: var(--ink); color: var(--sheet); font: 500 10.5px var(--mono); white-space: nowrap; letter-spacing: .02em; }
+  #viewname { position: absolute; left: 12px; top: 12px; z-index: 2; pointer-events: none; padding: 3px 9px; border-radius: 6px;
+    background: var(--ink); color: var(--sheet); font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; font-stretch: 85%; }
+  #gizmo { position: absolute; left: 12px; bottom: 12px; width: 92px; height: 92px; pointer-events: none; z-index: 2; }
+
+  /* Property sheet */
+  aside { grid-row: 2 / 4; grid-column: 2; background: var(--sheet); box-shadow: inset 1px 0 0 var(--rule); overflow: auto; }
+  .sec { padding: 14px 16px 16px; box-shadow: inset 0 -1px 0 var(--rule); animation: rise .5s both; }
+  .sec:nth-child(2) { animation-delay: .08s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .h b { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; font-stretch: 80%; color: var(--ink-2); }
+  .h button { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: 11px; padding: 0 0 0 10px; }
+  .h button:hover { color: var(--ink); }
+  .empty { color: var(--ink-3); font-size: 12.5px; padding: 6px 0 2px; }
+  .empty kbd { font-size: 10.5px; }
+  .sel-name { font-size: 17px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; margin: 2px 0 4px; }
+  .sel-cat { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); margin-bottom: 10px; }
+  .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 45%, transparent); }
+  .grp { margin-top: 12px; }
+  .grp > div:first-child { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+    font-stretch: 80%; font-weight: 600; padding-bottom: 4px; box-shadow: inset 0 -1px 0 var(--rule); }
+  dl { margin: 0; display: grid; grid-template-columns: minmax(96px, 42%) 1fr; }
+  dt, dd { margin: 0; padding: 5px 0; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--rule) 55%, transparent); }
+  dt { color: var(--ink-2); font-size: 12px; padding-right: 8px; }
+  dd { font: 12px/1.45 var(--mono); word-break: break-word; }
+  dd .u { color: var(--ink-3); }
+  .idrow { display: flex; align-items: center; gap: 6px; }
+  .copy { border: 0; background: var(--chip); border-radius: 5px; padding: 1px 7px; font: 600 10.5px var(--ui); cursor: pointer; color: var(--ink-2); }
+  .copy:hover { background: var(--accent-soft); color: var(--accent); }
+  .sel-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+  /* Category chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; border: 0; background: var(--chip); color: var(--ink);
+    padding: 5px 10px 5px 8px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 500;
+    transition: background .15s, opacity .15s, transform .1s; }
+  .chip:active { transform: scale(.97); }
+  .chip .n { font: 500 10.5px var(--mono); color: var(--ink-3); }
+  .chip[aria-pressed="false"] { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); color: var(--ink-3); }
+  .chip .tick { width: 10px; font: 700 10px var(--ui); color: var(--ink); }
+  .chip[aria-pressed="false"] .tick { visibility: hidden; }
+  .chip[aria-pressed="false"] .sw { background: transparent !important; }
+  .chip[aria-pressed="false"] .label { text-decoration: line-through; text-decoration-color: var(--ink-3); }
+
+  /* Key-cap hints */
+  footer { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 14px; background: var(--sheet);
+    box-shadow: inset 0 1px 0 var(--rule); color: var(--ink-3); font-size: 11.5px; }
+  footer span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  kbd { font: 500 10px var(--mono); color: var(--ink-2); background: var(--paper); border-radius: 4px; padding: 1px 5px;
+    box-shadow: inset 0 -1px 0 var(--rule), 0 0 0 1px var(--rule); }
+  #toast { position: fixed; left: 50%; bottom: 52px; transform: translate(-50%, 8px); opacity: 0; background: var(--ink); color: var(--sheet);
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 5; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto auto; }
     header { grid-column: 1; }
-    aside { grid-column: 1; grid-row: 3; box-shadow: inset 0 1px 0 var(--line); }
+    .tb.meta { display: none; }
+    .tools { margin-left: 0; }
+    aside { grid-column: 1; grid-row: 3; box-shadow: inset 0 1px 0 var(--rule); }
     footer { grid-row: 4; }
   }
+  @media (prefers-reduced-motion: reduce) { .sec { animation: none; } }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -57,26 +144,37 @@
 <body>
 <div id="app">
   <header>
-    <h1>__TITLE__</h1>
-    <button data-view="top">Top</button>
-    <button data-view="front">Front</button>
-    <button data-view="right">Right</button>
-    <button data-view="perspective">Perspective</button>
-    <button id="fit">Zoom extents</button>
+    <div class="tb"><small>Model</small><strong id="title">__TITLE__</strong></div>
+    <div class="tb meta"><small>Source view</small><strong id="srcview">-</strong></div>
+    <div class="tb meta"><small>Units</small><strong>ft · Z up</strong></div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Named views">
+        <button data-view="top">Top</button>
+        <button data-view="front">Front</button>
+        <button data-view="right">Right</button>
+        <button data-view="perspective">Perspective</button>
+      </div>
+      <button class="act ghost" id="fit" title="Zoom extents">Zoom extents</button>
+    </div>
   </header>
   <div id="viewport">
-    <div id="viewname"></div>
+    <div id="viewname">Perspective</div>
     <div id="labels"></div>
-    <svg id="gizmo" viewBox="-48 -48 96 96" aria-label="Axis gizmo"></svg>
+    <svg id="gizmo" viewBox="-46 -46 92 92" aria-label="Axis gizmo"></svg>
   </div>
   <aside>
-    <h2>Selected</h2>
-    <div id="props"><div class="empty">Click an element to see its data.</div></div>
-    <h2>Categories</h2>
-    <div id="cats"></div>
+    <section class="sec">
+      <div class="h"><b>Selected</b><button id="clear" hidden>Clear</button></div>
+      <div id="props"></div>
+    </section>
+    <section class="sec">
+      <div class="h"><b>Categories</b><span><button id="all">All</button><button id="none">None</button></span></div>
+      <div class="chips" id="cats"></div>
+    </section>
   </aside>
   <footer id="hint"></footer>
 </div>
+<div id="toast" role="status"></div>
 <script type="module">
 import * as THREE from 'three';
 
@@ -84,106 +182,175 @@ import * as THREE from 'three';
 
 const DATA = /*__DATA__*/null;
 
-const PALETTE = { Walls: 0xc9c4b8, Floors: 0x9aa3ad, Doors: 0xb5651d, Columns: 0x5b7f9e,
-  'Structural Columns': 0x5b7f9e, Windows: 0x7fc4d9, Roofs: 0xa0522d, Stairs: 0x8f8f8f, Generic: 0xbfbfbf };
-const EXTRA = [0x8db580, 0xd19a66, 0x9f86c0, 0x6fb7b7, 0xd4a5a5, 0xb8b06a];
-const HOVER = 0x3d8bff, SELECT = 0xffb000;
-
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const vp = document.getElementById('viewport');
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 vp.prepend(renderer.domElement);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--view').trim() || '#e9ecef');
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.1));
-const sun = new THREE.DirectionalLight(0xffffff, 1.3);
-sun.position.set(-0.5, -0.8, 1.6); // from south-west, above (world Z up)
+scene.background = new THREE.Color(css('--view') || '#e9e5da');
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.15));
+const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+sun.position.set(-0.5, -0.8, 1.6); // from the south-west, above (world Z up)
 scene.add(sun);
 
 const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1e5) };
 const state = createViewState();
 let viewName = 'perspective';
+const ACCENT = new THREE.Color(css('--accent') || '#e2541b');
+const HOVER = new THREE.Color(css('--hover') || '#3c7dd9');
+const EDGE = new THREE.Color(css('--edge') || '#3a3833');
 
-// Build one mesh per element. Data stays in Revit coordinates (Z up).
+// One mesh per element. Data stays in Revit coordinates (Z up).
 const elements = DATA.elements;
+const rgb = categoryColors(elements);
 const catColor = {};
-let extra = 0;
+for (const k of Object.keys(rgb)) catColor[k] = new THREE.Color(rgb[k][0] / 255, rgb[k][1] / 255, rgb[k][2] / 255);
 const meshes = [];
 const byCat = {};
 for (const el of elements) {
   const cat = el.category || 'Generic';
-  if (!(cat in catColor)) catColor[cat] = PALETTE[cat] !== undefined ? PALETTE[cat] : EXTRA[extra++ % EXTRA.length];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(el.mesh.vertices, 3));
-  g.setIndex(el.mesh.indices);
-  const flat = g.toNonIndexed();
-  flat.computeVertexNormals();
-  const mat = new THREE.MeshLambertMaterial({ color: catColor[cat], side: THREE.DoubleSide,
-    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
-  const mesh = new THREE.Mesh(flat, mat);
+  const geo = buildElementGeometry(THREE, el);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: catColor[cat].clone(), side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
   mesh.userData.el = el;
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(flat, 25), new THREE.LineBasicMaterial({ color: 0x3a3a3a }));
-  mesh.add(edges);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: .55 }));
+  // Selection outline: the same edges in the accent color, drawn on top of everything.
+  const outline = new THREE.LineSegments(edges.geometry, new THREE.LineBasicMaterial({ color: ACCENT, depthTest: false, transparent: true }));
+  outline.visible = false; outline.renderOrder = 10;
+  mesh.add(edges, outline);
+  mesh.userData.outline = outline;
   scene.add(mesh);
   meshes.push(mesh);
   (byCat[cat] = byCat[cat] || []).push(mesh);
 }
 const bounds = meshBounds(elements);
+setScene(state, bounds);
 
-// Category filter
-const catsEl = document.getElementById('cats');
-for (const cat of Object.keys(byCat).sort()) {
-  const row = document.createElement('label');
-  const box = document.createElement('input');
-  box.type = 'checkbox'; box.checked = true; box.dataset.cat = cat;
-  box.addEventListener('change', () => { for (const m of byCat[cat]) m.visible = box.checked; if (selected && !selected.visible) select(null); requestRender(); });
-  const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = '#' + catColor[cat].toString(16).padStart(6, '0');
-  const name = document.createElement('span'); name.textContent = cat;
-  const n = document.createElement('span'); n.className = 'n'; n.textContent = byCat[cat].length;
-  row.append(box, sw, name, n);
-  catsEl.append(row);
+// Ground grid: in the scene, at the base of the visible model, fading out.
+const grid = createGroundGrid(THREE, bounds, css('--ink') || '#22221f');
+scene.add(grid);
+function updateGrid() {
+  const shown = meshes.filter(m => m.visible).map(m => m.userData.el);
+  grid.visible = shown.length > 0;
+  if (shown.length) placeGroundGrid(grid, meshBounds(shown));
 }
+document.getElementById('srcview').textContent = (DATA.source && DATA.source.view) || 'Demo';
 
-// Selection and hover
-let hovered = null, selected = null;
+// ---------- Category chips ----------
+const catsEl = document.getElementById('cats');
+const chipFor = {};
+function setCategory(cat, on) {
+  for (const m of byCat[cat]) m.visible = on;
+  updateGrid();
+  chipFor[cat].setAttribute('aria-pressed', String(on));
+  if (selected && !selected.visible) select(null);
+  if (hovered && !hovered.visible) setHover(null);
+  requestRender();
+}
+for (const cat of Object.keys(byCat).sort()) {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.setAttribute('aria-pressed', 'true'); b.dataset.cat = cat;
+  b.innerHTML = '<span class="tick" aria-hidden="true">✓</span><span class="sw"></span><span class="label"></span><span class="n"></span>';
+  b.title = 'Show or hide ' + cat;
+  b.querySelector('.sw').style.background = '#' + catColor[cat].getHexString();
+  b.querySelector('.label').textContent = cat;
+  b.querySelector('.n').textContent = byCat[cat].length;
+  b.addEventListener('click', () => setCategory(cat, b.getAttribute('aria-pressed') !== 'true'));
+  chipFor[cat] = b;
+  catsEl.append(b);
+}
+document.getElementById('all').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, true)));
+document.getElementById('none').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, false)));
+
+// ---------- Hover and selection ----------
+let hovered = null, selected = null, panelRenders = 0;
 function tint(mesh) {
   if (!mesh) return;
   const base = catColor[mesh.userData.el.category || 'Generic'];
-  mesh.material.color.setHex(mesh === selected ? SELECT : mesh === hovered ? HOVER : base);
+  const c = mesh.material.color;
+  if (mesh === selected) c.copy(base).lerp(ACCENT, .78);
+  else if (mesh === hovered) c.copy(base).lerp(HOVER, .35);
+  else c.copy(base);
+  mesh.userData.outline.visible = mesh === selected;
 }
 function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); vp.style.cursor = m ? 'pointer' : ''; requestRender(); }
 function select(m) {
+  const next = nextSelection(selected ? selected.userData.el.id : null, m ? m.userData.el : null);
+  if (!next.isChanged) return; // the 2nd click of a double-click lands here: no flicker
   const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null); requestRender();
 }
-function td(text) { const c = document.createElement('td'); c.textContent = text; return c; }
+
+const fmtNum = v => (Math.round(v * 100) / 100).toFixed(2);
+function valueHtml(v) {
+  if (v && typeof v === 'object' && 'v' in v) {
+    const t = formatParam(v); const i = t.indexOf(' (');
+    return i < 0 ? escHtml(t) : escHtml(t.slice(0, i)) + ' <span class="u">' + escHtml(t.slice(i + 1)) + '</span>';
+  }
+  return escHtml(formatParam(v));
+}
+function lengthHtml(ft) { return valueHtml({ v: ft, u: 'ft' }); }
+function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function rows(list) { return '<dl>' + list.filter(r => r[1] !== '' && r[1] !== undefined).map(r => '<dt>' + escHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>'; }
+
 function showProps(el) {
+  panelRenders++;
   const box = document.getElementById('props');
-  box.textContent = '';
-  if (!el) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Click an element to see its data.'; box.append(e); return; }
-  const title = document.createElement('div'); title.className = 'name'; title.textContent = el.name || (el.category + ' ' + el.id);
-  const t = document.createElement('table');
-  const b = meshBounds([el]);
-  const rows = [
-    ['Element ID', String(el.id)], ['Category', el.category || ''], ['Family', el.family || ''],
-    ['Type', el.type || ''], ['Level', el.level || ''],
-    ['Size X (E-W)', formatLength(b.max[0] - b.min[0])], ['Size Y (N-S)', formatLength(b.max[1] - b.min[1])],
-    ['Size Z (height)', formatLength(b.max[2] - b.min[2])],
-  ];
-  for (const [k, v] of Object.entries(el.params || {})) rows.push([k, formatParam(v)]);
-  for (const [k, v] of rows) { if (v === '') continue; const tr = document.createElement('tr'); tr.append(td(k), td(v)); t.append(tr); }
-  box.append(title, t);
+  document.getElementById('clear').hidden = !el;
+  if (!el) {
+    box.innerHTML = '<div class="empty"><kbd>Click</kbd> an element to see its data. <kbd>Double-click</kbd> to zoom to it.</div>';
+    return;
+  }
+  const b = elementBounds(el);
+  const c = [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
+  const cat = el.category || 'Generic';
+  const params = Object.entries(el.params || {}).map(([k, v]) => [k, valueHtml(v)]);
+  box.innerHTML =
+    '<div class="sel-name"></div>' +
+    '<div class="sel-cat"><span class="sw" style="background:#' + catColor[cat].getHexString() + '"></span><span></span></div>' +
+    '<div class="grp"><div>Identity</div>' + rows([
+      ['Element ID', '<span class="idrow">' + escHtml(el.id) + ' <button class="copy" id="copyid" title="Copy element ID">Copy</button></span>'],
+      ['Category', escHtml(cat)], ['Family', escHtml(el.family || '')], ['Type', escHtml(el.type || '')],
+    ]) + '</div>' +
+    '<div class="grp"><div>Location</div>' + rows([
+      ['Level', escHtml(el.level || '')],
+      ['Size X (E-W)', lengthHtml(b.max[0] - b.min[0])], ['Size Y (N-S)', lengthHtml(b.max[1] - b.min[1])], ['Size Z', lengthHtml(b.max[2] - b.min[2])],
+      ['Center X, Y, Z', escHtml(c.map(fmtNum).join(', ')) + ' <span class="u">ft</span>'],
+    ]) + '</div>' +
+    (params.length ? '<div class="grp"><div>Parameters</div>' + rows(params) + '</div>' : '') +
+    '<div class="grp sel-actions"><button class="act" id="zoomsel">Zoom selected</button></div>';
+  box.querySelector('.sel-name').textContent = el.name || (cat + ' ' + el.id);
+  box.querySelector('.sel-cat span:last-child').textContent = cat;
+  document.getElementById('copyid').addEventListener('click', () => copyText(String(el.id)));
+  document.getElementById('zoomsel').addEventListener('click', () => frameTo(dblClickView(state, el, bounds)));
+}
+document.getElementById('clear').addEventListener('click', () => select(null));
+function toast(t) { const n = document.getElementById('toast'); n.textContent = t; n.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => n.classList.remove('on'), 1400); }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('Copied element ID ' + t); }
+  catch (e) { toast('Copy failed. Element ID: ' + t); }
 }
 
 const raycaster = new THREE.Raycaster();
-function pick(px, py) {
-  const r = renderer.domElement.getBoundingClientRect();
-  const ndc = new THREE.Vector2(((px - r.left) / r.width) * 2 - 1, -((py - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(ndc, activeCam);
-  const hit = raycaster.intersectObjects(meshes.filter(m => m.visible), false)[0];
-  return hit ? hit.object : null;
+function ndcAt(px, py) { const r = canvas.getBoundingClientRect(); return new THREE.Vector2(((px - r.left) / r.width) * 2 - 1, -((py - r.top) / r.height) * 2 + 1); }
+function pick(px, py) { return pickElement(raycaster, meshes, ndcAt(px, py), activeCam); }
+
+// ---------- Smooth camera moves ----------
+let anim = null;
+function frameTo(end) {
+  const from = { ...state, target: state.target.slice() };
+  const t0 = performance.now(), dur = 300;
+  if (anim) cancelAnimationFrame(anim);
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    Object.assign(state, interpolateView(from, end, easeInOut(t)));
+    render();
+    anim = t < 1 ? requestAnimationFrame(step) : null;
+  };
+  anim = requestAnimationFrame(step);
 }
 
-// Camera input: Rhino-style mapping from viewer-core mapPointer().
+// ---------- Camera input: Rhino-style mapping from viewer-core mapPointer() ----------
 let activeCam = cams.persp;
 let drag = null;
 const canvas = renderer.domElement;
@@ -191,14 +358,14 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
   const action = mapPointer({ button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, isParallel: state.projection === 'parallel' });
   drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
-  canvas.setPointerCapture(e.pointerId);
-  if (action !== 'select') e.preventDefault();
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
+  if (action !== 'select') { e.preventDefault(); if (anim) { cancelAnimationFrame(anim); anim = null; } }
 });
 canvas.addEventListener('pointermove', e => {
   if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY;
-  if (drag.action === 'rotate') { orbit(state, dx, dy); if (viewName !== 'perspective') setViewName(state.projection === 'parallel' ? 'parallel (rotated)' : 'perspective'); }
+  if (drag.action === 'rotate') { orbit(state, dx, dy); if (viewName !== 'perspective') setViewName('rotated'); }
   else if (drag.action === 'pan') pan(state, dx, dy, canvas.clientHeight);
   else if (drag.action === 'zoom') zoomAt(state, dragZoomFactor(dy), 0, 0, aspect());
   else return;
@@ -208,62 +375,70 @@ canvas.addEventListener('pointerup', e => {
   if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
   drag = null;
 });
+// Double-click: Zoom Selected on an element, zoom extents on empty space.
+canvas.addEventListener('dblclick', e => {
+  if (e.button !== 0) return;
+  const m = pick(e.clientX, e.clientY);
+  select(m);
+  frameTo(dblClickView(state, m ? m.userData.el : null, bounds));
+});
 canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  const r = canvas.getBoundingClientRect();
   const mode = mapWheel({ ctrl: e.ctrlKey || e.metaKey });
-  const nx = mode === 'zoom-cursor' ? ((e.clientX - r.left) / r.width) * 2 - 1 : 0;
-  const ny = mode === 'zoom-cursor' ? -((e.clientY - r.top) / r.height) * 2 + 1 : 0;
-  zoomAt(state, Math.exp(Math.sign(e.deltaY) * 0.12), nx, ny, aspect());
+  const n = mode === 'zoom-cursor' ? ndcAt(e.clientX, e.clientY) : { x: 0, y: 0 };
+  zoomAt(state, Math.exp(Math.sign(e.deltaY) * 0.12), n.x, n.y, aspect());
   requestRender();
 }, { passive: false });
 
-// Named views
+// ---------- Named views ----------
 const viewButtons = [...document.querySelectorAll('[data-view]')];
-function setViewName(n) { viewName = n; document.getElementById('viewname').textContent = n.charAt(0).toUpperCase() + n.slice(1); viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n))); }
-function setView(n) { setNamedView(state, n, bounds); setViewName(n); updateHint(); requestRender(); }
-viewButtons.forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-document.getElementById('fit').addEventListener('click', () => { fitBounds(state, bounds); requestRender(); });
+function setViewName(n) {
+  viewName = n;
+  const label = n === 'rotated' ? 'Rotated' : n;
+  document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' · ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
+  viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n)));
+  updateHint();
+}
+function setView(n) { setNamedView(state, n, bounds); setViewName(n); requestRender(); }
+viewButtons.forEach(b => b.addEventListener('click', () => { const end = setNamedView({ ...state, target: state.target.slice() }, b.dataset.view, bounds); state.projection = end.projection; setViewName(b.dataset.view); frameTo(end); }));
+document.getElementById('fit').addEventListener('click', () => frameTo(dblClickView(state, null, bounds)));
 function updateHint() {
-  document.getElementById('hint').innerHTML = state.projection === 'parallel'
-    ? '<kbd>Right drag</kbd> pan · <kbd>Ctrl+Shift+Right</kbd> rotate · <kbd>Ctrl+Right</kbd> zoom · <kbd>Wheel</kbd> zoom at cursor · <kbd>Left</kbd> select'
-    : '<kbd>Right drag</kbd> rotate · <kbd>Shift+Right</kbd> pan · <kbd>Ctrl+Right</kbd> zoom · <kbd>Wheel</kbd> zoom at cursor · <kbd>Left</kbd> select';
+  const k = (keys, what) => '<span>' + keys.map(x => '<kbd>' + x + '</kbd>').join('+') + ' ' + what + '</span>';
+  document.getElementById('hint').innerHTML = (state.projection === 'parallel'
+    ? [k(['Right drag'], 'pan'), k(['Ctrl', 'Shift', 'Right'], 'rotate')]
+    : [k(['Right drag'], 'rotate'), k(['Shift', 'Right'], 'pan')]).join('') +
+    k(['Ctrl', 'Right'], 'zoom') + k(['Wheel'], 'zoom at cursor') + k(['Click'], 'select') + k(['Double-click'], 'zoom to element');
 }
 
-// Annotations (labels in world coordinates)
+// ---------- Annotations, gizmo, render ----------
 const labelsEl = document.getElementById('labels');
 const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
-
-// Axis gizmo: X red, Y green, Z blue, drawn from the same camera basis.
 const gizmo = document.getElementById('gizmo');
 function drawGizmo() {
   const ax = gizmoAxes(state);
-  const spec = [['x', '#d62828', 'X'], ['y', '#2a9d3f', 'Y'], ['z', '#1f5fbf', 'Z']];
-  let svg = '<circle r="44" fill="rgba(255,255,255,.55)" />';
-  for (const [k, col, lab] of spec) {
-    const [sx, sy] = ax[k];
-    const x = sx * 30, y = -sy * 30;
-    svg += '<line x1="0" y1="0" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>';
-    svg += '<text x="' + (sx * 40).toFixed(1) + '" y="' + (-sy * 40 + 4).toFixed(1) + '" fill="' + col + '" font-size="12" font-weight="700" text-anchor="middle">' + lab + '</text>';
+  const spec = [['x', '#d62828', 'X'], ['y', '#2a9d3f', 'Y'], ['z', '#1f6fd9', 'Z']];
+  let svg = '<circle r="43" fill="' + css('--sheet') + '" fill-opacity=".8"/><circle r="43" fill="none" stroke="' + css('--rule') + '"/>';
+  for (const [key, col, lab] of spec) {
+    const [sx, sy] = ax[key];
+    svg += '<line x1="0" y1="0" x2="' + (sx * 28).toFixed(1) + '" y2="' + (-sy * 28).toFixed(1) + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>' +
+      '<text x="' + (sx * 37).toFixed(1) + '" y="' + (-sy * 37 + 4).toFixed(1) + '" fill="' + col + '" font-size="11.5" font-family="JetBrains Mono, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
   }
   gizmo.innerHTML = svg;
 }
-
 function aspect() { return Math.max(1e-3, vp.clientWidth / Math.max(1, vp.clientHeight)); }
 let pending = false;
-function requestRender() { if (!pending) { pending = true; requestAnimationFrame(render); } }
+function requestRender() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; render(); }); } }
 function render() {
-  pending = false;
   const w = vp.clientWidth, h = vp.clientHeight;
   renderer.setSize(w, h, false);
-  activeCam = applyView(THREE, state, cams, w / Math.max(1, h));
+  state.aspect = w / Math.max(1, h);
+  activeCam = applyView(THREE, state, cams, state.aspect);
   renderer.render(scene, activeCam);
   const v = new THREE.Vector3();
   for (const { a, d } of tags) {
     v.fromArray(a.position).project(activeCam);
-    const vis = v.z > -1 && v.z < 1;
-    d.style.display = vis ? '' : 'none';
+    d.style.display = v.z > -1 && v.z < 1 ? '' : 'none';
     d.style.left = ((v.x + 1) / 2) * w + 'px';
     d.style.top = ((1 - v.y) / 2) * h + 'px';
   }
@@ -271,15 +446,34 @@ function render() {
 }
 new ResizeObserver(requestRender).observe(vp);
 
-// Test hooks: world point to viewport pixels, pick at pixels, current state.
+// Follow the app's light/dark switch while the page is open.
+function applyTheme() {
+  scene.background = new THREE.Color(css('--view') || '#e9e5da');
+  ACCENT.set(css('--accent') || '#e2541b');
+  HOVER.set(css('--hover') || '#3c7dd9');
+  EDGE.set(css('--edge') || '#3a3833');
+  grid.material.uniforms.uColor.value.set(css('--ink') || '#22221f');
+  for (const m of meshes) { m.children[0].material.color.copy(EDGE); m.userData.outline.material.color.copy(ACCENT); tint(m); }
+  requestRender();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+// Test hooks: project a world point to page pixels, read the selection.
 window.__bim = {
-  state, setView, select: id => select(meshes.find(m => String(m.userData.el.id) === String(id)) || null),
+  state, setView, bounds,
+  select: id => select(meshes.find(m => String(m.userData.el.id) === String(id)) || null),
   project(x, y, z) { const p = new THREE.Vector3(x, y, z).project(activeCam); const r = canvas.getBoundingClientRect();
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; },
   selectedId: () => (selected ? selected.userData.el.id : null),
+  panelRenders: () => panelRenders,
+  isAnimating: () => anim !== null,
+  grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
+  visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
 };
 
+state.aspect = aspect();
 setView('perspective');
+showProps(null);
 </script>
 </body>
 </html>

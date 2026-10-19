@@ -90,6 +90,16 @@ test('Wheel zoom at cursor keeps the point under the cursor fixed', () => {
   }
 });
 
+test('Deep zoom in a parallel view never clips the model (camera stays outside)', () => {
+  const { state, project } = setup('top');
+  const ndcX = 0.5, ndcY = 0.6, aspect = 1.5;
+  for (let i = 0; i < 40; i++) core.zoomAt(state, 0.887, ndcX, ndcY, aspect);
+  for (const p of [[60, 50, 24], [59, 49, 0], [50, 49.6, 20]]) {
+    const z = project(p).z;
+    assert.ok(z > -1 && z < 1, 'point ' + p + ' inside the depth range, ndc z=' + z);
+  }
+});
+
 test('Units: lengths show feet and metres', () => {
   assert.equal(core.formatParam({ v: 12, u: 'ft' }), '12.00 ft (3.658 m)');
   assert.equal(core.formatParam('D1'), 'D1');

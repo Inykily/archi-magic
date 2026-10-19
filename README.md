@@ -39,7 +39,7 @@ A mod changes Claude Code itself (here: a slash command). It is a separate plugi
 
 | Mod | What it does |
 |---|---|
-| `am-bim-viewer` | Adds `/bim-view [model.json] [--open]`. It builds the 3D viewer page and gives Claude the link to open it in the Browser pane. With no file, it shows a demo model. It needs a Claude Code build with function hooks (tested on 2.1.299). |
+| `am-bim-viewer` | Adds `/bim-view [model.json] [--open]`. It opens a BIM view pane in the session (a picture of the model with view, rotate, zoom and category buttons) and builds the interactive 3D viewer page for the Browser pane. With no file, it shows a demo model. It needs a Claude Code build with function hooks (tested on 2.1.299). |
 
 The pyRevit setup script also works without Claude. Run `skills/am-pyrevit7-setup/scripts/Setup-pyRevit7.cmd`. See [kit-README.md](skills/am-pyrevit7-setup/kit-README.md).
 

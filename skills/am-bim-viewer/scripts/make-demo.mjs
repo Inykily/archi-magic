@@ -58,8 +58,8 @@ for (const [name, mesh, h, len, mark] of walls) {
     { 'Unconnected Height': ft(h), Length: ft(len), Width: ft(T), Mark: mark, 'Base Constraint': 'Level 1' });
 }
 
-// Door on the SOUTH face, near the west end. Sticks out of the wall on both sides.
-add('Doors', 'Entry door (south)', 'Single-Flush', '36" x 84"', box(10, -0.2, 0, 13, T + 0.2, 7),
+// Door on the SOUTH face, at the middle of the south wall (x 28.5-31.5). Sticks out of the wall on both sides.
+add('Doors', 'Entry door (south)', 'Single-Flush', '36" x 84"', box(28.5, -0.2, 0, 31.5, T + 0.2, 7),
   { Width: ft(3), Height: ft(7), Mark: 'D1', 'Facing': 'South (-Y)' });
 
 // Tall column at the NE corner. Tallest object in the model.
@@ -79,7 +79,7 @@ const data = {
   annotations: [
     { text: 'N (+Y)', position: [-10, 12, 0] },
     { text: 'East (+X)', position: [68, 10, 0] },
-    { text: 'South door', position: [11.5, -6, 0] },
+    { text: 'South door', position: [30, -6, 0] },
     { text: 'NE column', position: [60, 50, 26] },
   ],
 };

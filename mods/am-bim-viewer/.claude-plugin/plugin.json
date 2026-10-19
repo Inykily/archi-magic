@@ -6,5 +6,6 @@
     "name": "zsenarchitect"
   },
   "repository": "https://github.com/zsenarchitect/archi-magic",
+  "types": "./types/index.d.ts",
   "keywords": ["revit", "bim", "3d", "viewer", "rhino", "mod"]
 }

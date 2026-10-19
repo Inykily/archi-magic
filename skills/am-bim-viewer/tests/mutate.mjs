@@ -29,9 +29,22 @@ const MUTANTS = [
   ['parallel views rotate on plain right drag', "return isParallel ? 'pan' : 'rotate';", "return 'rotate';"],
   ['Ctrl+right drag pans instead of zooming', "if (ctrl) return 'zoom';", "if (ctrl) return 'pan';"],
   ['wheel zooms about the center, not the cursor', 'const p = add(add(state.target, r, ndcX * hh * aspect), u, ndcY * hh);', 'const p = state.target;'],
+  ['parallel camera depth tied to zoom (camera dives into the model)',
+    'const back = off + state.sceneRadius * 2 + hh;', 'const back = Math.max(state.distance, hh * 4);'],
+  ['pick the farthest hit instead of the nearest',
+    'return hits.length ? hits[0].object : null;', 'return hits.length ? hits[hits.length - 1].object : null;'],
+  ['picking ignores hidden categories', 'meshes.filter(m => m.visible)', 'meshes'],
+  ['double-click on empty space keeps the current zoom',
+    'return fitBounds(end, pickedEl ? elementBounds(pickedEl) : modelBounds);', 'return pickedEl ? fitBounds(end, elementBounds(pickedEl)) : end;'],
+  ['frame ignores a narrow viewport (aspect)',
+    'state.viewHeight = (radius * 2) / Math.min(1, aspect);', 'state.viewHeight = radius * 2;'],
+  ['ground grid at mid-height instead of the base',
+    'z: bounds.min[2] - extent * 1e-4,', 'z: (bounds.min[2] + bounds.max[2]) / 2,'],
+  ['repeat click on the selected element counts as a change',
+    'isChanged: String(id) !== String(currentId)', 'isChanged: true'],
 ];
 
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;
