@@ -1,0 +1,619 @@
+{
+ "kind": "change-preview",
+ "title": "Snowdon Towers Sample Architectural: shift A301 and up by +1",
+ "keyColumn": "ElementId",
+ "columns": [
+  "ElementId",
+  "Sheet Number",
+  "Sheet Name"
+ ],
+ "changedColumns": [
+  "Sheet Number"
+ ],
+ "before": [
+  [
+   1350549,
+   "A100",
+   "Parking Deck Floor Plan"
+  ],
+  [
+   1350575,
+   "A101",
+   "First Floor Plan"
+  ],
+  [
+   1350625,
+   "A102",
+   "Second Floor Plan"
+  ],
+  [
+   1350669,
+   "A103",
+   "Third Floor Plan"
+  ],
+  [
+   1350695,
+   "A104",
+   "Fourth Floor Plan"
+  ],
+  [
+   1350721,
+   "A105",
+   "Fifth Floor Plan"
+  ],
+  [
+   2282109,
+   "A106",
+   "Green Roof"
+  ],
+  [
+   1350747,
+   "A107",
+   "Roof Plan"
+  ],
+  [
+   2156448,
+   "A108",
+   "First Floor Ceiling Plan"
+  ],
+  [
+   2156511,
+   "A109",
+   "Second Floor Ceiling Plan"
+  ],
+  [
+   2156546,
+   "A110",
+   "Third Floor Ceiling Plan"
+  ],
+  [
+   2156581,
+   "A111",
+   "Fourth Floor Ceiling Plan"
+  ],
+  [
+   2156616,
+   "A112",
+   "Fifth Floor Ceiling Plan"
+  ],
+  [
+   2351723,
+   "A200",
+   "Existing Conditions Elevations"
+  ],
+  [
+   2123824,
+   "A201",
+   "Building Elevations"
+  ],
+  [
+   2124822,
+   "A202",
+   "Building Elevations"
+  ],
+  [
+   2123626,
+   "A301",
+   "Building Sections"
+  ],
+  [
+   2121956,
+   "A302",
+   "Building Sections"
+  ],
+  [
+   2123349,
+   "A303",
+   "Building Sections"
+  ],
+  [
+   2123393,
+   "A304",
+   "Building Sections"
+  ],
+  [
+   2123437,
+   "A305",
+   "Building Sections"
+  ],
+  [
+   2123794,
+   "A306",
+   "Building Sections"
+  ],
+  [
+   2123525,
+   "A307",
+   "Building Sections"
+  ],
+  [
+   848852,
+   "A401",
+   "Typical Public Restroom"
+  ],
+  [
+   2255952,
+   "A402",
+   "Enlarged Live/Work Cores"
+  ],
+  [
+   2279737,
+   "A403",
+   "Enlarged Live/Work Cores"
+  ],
+  [
+   2331296,
+   "A404",
+   "Residential Lobby"
+  ],
+  [
+   2035412,
+   "A405",
+   "Wall Sections"
+  ],
+  [
+   2041990,
+   "A406",
+   "Wall Sections"
+  ],
+  [
+   1460514,
+   "A501",
+   "Details"
+  ],
+  [
+   2313900,
+   "A502",
+   "Partition Types"
+  ],
+  [
+   850607,
+   "A601",
+   "Door Schedule"
+  ],
+  [
+   2335417,
+   "A602",
+   "Schedules"
+  ],
+  [
+   848882,
+   "A901",
+   "Perspective From Above"
+  ],
+  [
+   848867,
+   "A902",
+   "Stair Towers - Cutaway Views"
+  ],
+  [
+   851699,
+   "A903",
+   "3D Views"
+  ],
+  [
+   2351771,
+   "A904",
+   "Solar Study"
+  ],
+  [
+   359502,
+   "C101",
+   "Site Plan"
+  ],
+  [
+   850623,
+   "G000",
+   "Cover"
+  ],
+  [
+   2382291,
+   "G001",
+   "Learn about this project"
+  ],
+  [
+   2156651,
+   "G100",
+   "Parking Deck Life Safety Plan"
+  ],
+  [
+   2156738,
+   "G101",
+   "First Floor Life Safety Plan"
+  ],
+  [
+   2156975,
+   "G102",
+   "Second Floor Life Safety Plan"
+  ],
+  [
+   2156773,
+   "G103",
+   "Third Floor Life Safety Plan"
+  ],
+  [
+   2156842,
+   "G104",
+   "Fourth Floor Life Safety Plan"
+  ],
+  [
+   2156877,
+   "G105",
+   "Fifth Floor Life Safety Plan"
+  ],
+  [
+   2156912,
+   "G106",
+   "Roof Plan Life Safety Plan"
+  ],
+  [
+   852964,
+   "K101",
+   "Café Kitchen"
+  ],
+  [
+   842832,
+   "SD100",
+   "Parking Deck Floor Plan"
+  ],
+  [
+   842837,
+   "SD101",
+   "First Floor Plan"
+  ],
+  [
+   842842,
+   "SD102",
+   "Second Floor Plan"
+  ],
+  [
+   842847,
+   "SD103",
+   "Third Floor Plan"
+  ],
+  [
+   842852,
+   "SD104",
+   "Fourth Floor Plan"
+  ],
+  [
+   842857,
+   "SD105",
+   "Fifth Floor Plan"
+  ],
+  [
+   842862,
+   "SD106",
+   "Roof Plan"
+  ]
+ ],
+ "after": [
+  [
+   1350549,
+   "A100",
+   "Parking Deck Floor Plan"
+  ],
+  [
+   1350575,
+   "A101",
+   "First Floor Plan"
+  ],
+  [
+   1350625,
+   "A102",
+   "Second Floor Plan"
+  ],
+  [
+   1350669,
+   "A103",
+   "Third Floor Plan"
+  ],
+  [
+   1350695,
+   "A104",
+   "Fourth Floor Plan"
+  ],
+  [
+   1350721,
+   "A105",
+   "Fifth Floor Plan"
+  ],
+  [
+   2282109,
+   "A106",
+   "Green Roof"
+  ],
+  [
+   1350747,
+   "A107",
+   "Roof Plan"
+  ],
+  [
+   2156448,
+   "A108",
+   "First Floor Ceiling Plan"
+  ],
+  [
+   2156511,
+   "A109",
+   "Second Floor Ceiling Plan"
+  ],
+  [
+   2156546,
+   "A110",
+   "Third Floor Ceiling Plan"
+  ],
+  [
+   2156581,
+   "A111",
+   "Fourth Floor Ceiling Plan"
+  ],
+  [
+   2156616,
+   "A112",
+   "Fifth Floor Ceiling Plan"
+  ],
+  [
+   2351723,
+   "A200",
+   "Existing Conditions Elevations"
+  ],
+  [
+   2123824,
+   "A201",
+   "Building Elevations"
+  ],
+  [
+   2124822,
+   "A202",
+   "Building Elevations"
+  ],
+  [
+   2123626,
+   "A302",
+   "Building Sections"
+  ],
+  [
+   2121956,
+   "A303",
+   "Building Sections"
+  ],
+  [
+   2123349,
+   "A304",
+   "Building Sections"
+  ],
+  [
+   2123393,
+   "A305",
+   "Building Sections"
+  ],
+  [
+   2123437,
+   "A306",
+   "Building Sections"
+  ],
+  [
+   2123794,
+   "A307",
+   "Building Sections"
+  ],
+  [
+   2123525,
+   "A308",
+   "Building Sections"
+  ],
+  [
+   848852,
+   "A401",
+   "Typical Public Restroom"
+  ],
+  [
+   2255952,
+   "A402",
+   "Enlarged Live/Work Cores"
+  ],
+  [
+   2279737,
+   "A403",
+   "Enlarged Live/Work Cores"
+  ],
+  [
+   2331296,
+   "A404",
+   "Residential Lobby"
+  ],
+  [
+   2035412,
+   "A405",
+   "Wall Sections"
+  ],
+  [
+   2041990,
+   "A406",
+   "Wall Sections"
+  ],
+  [
+   1460514,
+   "A501",
+   "Details"
+  ],
+  [
+   2313900,
+   "A502",
+   "Partition Types"
+  ],
+  [
+   850607,
+   "A601",
+   "Door Schedule"
+  ],
+  [
+   2335417,
+   "A602",
+   "Schedules"
+  ],
+  [
+   848882,
+   "A901",
+   "Perspective From Above"
+  ],
+  [
+   848867,
+   "A902",
+   "Stair Towers - Cutaway Views"
+  ],
+  [
+   851699,
+   "A903",
+   "3D Views"
+  ],
+  [
+   2351771,
+   "A904",
+   "Solar Study"
+  ],
+  [
+   359502,
+   "C101",
+   "Site Plan"
+  ],
+  [
+   850623,
+   "G000",
+   "Cover"
+  ],
+  [
+   2382291,
+   "G001",
+   "Learn about this project"
+  ],
+  [
+   2156651,
+   "G100",
+   "Parking Deck Life Safety Plan"
+  ],
+  [
+   2156738,
+   "G101",
+   "First Floor Life Safety Plan"
+  ],
+  [
+   2156975,
+   "G102",
+   "Second Floor Life Safety Plan"
+  ],
+  [
+   2156773,
+   "G103",
+   "Third Floor Life Safety Plan"
+  ],
+  [
+   2156842,
+   "G104",
+   "Fourth Floor Life Safety Plan"
+  ],
+  [
+   2156877,
+   "G105",
+   "Fifth Floor Life Safety Plan"
+  ],
+  [
+   2156912,
+   "G106",
+   "Roof Plan Life Safety Plan"
+  ],
+  [
+   852964,
+   "K101",
+   "Café Kitchen"
+  ],
+  [
+   842832,
+   "SD100",
+   "Parking Deck Floor Plan"
+  ],
+  [
+   842837,
+   "SD101",
+   "First Floor Plan"
+  ],
+  [
+   842842,
+   "SD102",
+   "Second Floor Plan"
+  ],
+  [
+   842847,
+   "SD103",
+   "Third Floor Plan"
+  ],
+  [
+   842852,
+   "SD104",
+   "Fourth Floor Plan"
+  ],
+  [
+   842857,
+   "SD105",
+   "Fifth Floor Plan"
+  ],
+  [
+   842862,
+   "SD106",
+   "Roof Plan"
+  ]
+ ],
+ "notes": [
+  "Scope: series from A301, step +1, gaps kept, suffixed numbers move with their base, placeholders included.",
+  "7 of 55 sheets change.",
+  "Order: highest number first, no temporary numbers."
+ ],
+ "warnings": [],
+ "blocked": false,
+ "params": {
+  "start": "A301",
+  "step": 1,
+  "scope": "series",
+  "keep_gaps": true,
+  "include_suffixed": true,
+  "include_placeholders": true
+ },
+ "steps": [
+  [
+   2123525,
+   "A307",
+   "A308"
+  ],
+  [
+   2123794,
+   "A306",
+   "A307"
+  ],
+  [
+   2123437,
+   "A305",
+   "A306"
+  ],
+  [
+   2123393,
+   "A304",
+   "A305"
+  ],
+  [
+   2123349,
+   "A303",
+   "A304"
+  ],
+  [
+   2121956,
+   "A302",
+   "A303"
+  ],
+  [
+   2123626,
+   "A301",
+   "A302"
+  ]
+ ]
+}
