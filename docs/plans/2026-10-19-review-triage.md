@@ -39,6 +39,13 @@ Four read-only reviews ran against commit `9b8edf2`, one lens each: architect UX
 - (3) **Keep `releases/latest`** for the pyRevit installer, with stricter checks: pin the signer subject and thumbprint, and fail hard when the digest is missing. Do not pin the version.
 - Still open: superpowers ships a SessionStart **bash** hook. A teammate PC without Git Bash has not been tested. (UX could-not-assess, safety 8)
 
+## Side discoveries (from builders)
+
+- **pyRevit agent runtime: the IronPython result serializer fails on non-ASCII text.** The Snowdon sheet "Café Kitchen" triggers it. am-safe-change works around it by escaping the text and returning `"escaped": true`. Next: file an upstream issue at pyrevitlabs/pyRevit with a minimal repro, then remove the workaround once it is fixed. (discovered by the am-safe-change builder; not yet in the senzhang-todo ledger, which was not found on this machine)
+- **am-safe-change, downward shift:** the order is always highest-first, so a `--step -1` shift needs two passes through temporary numbers. Use lowest-first for downward shifts, so no temporary numbers are needed.
+- **`~` is prohibited in sheet numbers** (Revit 2024-2026, `ViewSheet.SheetNumber` setter). Temporary numbers use `TMP-AMSC-<id>`.
+- **A sheet renumber changes more elements than sheets.** 7 sheets changed 34 elements in the dry run, because views show the sheet number. Explain this before Keep/Discard.
+
 ## Open, not assessed
 
 - Whether installing from a GitHub marketplace needs `git.exe` on PATH.
