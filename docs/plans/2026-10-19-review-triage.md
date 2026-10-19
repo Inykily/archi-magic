@@ -32,11 +32,12 @@ Four read-only reviews ran against commit `9b8edf2`, one lens each: architect UX
 - A CI check that each dependency pin's upstream version matches its "Pinned to vX" text. (release 5)
 - `am-welcome` federates its capability list with the pyRevit MCP `list_skills`. (design enh. 3)
 
-## Decisions needed
+## Decisions (answered 2026-10-19)
 
-- (5) Branch protection on `main` with a required status check, or reword the README.
-- House rules reach only `am-*` skills. A plugin SessionStart hook could inject them into every session, including pyRevit MCP work. That affects every session on a teammate's PC. (design 1)
-- superpowers ships a SessionStart **bash** hook. A teammate PC without Git Bash has not been tested. (UX could-not-assess, safety 8)
+- (5) **Protect `main`.** check-skills becomes a required status check, and releases go through pull requests.
+- **Add a plugin SessionStart hook** that injects the house rules into every session, including pyRevit MCP work. (design 1)
+- (3) **Keep `releases/latest`** for the pyRevit installer, with stricter checks: pin the signer subject and thumbprint, and fail hard when the digest is missing. Do not pin the version.
+- Still open: superpowers ships a SessionStart **bash** hook. A teammate PC without Git Bash has not been tested. (UX could-not-assess, safety 8)
 
 ## Open, not assessed
 
