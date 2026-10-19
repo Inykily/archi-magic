@@ -394,7 +394,7 @@ tr.d-same td { color: var(--ink-2); }
   }
   function cmpVals(a, b) {
     var na = toNum(a), nb = toNum(b);
-    if (na !== null && nb !== null) return na - nb;
+    if (na !== null && nb !== null) return na - nb || collator.compare(String(a), String(b));
     if (a === "" && b !== "") return 1;
     if (b === "" && a !== "") return -1;
     return collator.compare(String(a), String(b));

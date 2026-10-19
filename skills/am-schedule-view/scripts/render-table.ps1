@@ -96,8 +96,9 @@ function Read-Payload([string]$path) {
             if (-not (Test-Field $obj $f)) { Write-Host "FAIL: change-preview JSON has no '$f' field"; exit 1 }
         }
     }
-    # Make the text safe inside <script type="application/json">: no "</" and no "<!--".
-    $safe = $raw.Replace('</', '<\/').Replace('<!--', '<\!--')
+    # Make the text safe inside <script type="application/json">. Every "<" in valid JSON sits in a
+    # string, so the JSON escape \u003c keeps the data identical and leaves no "</script" or "<!--".
+    $safe = $raw.Replace('<', '\u003c')
     return @{ Raw = $safe; Obj = $obj; Kind = $kind }
 }
 

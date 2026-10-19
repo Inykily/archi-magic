@@ -104,6 +104,35 @@ test('the command argument may be quoted', async () => {
   expect(parseArgs('')).toBe('')
 })
 
+// What the engine stamps on a typed command; the test supplies it.
+const RUN = { origin: { kind: 'plugin', name: 'test' }, presentation: { isFullscreen: false, columns: 100 } } as const
+
+const PANE_PROPS ={ title: 'Schedules', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} } as const
+
+test('the command loads a file and the pane draws the table', async ($, on) => {
+  // The test has no file system: answer the mod's $.fs.read from here.
+  on('fs.read', () => ({ value: JSON.stringify(SCHEDULES) }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const ran = await $.command.run({ command: 'am-schedule-view', args: '"C:\\x\\rooms.json"', ...RUN })
+  expect(ran.text).toContain('Opened C:\\x\\rooms.json in the pane: Room Finish Schedule (5 rows).')
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'am-schedule-view', surface, component: 'Pane', requestId: 'am-schedule-view', props: PANE_PROPS })
+    const md = await ui.find({ key: 'table' })
+    expect(md).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Page 1 of 1\. 5 of 5 rows/ })).toBeDefined()
+    expect(await ui.find({ key: 'filter' })).toBeDefined()
+    await ui.input({ key: 'filter', text: 'garage' })
+    expect(await ui.find({ type: 'Text', text: /1 of 5 rows/ })).toBeDefined()
+    await ui.input({ key: 'filter', text: '' })
+    await ui.unmount()
+  }
+})
+
+test('the command explains itself without a path', async $ => {
+  const ran = await $.command.run({ command: 'am-schedule-view', args: '', ...RUN })
+  expect(ran.text).toContain('Usage: /am-schedule-view')
+})
+
 test('the pane draws a hint while nothing is loaded, on every surface', async $ => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({
@@ -111,7 +140,7 @@ test('the pane draws a hint while nothing is loaded, on every surface', async $ 
       surface,
       component: 'Pane',
       requestId: 'am-schedule-view',
-      props: { title: 'Schedules', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+      props: PANE_PROPS,
     })
     expect(await ui.find({ type: 'Text', text: /No table is loaded/ })).toBeDefined()
     await ui.unmount()

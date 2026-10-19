@@ -22,9 +22,10 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
    - The list gives name, category, kind, row count, and the sheets that show the schedule. Revision, keynote and panel schedules are skipped. Set `includeInternal: true` only when the user asks for them.
 3. **Ask which schedule, if it is not clear.** Use AskUserQuestion. Put the most likely schedule first, with "(Recommended)". Prefer schedules that are on a sheet. Give up to 4 options.
 4. **Read the schedules.** Run `read_schedules.py` again with inputs `{"mode": "read", "names": ["Door Schedule"]}`. You can also use `"ids": [510933]`. The default cap is 5000 rows for each schedule; `maxRows` changes it.
-5. **Save the result on the user's side.** The result holds `payload`, an ASCII JSON string. Save the whole run record, or `result`, or the decoded payload to a `.json` file in the scratchpad. `render-table.ps1` accepts all three.
-   - The script returns the data as one string because the agent's own JSON writer fails on non-ASCII text (for example "Cafe" with an accent).
-   - If the immediate response is truncated, read the full run with `get_run` (CLI: `pyrevit agent show <run_id>`).
+5. **Find the result file on the user's side.** Do not copy the data by hand. Every run writes its full record to `%APPDATA%\pyRevit\agent\runs\<date>-<time>-<run_id>\response.json`. Use the `run_id` from the result. `render-table.ps1` reads that file directly.
+   - The result holds `payload`, one ASCII JSON string. The agent's own JSON writer fails on non-ASCII text (for example "Cafe" with an accent), so the script sends the data as a string. `render-table.ps1` accepts the run record, the `result`, or the decoded payload.
+   - CLI read mode: PowerShell 5.1 removes the double quotes from `--inputs`. Run it from the Bash tool instead:
+     `"$APPDATA/pyRevit-Master/bin/pyrevit.exe" agent run read_schedules.py --mode=query --revit=2026 '--inputs={"mode":"read","names":["Door Schedule"]}' > run.json`
 6. **Render the page.**
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<skill dir>\scripts\render-table.ps1" -Json <file> -Out <page.html>`
    - Add `-CsvDir <folder>` to also write one CSV for each schedule (UTF-8 with BOM, so Excel opens it).
@@ -69,7 +70,7 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
 - Row kinds (`body`, `group`, `total`, `blank`) come from the table layout, because Revit has no API for them. The JSON says `rowKindSource: "heuristic"`. If a row looks wrong, say so.
 - A cell shows the text Revit shows (`TableView.GetCellText`). This can differ from a parameter's own format. For example, the schedule shows "10219.89 SF" where the area parameter shows "10220 SF".
 - Anything read from the model goes to the AI provider. Use this only on projects where that is allowed.
-- The interactive page is a web page, not a panel inside Claude Code. The optional `am-schedule-view` mod adds a `/am-schedule-view` command and a pane with a short Markdown preview of the same JSON. See `mods/am-schedule-view/README.md`.
+- The interactive page is a web page, not a panel inside Claude Code. A mod pane draws only the engine's own elements, with no HTML. The optional `am-schedule-view` mod (a separate plugin in this marketplace) adds `/am-schedule-view <file.json>`. It shows the same JSON in a pane: a paged table, a filter and Copy as TSV.
 
 ## House rules (all am-* skills)
 

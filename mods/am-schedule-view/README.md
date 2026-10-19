@@ -18,6 +18,7 @@ A mod pane draws only the engine's own elements (`Box`, `Text`, `Button`, `Input
 
 - The pane reads files up to 4 MB, and keeps the first 2000 rows of each table.
 - Sorting and compare are only in the web page.
+- Needs a Claude Code build with mods (function hooks). Tested on 2.1.299. Claude Code 2.1.231 does not know the `modules` form of `hooks/hooks.json`: its `claude plugin validate` fails on this folder.
 
 ## Install
 

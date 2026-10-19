@@ -49,7 +49,7 @@ export const register: Register = on => {
       text: 'Opened ' + path + ' in the pane: ' + names + '.',
       context: [
         'The am-schedule-view pane shows ' + path + ' (' + m.kind + '). ' + m.facts.join(' ') +
-          ' For the full interactive page, run skills/am-schedule-view/scripts/render-table.ps1 -Json <file> -Out <html>.',
+          ' For the full interactive page (sort, compare, CSV), use the am-schedule-view skill: its render-table.ps1 -Json <file> -Out <html>.',
       ],
     }
   })
