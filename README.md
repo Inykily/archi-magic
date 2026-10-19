@@ -17,6 +17,7 @@ New skills arrive through plugin updates (`/plugin marketplace update archi-magi
 
 | Skill | What it does |
 |---|---|
+| `am-welcome` | Introduces archi-magic in plain words for architects who are new to these tools. It lists what you can ask, checks your setup, and gives a safe first-run path. To use it, ask Claude "what is archi-magic?" or "I'm new, help me start". |
 | `am-pyrevit7-setup` | Installs pyRevit 7 per-user **without admin rights** and repoints Revit 2024–2026 to it, even when IT installed pyRevit 6.x machine-wide. It also enables the pyRevit Agent Runtime and connects it to Claude Code, so Claude can work with your open Revit model. To use it, ask Claude to "set up pyRevit 7". |
 | `am-revit-api-docs` | Looks up the Revit API in the documentation installed with **your** Revit version, so code uses members that exist in your year. It can also compare years. Ask, for example, "does Revit 2024 have ElementId.Value?" |
 | `am-pyrevit-docs` | Searches the official pyRevit documentation and the installed pyRevit source before Claude writes pyRevit tools. Ask, for example, "how do I show a table in the pyRevit output window?" |
