@@ -11,7 +11,11 @@ In Claude Code (the Claude desktop app's Code tab, or the `claude` CLI):
 /plugin install archi-magic@archi-magic
 ```
 
-New skills arrive through plugin updates (`/plugin marketplace update archi-magic`). There's no need to redeploy to each machine by hand.
+This also installs two trusted general-purpose plugins, pinned to tested versions: [superpowers](https://github.com/obra/superpowers) (planning, debugging, test-driven development, code review) and Anthropic's [frontend-design](https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design).
+
+**Turn on auto-update once:** type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, and choose **Enable auto-update**. Third-party marketplaces have it off by default. Without it, you get new skills only when you run `/plugin marketplace update archi-magic`.
+
+Every release raises the plugin `version` (`scripts/bump-version.ps1`). Claude Code installs new content only when the version changes, and CI blocks any push that changes plugin content without a bump.
 
 ## Skills
 

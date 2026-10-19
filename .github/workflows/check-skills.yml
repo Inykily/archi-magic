@@ -10,6 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Skill folders, names and README stay in sync
         shell: pwsh
         run: ./scripts/check-skills.ps1
+      - name: Plugin content changes come with a version bump
+        shell: pwsh
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: ./scripts/check-version-bump.ps1 -Base "$env:BASE"

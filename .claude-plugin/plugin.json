@@ -6,5 +6,6 @@
     "name": "zsenarchitect"
   },
   "repository": "https://github.com/zsenarchitect/archi-magic",
-  "keywords": ["revit", "pyrevit", "aec", "architecture", "bim"]
+  "keywords": ["revit", "pyrevit", "aec", "architecture", "bim"],
+  "dependencies": ["superpowers", "frontend-design"]
 }
