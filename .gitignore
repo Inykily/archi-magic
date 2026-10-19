@@ -1,2 +1,4 @@
 state/
 .claude/
+node_modules/
+*.viewer.html

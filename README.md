@@ -27,6 +27,19 @@ Every release raises the plugin `version` (`scripts/bump-version.ps1`). Claude C
 | `am-pyrevit-docs` | Searches the official pyRevit documentation and the installed pyRevit source before Claude writes pyRevit tools. Ask, for example, "how do I show a table in the pyRevit output window?" |
 | `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan or design until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
 | `am-grilling` | The interview method behind `am-grill-me`. It also starts when you say "grill me" about a plan, decision or idea. Adapted from Matt Pocock (MIT). |
+| `am-bim-viewer` | Shows a Revit model in 3D in Claude Code. It exports the visible elements of the active view to JSON and builds an interactive viewer page. Use the Rhino mouse controls, click an element to see its BIM data, filter categories, and jump to Top, Front, Right or Perspective views. Install the `am-bim-viewer` mod for the `/bim-view` command. To use it, ask Claude to "show this model in 3D". |
+
+### Mods
+
+A mod changes Claude Code itself (here: a slash command). It is a separate plugin in this marketplace:
+
+```
+/plugin install am-bim-viewer@archi-magic
+```
+
+| Mod | What it does |
+|---|---|
+| `am-bim-viewer` | Adds `/bim-view [model.json] [--open]`. It builds the 3D viewer page and gives Claude the link to open it in the Browser pane. With no file, it shows a demo model. It needs a Claude Code build with function hooks (tested on 2.1.299). |
 
 The pyRevit setup script also works without Claude. Run `skills/am-pyrevit7-setup/scripts/Setup-pyRevit7.cmd`. See [kit-README.md](skills/am-pyrevit7-setup/kit-README.md).
 

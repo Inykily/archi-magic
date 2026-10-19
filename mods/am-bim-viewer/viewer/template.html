@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg: #f4f3ef; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #dddbd4;
+    --chip: #eceae4; --accent: #1f5fbf; --sel: #ffb000; --view: #e9ecef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17181a; --panel: #202226; --ink: #ecebe7; --muted: #a09e98; --line: #34363b;
+      --chip: #2b2d32; --accent: #7fb0ff; --sel: #ffb000; --view: #1b1d21; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { display: grid; grid-template-columns: 1fr 320px; grid-template-rows: auto 1fr auto; height: 100%; }
+  header { grid-column: 1 / 3; display: flex; gap: 6px; align-items: center; padding: 8px 12px;
+    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; }
+  header button { font: inherit; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--chip); color: var(--ink); cursor: pointer; }
+  header button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #viewport { position: relative; overflow: hidden; background: var(--view); min-height: 240px; }
+  #viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: 4px;
+    background: rgba(20, 20, 20, .72); color: #fff; font-size: 11px; white-space: nowrap; }
+  #gizmo { position: absolute; left: 10px; bottom: 10px; width: 96px; height: 96px; pointer-events: none; }
+  #viewname { position: absolute; left: 10px; top: 8px; font-weight: 600; color: var(--muted); pointer-events: none; }
+  aside { background: var(--panel); box-shadow: inset 1px 0 0 var(--line); overflow: auto; padding: 12px; grid-row: 2 / 4; grid-column: 2; }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 6px; }
+  aside h2:first-child { margin-top: 0; }
+  #props table { width: 100%; border-collapse: collapse; }
+  #props td { padding: 3px 4px; vertical-align: top; border-bottom: 1px solid var(--line); word-break: break-word; }
+  #props td:first-child { color: var(--muted); width: 42%; }
+  #props .name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  #props .empty { color: var(--muted); }
+  #cats label { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+  #cats .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  #cats .n { margin-left: auto; color: var(--muted); }
+  footer { grid-column: 1; padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  kbd { background: var(--chip); border-radius: 4px; padding: 0 4px; font: inherit; }
+  @media (max-width: 720px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 60vh auto auto; }
+    header { grid-column: 1; }
+    aside { grid-column: 1; grid-row: 3; box-shadow: inset 0 1px 0 var(--line); }
+    footer { grid-row: 4; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>__TITLE__</h1>
+    <button data-view="top">Top</button>
+    <button data-view="front">Front</button>
+    <button data-view="right">Right</button>
+    <button data-view="perspective">Perspective</button>
+    <button id="fit">Zoom extents</button>
+  </header>
+  <div id="viewport">
+    <div id="viewname"></div>
+    <div id="labels"></div>
+    <svg id="gizmo" viewBox="-48 -48 96 96" aria-label="Axis gizmo"></svg>
+  </div>
+  <aside>
+    <h2>Selected</h2>
+    <div id="props"><div class="empty">Click an element to see its data.</div></div>
+    <h2>Categories</h2>
+    <div id="cats"></div>
+  </aside>
+  <footer id="hint"></footer>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+/*__CORE__*/
+
+const DATA = /*__DATA__*/null;
+
+const PALETTE = { Walls: 0xc9c4b8, Floors: 0x9aa3ad, Doors: 0xb5651d, Columns: 0x5b7f9e,
+  'Structural Columns': 0x5b7f9e, Windows: 0x7fc4d9, Roofs: 0xa0522d, Stairs: 0x8f8f8f, Generic: 0xbfbfbf };
+const EXTRA = [0x8db580, 0xd19a66, 0x9f86c0, 0x6fb7b7, 0xd4a5a5, 0xb8b06a];
+const HOVER = 0x3d8bff, SELECT = 0xffb000;
+
+const vp = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+vp.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--view').trim() || '#e9ecef');
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+sun.position.set(-0.5, -0.8, 1.6); // from south-west, above (world Z up)
+scene.add(sun);
+
+const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1e5) };
+const state = createViewState();
+let viewName = 'perspective';
+
+// Build one mesh per element. Data stays in Revit coordinates (Z up).
+const elements = DATA.elements;
+const catColor = {};
+let extra = 0;
+const meshes = [];
+const byCat = {};
+for (const el of elements) {
+  const cat = el.category || 'Generic';
+  if (!(cat in catColor)) catColor[cat] = PALETTE[cat] !== undefined ? PALETTE[cat] : EXTRA[extra++ % EXTRA.length];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(el.mesh.vertices, 3));
+  g.setIndex(el.mesh.indices);
+  const flat = g.toNonIndexed();
+  flat.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ color: catColor[cat], side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const mesh = new THREE.Mesh(flat, mat);
+  mesh.userData.el = el;
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(flat, 25), new THREE.LineBasicMaterial({ color: 0x3a3a3a }));
+  mesh.add(edges);
+  scene.add(mesh);
+  meshes.push(mesh);
+  (byCat[cat] = byCat[cat] || []).push(mesh);
+}
+const bounds = meshBounds(elements);
+
+// Category filter
+const catsEl = document.getElementById('cats');
+for (const cat of Object.keys(byCat).sort()) {
+  const row = document.createElement('label');
+  const box = document.createElement('input');
+  box.type = 'checkbox'; box.checked = true; box.dataset.cat = cat;
+  box.addEventListener('change', () => { for (const m of byCat[cat]) m.visible = box.checked; if (selected && !selected.visible) select(null); requestRender(); });
+  const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = '#' + catColor[cat].toString(16).padStart(6, '0');
+  const name = document.createElement('span'); name.textContent = cat;
+  const n = document.createElement('span'); n.className = 'n'; n.textContent = byCat[cat].length;
+  row.append(box, sw, name, n);
+  catsEl.append(row);
+}
+
+// Selection and hover
+let hovered = null, selected = null;
+function tint(mesh) {
+  if (!mesh) return;
+  const base = catColor[mesh.userData.el.category || 'Generic'];
+  mesh.material.color.setHex(mesh === selected ? SELECT : mesh === hovered ? HOVER : base);
+}
+function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); vp.style.cursor = m ? 'pointer' : ''; requestRender(); }
+function select(m) {
+  const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null); requestRender();
+}
+function td(text) { const c = document.createElement('td'); c.textContent = text; return c; }
+function showProps(el) {
+  const box = document.getElementById('props');
+  box.textContent = '';
+  if (!el) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Click an element to see its data.'; box.append(e); return; }
+  const title = document.createElement('div'); title.className = 'name'; title.textContent = el.name || (el.category + ' ' + el.id);
+  const t = document.createElement('table');
+  const b = meshBounds([el]);
+  const rows = [
+    ['Element ID', String(el.id)], ['Category', el.category || ''], ['Family', el.family || ''],
+    ['Type', el.type || ''], ['Level', el.level || ''],
+    ['Size X (E-W)', formatLength(b.max[0] - b.min[0])], ['Size Y (N-S)', formatLength(b.max[1] - b.min[1])],
+    ['Size Z (height)', formatLength(b.max[2] - b.min[2])],
+  ];
+  for (const [k, v] of Object.entries(el.params || {})) rows.push([k, formatParam(v)]);
+  for (const [k, v] of rows) { if (v === '') continue; const tr = document.createElement('tr'); tr.append(td(k), td(v)); t.append(tr); }
+  box.append(title, t);
+}
+
+const raycaster = new THREE.Raycaster();
+function pick(px, py) {
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((px - r.left) / r.width) * 2 - 1, -((py - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, activeCam);
+  const hit = raycaster.intersectObjects(meshes.filter(m => m.visible), false)[0];
+  return hit ? hit.object : null;
+}
+
+// Camera input: Rhino-style mapping from viewer-core mapPointer().
+let activeCam = cams.persp;
+let drag = null;
+const canvas = renderer.domElement;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  const action = mapPointer({ button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, isParallel: state.projection === 'parallel' });
+  drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
+  canvas.setPointerCapture(e.pointerId);
+  if (action !== 'select') e.preventDefault();
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.action === 'rotate') { orbit(state, dx, dy); if (viewName !== 'perspective') setViewName(state.projection === 'parallel' ? 'parallel (rotated)' : 'perspective'); }
+  else if (drag.action === 'pan') pan(state, dx, dy, canvas.clientHeight);
+  else if (drag.action === 'zoom') zoomAt(state, dragZoomFactor(dy), 0, 0, aspect());
+  else return;
+  requestRender();
+});
+canvas.addEventListener('pointerup', e => {
+  if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
+  drag = null;
+});
+canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const mode = mapWheel({ ctrl: e.ctrlKey || e.metaKey });
+  const nx = mode === 'zoom-cursor' ? ((e.clientX - r.left) / r.width) * 2 - 1 : 0;
+  const ny = mode === 'zoom-cursor' ? -((e.clientY - r.top) / r.height) * 2 + 1 : 0;
+  zoomAt(state, Math.exp(Math.sign(e.deltaY) * 0.12), nx, ny, aspect());
+  requestRender();
+}, { passive: false });
+
+// Named views
+const viewButtons = [...document.querySelectorAll('[data-view]')];
+function setViewName(n) { viewName = n; document.getElementById('viewname').textContent = n.charAt(0).toUpperCase() + n.slice(1); viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n))); }
+function setView(n) { setNamedView(state, n, bounds); setViewName(n); updateHint(); requestRender(); }
+viewButtons.forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+document.getElementById('fit').addEventListener('click', () => { fitBounds(state, bounds); requestRender(); });
+function updateHint() {
+  document.getElementById('hint').innerHTML = state.projection === 'parallel'
+    ? '<kbd>Right drag</kbd> pan · <kbd>Ctrl+Shift+Right</kbd> rotate · <kbd>Ctrl+Right</kbd> zoom · <kbd>Wheel</kbd> zoom at cursor · <kbd>Left</kbd> select'
+    : '<kbd>Right drag</kbd> rotate · <kbd>Shift+Right</kbd> pan · <kbd>Ctrl+Right</kbd> zoom · <kbd>Wheel</kbd> zoom at cursor · <kbd>Left</kbd> select';
+}
+
+// Annotations (labels in world coordinates)
+const labelsEl = document.getElementById('labels');
+const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
+
+// Axis gizmo: X red, Y green, Z blue, drawn from the same camera basis.
+const gizmo = document.getElementById('gizmo');
+function drawGizmo() {
+  const ax = gizmoAxes(state);
+  const spec = [['x', '#d62828', 'X'], ['y', '#2a9d3f', 'Y'], ['z', '#1f5fbf', 'Z']];
+  let svg = '<circle r="44" fill="rgba(255,255,255,.55)" />';
+  for (const [k, col, lab] of spec) {
+    const [sx, sy] = ax[k];
+    const x = sx * 30, y = -sy * 30;
+    svg += '<line x1="0" y1="0" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>';
+    svg += '<text x="' + (sx * 40).toFixed(1) + '" y="' + (-sy * 40 + 4).toFixed(1) + '" fill="' + col + '" font-size="12" font-weight="700" text-anchor="middle">' + lab + '</text>';
+  }
+  gizmo.innerHTML = svg;
+}
+
+function aspect() { return Math.max(1e-3, vp.clientWidth / Math.max(1, vp.clientHeight)); }
+let pending = false;
+function requestRender() { if (!pending) { pending = true; requestAnimationFrame(render); } }
+function render() {
+  pending = false;
+  const w = vp.clientWidth, h = vp.clientHeight;
+  renderer.setSize(w, h, false);
+  activeCam = applyView(THREE, state, cams, w / Math.max(1, h));
+  renderer.render(scene, activeCam);
+  const v = new THREE.Vector3();
+  for (const { a, d } of tags) {
+    v.fromArray(a.position).project(activeCam);
+    const vis = v.z > -1 && v.z < 1;
+    d.style.display = vis ? '' : 'none';
+    d.style.left = ((v.x + 1) / 2) * w + 'px';
+    d.style.top = ((1 - v.y) / 2) * h + 'px';
+  }
+  drawGizmo();
+}
+new ResizeObserver(requestRender).observe(vp);
+
+// Test hooks: world point to viewport pixels, pick at pixels, current state.
+window.__bim = {
+  state, setView, select: id => select(meshes.find(m => String(m.userData.el.id) === String(id)) || null),
+  project(x, y, z) { const p = new THREE.Vector3(x, y, z).project(activeCam); const r = canvas.getBoundingClientRect();
+    return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; },
+  selectedId: () => (selected ? selected.userData.el.id : null),
+};
+
+setView('perspective');
+</script>
+</body>
+</html>
