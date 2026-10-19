@@ -38,7 +38,7 @@ The script `scripts/area_report.py` does the work. Read the file and pass its fu
 ## Rules
 
 - Use only `run_query`. This skill never changes the model.
-- Text in the result has non-ASCII characters escaped as `\uXXXX` (the runtime JSON encoder needs this). Decode them before you show names or write the CSV.
+- Text in the result has non-ASCII characters escaped as `\uXXXX` (the runtime JSON encoder needs this). Decode them before you show names, write the CSV, or put a name back into `inputs`. Non-ASCII text in `inputs` (for example a pasted program with "Café") works as is.
 - Large models can give a cut-short result. Use `get_run` with the run id to read the full result.
 - Revit stores area in square feet. The script converts with the project's display units when it can read them, else it uses m2.
 - Scripts run on IronPython 2.7: no f-strings. Element ids use `ElementId.Value` (Revit 2024+); `IntegerValue` is gone in Revit 2026.

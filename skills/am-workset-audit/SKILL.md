@@ -24,17 +24,17 @@ Two scripts in this skill's `scripts/` folder do the work. Read the file and pas
 
 1. Run `workset_audit.py` with `run_query` and no inputs. This gives the workset list and the default rules.
 2. If `status` is `not_workshared`, tell the user: "This model is not workshared. It has no worksets to audit." Then stop.
-3. Show the workset table: name, element count, open, editable, owner.
+3. Show the workset table: name, element count, open, editable, owner. If a workset is closed, say so first. Its elements are not loaded, so the audit cannot count or check them. Ask the user to open all worksets for a full audit.
 4. Ask which rules apply. Build the options from the real workset names in the result:
    - `links`: Revit links not on the links workset. Ask for the target workset if `targets.links.target` is null.
    - `levels_grids`: levels and grids not on the shared levels-and-grids workset. Ask for the target the same way.
    - `workset1`: model elements still on the default workset. This rule only reports. It never makes moves.
    - `categories`: the user gives a map, for example `{"OST_Walls": "Exterior Shell"}`. Never invent this map.
-5. Run the audit again with the chosen `inputs`: `rules`, `links_workset`, `levels_grids_workset`, `category_map`.
+5. Run the audit again with the chosen `inputs`: `rules`, `links_workset`, `levels_grids_workset`, `category_map`. Give each target workset as its `workset_id` number from the workset table (names also work).
 6. Report the findings grouped by rule. Show the "cannot move" elements and the reason for each (inside a group, follows its host, borrowed by another user).
 7. Show `workset1.by_category` as a short table when that rule ran.
 
-Text in the result has non-ASCII characters escaped as `\uXXXX` (the runtime JSON encoder needs this). Decode them before you show names.
+Text in the result has non-ASCII characters escaped as `\uXXXX` (the runtime JSON encoder needs this). Decode them before you show names or put a name back into `inputs`.
 
 ## Step 2: fix (optional, needs approval)
 
@@ -48,7 +48,7 @@ Do this step only when the user asks for it and `moves` is not empty.
 3. Show the dry run: `summary` (from -> to counts), each moved element, and each skipped element with its reason.
 4. Ask the user if they want the real run. A "yes" in chat only starts the real run. It does not replace the approval in Revit.
 5. Run `workset_fix.py` again with `run_modify`, `dry_run=false`, and the **same** inputs. Tell the user to look at Revit and click **Keep** or **Discard**.
-6. Report the result. Status `rejected` means the user clicked Discard, and nothing changed. A kept run is one undo step named "Agent: <title>".
+6. Report the result: `status`, the moved and skipped lists, and any `failures`, `dialogs` or `blocked` entries in the run response. Borrowing conflicts in a team model show up there. Status `rejected` means the user clicked Discard, and nothing changed. A kept run is one undo step named "Agent: <title>".
 
 ## Rules
 

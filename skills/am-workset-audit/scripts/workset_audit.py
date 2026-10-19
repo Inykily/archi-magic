@@ -12,10 +12,12 @@ inputs (all optional):
                           "workset1"      model elements left on the default workset (report only)
                           "categories"    elements whose category is in category_map but sit
                                           on another workset
-  links_workset         exact name of the target workset for links
-  levels_grids_workset  exact name of the target workset for levels and grids
-  default_workset       name of the default workset. Default: "Workset1"
-  category_map          {"OST_Walls": "Exterior", ...}: BuiltInCategory name -> exact workset name
+  links_workset         target workset for links: workset id (int, preferred) or exact name
+  levels_grids_workset  target workset for levels and grids: workset id or exact name
+  default_workset       default workset: id or name. Default: "Workset1"
+  category_map          {"OST_Walls": 1234 or "Exterior", ...}: BuiltInCategory name -> workset
+  Workset ids are in the "worksets" list of a first run. Ids avoid any problem with
+  non-ASCII workset names.
   max_items             cap on listed findings. Default: 500
 
 result: worksets with element counts, findings, and "moves" (only movable elements) in the
@@ -39,8 +41,13 @@ def eid_int(element_id):
 
 
 def find_workset(worksets, wanted, hints):
-    """Exact (case-insensitive) name match first; else guess by hint substrings.
-    Returns (workset or None, list of candidate names)."""
+    """wanted may be a workset id (int) or an exact, case-insensitive name; with no wanted,
+    guess by hint substrings. Returns (workset or None, list of candidate names)."""
+    if isinstance(wanted, int) and not isinstance(wanted, bool):
+        for ws in worksets:
+            if ws.Id.IntegerValue == wanted:
+                return ws, [ws.Name]
+        return None, []
     if wanted:
         for ws in worksets:
             if ws.Name.lower() == wanted.lower():
@@ -83,20 +90,33 @@ def main():
     worksets = list(DB.FilteredWorksetCollector(doc).OfKind(DB.WorksetKind.UserWorkset))
     ws_by_int = {}
     ws_rows = []
+    notes = []
+    closed = []
     for ws in worksets:
         ws_by_int[ws.Id.IntegerValue] = ws
-        count = (DB.FilteredElementCollector(doc)
-                 .WherePasses(DB.ElementWorksetFilter(ws.Id, False))
-                 .WhereElementIsNotElementType()
-                 .GetElementCount())
+        count = None  # elements on a closed workset are not loaded, so they cannot be counted
+        if ws.IsOpen:
+            count = (DB.FilteredElementCollector(doc)
+                     .WherePasses(DB.ElementWorksetFilter(ws.Id, False))
+                     .WhereElementIsNotElementType()
+                     .GetElementCount())
+        else:
+            closed.append(ws.Name)
         ws_rows.append({"workset_id": ws.Id.IntegerValue, "name": ws.Name,
                         "element_count": count, "is_open": ws.IsOpen,
                         "is_editable": ws.IsEditable, "owner": ws.Owner or ""})
-    ws_rows.sort(key=lambda r: -r["element_count"])
+    ws_rows.sort(key=lambda r: -(r["element_count"] or 0))
+    if closed:
+        notes.append("Closed worksets (elements not checked): %s. Open all worksets for a full audit."
+                     % ", ".join(closed))
 
     findings = {}
     targets = {}
-    notes = []
+
+    def warn_closed(rule, target):
+        if target is not None and not target.IsOpen:
+            notes.append("%s: target workset %s is closed. Moved elements will not show in views "
+                         "until it is opened." % (rule, target.Name))
 
     def add(el, rule, target):
         key = eid_int(el.Id)
@@ -121,6 +141,7 @@ def main():
         if target is None:
             notes.append("%s: no single target workset found. Candidates: %s. Pass the exact name."
                          % (rule, ", ".join(cands) if cands else "none"))
+        warn_closed(rule, target)
         for cls in cls_list:
             for el in DB.FilteredElementCollector(doc).OfClass(cls):
                 if target is None or el.WorksetId != target.Id:
@@ -143,6 +164,7 @@ def main():
                 notes.append("categories: skipped %s -> %s (unknown category or workset)."
                              % (bic_name, ws_name))
                 continue
+            warn_closed("categories", target)
             col = (DB.FilteredElementCollector(doc).OfCategory(bic)
                    .WhereElementIsNotElementType())
             for el in col:

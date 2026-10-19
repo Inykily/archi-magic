@@ -87,16 +87,17 @@ def finish(bucket, conv):
 
 
 def parse_program(text):
+    """CSV text -> [(key, target)]. Uses the first and last column, so quoted keys with
+    commas and quoted numbers such as "1,200" work. A header row is skipped."""
+    import csv
     rows = []
-    for line in (text or "").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = [p.strip().strip('"') for p in line.rsplit(",", 1)]
-        if len(parts) != 2:
+    lines = [ln for ln in (text or "").splitlines() if ln.strip()]
+    for parts in csv.reader(lines):
+        parts = [p.strip() for p in parts]
+        if len(parts) < 2:
             continue
         try:
-            rows.append((parts[0], float(parts[1])))
+            rows.append((parts[0], float(parts[-1].replace(",", "").replace(" ", ""))))
         except ValueError:
             continue  # header row or a bad number
     return rows
