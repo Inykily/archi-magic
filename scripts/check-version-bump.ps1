@@ -14,8 +14,13 @@
 param([Parameter(Mandatory = $true)][string]$Base)
 $ErrorActionPreference = 'Stop'
 
-git cat-file -e "$Base^{commit}" 2>$null
-if ($LASTEXITCODE -ne 0) {
+# git writes to stderr for an unknown base; with 'Stop', Windows PowerShell would turn that
+# into a terminating error before the exit code can be read. Relax it for this one probe.
+$ErrorActionPreference = 'Continue'
+$null = git cat-file -e "$Base^{commit}" 2>&1
+$baseOk = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = 'Stop'
+if (-not $baseOk) {
     # First push of a branch or a force push: nothing reliable to compare against. Say so; do not pass silently.
     Write-Host "UNVERIFIED: base '$Base' is not a commit in this clone; version-bump check skipped."
     exit 0
