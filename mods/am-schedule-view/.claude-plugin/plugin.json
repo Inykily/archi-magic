@@ -1,0 +1,7 @@
+{
+  "name": "am-schedule-view",
+  "version": "0.1.0",
+  "description": "archi-magic: /am-schedule-view <file.json> shows a Revit schedule or a change preview (from the am-schedule-view skill) in a pane, with paging, filter and Copy as TSV.",
+  "author": { "name": "zsenarchitect" },
+  "types": "./types/index.d.ts"
+}

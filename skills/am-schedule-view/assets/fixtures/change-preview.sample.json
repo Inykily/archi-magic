@@ -1,0 +1,45 @@
+{
+  "kind": "change-preview",
+  "title": "Shift sheets A301+ up by one",
+  "keyColumn": "ElementId",
+  "columns": ["ElementId", "Sheet Number", "Sheet Name"],
+  "changedColumns": ["Sheet Number"],
+  "before": [
+    ["1203401", "A101", "Level 1 Floor Plan"],
+    ["1203402", "A102", "Level 2 Floor Plan"],
+    ["1203403", "A103", "Level 3 Floor Plan"],
+    ["1203404", "A201", "Building Elevations"],
+    ["1203405", "A202", "Building Elevations - East / West"],
+    ["1203406", "A301", "Building Sections"],
+    ["1203407", "A302", "Wall Sections"],
+    ["1203408", "A303", "Wall Sections - Lobby"],
+    ["1203409", "A304", "Stair Sections"],
+    ["1203410", "A310", "Enlarged Sections - Roof"],
+    ["1203411", "A401", "Enlarged Plans - Toilets"],
+    ["1203412", "A501", "Details - Envelope"],
+    ["1203413", "A601", "Door Schedule & Details"]
+  ],
+  "after": [
+    ["1203401", "A101", "Level 1 Floor Plan"],
+    ["1203402", "A102", "Level 2 Floor Plan"],
+    ["1203403", "A103", "Level 3 Floor Plan"],
+    ["1203404", "A201", "Building Elevations"],
+    ["1203405", "A202", "Building Elevations - East / West"],
+    ["1203406", "A302", "Building Sections"],
+    ["1203407", "A303", "Wall Sections"],
+    ["1203408", "A304", "Wall Sections - Lobby"],
+    ["1203409", "A305", "Stair Sections"],
+    ["1203410", "A311", "Enlarged Sections - Roof"],
+    ["1203411", "A401", "Enlarged Plans - Toilets"],
+    ["1203412", "A501", "Details - Envelope"],
+    ["1203413", "A601", "Door Schedule & Details"]
+  ],
+  "notes": [
+    "A301 is now free for the new sheet",
+    "Sheets are renumbered from the highest number down, so no two sheets share a number during the change"
+  ],
+  "warnings": [
+    {"row": "1203410", "text": "A311 is referenced by 2 section heads on A201; the tags will show the new number"},
+    {"row": "1203411", "text": "This sheet is in the issued set 'DD 2026-09'; it does not change, but check the set"}
+  ]
+}
