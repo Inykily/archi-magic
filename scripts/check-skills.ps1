@@ -16,6 +16,8 @@ $ErrorActionPreference = 'Stop'
 
 $problems = New-Object System.Collections.Generic.List[string]
 $readme = [IO.File]::ReadAllText((Join-Path $Root 'README.md'))
+# HOUSE-RULES.md is the single source; every SKILL.md must end with an identical copy.
+$houseRules = ([IO.File]::ReadAllText((Join-Path $Root 'HOUSE-RULES.md')) -replace "`r`n", "`n").Trim()
 $dirs = @(Get-ChildItem (Join-Path $Root 'skills') -Directory | Sort-Object Name)
 if ($dirs.Count -eq 0) { Write-Host 'FAIL: no skill folders found under skills/'; exit 1 }
 
@@ -33,6 +35,9 @@ foreach ($d in $dirs) {
     if ($name -ne $n) { $problems.Add("$n : frontmatter name is '$name', expected '$n'") }
     if (-not $desc) { $problems.Add("$n : frontmatter has no description") }
     if (-not $readme.Contains("``$n``")) { $problems.Add("$n : README.md skills table does not mention ``$n``") }
+    if (-not ($text -replace "`r`n", "`n").TrimEnd().EndsWith($houseRules)) {
+        $problems.Add("$n : house rules differ from HOUSE-RULES.md (run scripts/sync-house-rules.ps1)")
+    }
 }
 
 Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach-Object Name) -join ', '))

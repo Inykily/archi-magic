@@ -35,6 +35,7 @@ The pyRevit setup script also works without Claude. Run `skills/am-pyrevit7-setu
 1. Create `skills/am-<name>/SKILL.md`. The frontmatter `name` must equal the folder name and start with `am-`.
 2. Put helper scripts next to it, in `skills/am-<name>/scripts/`.
 3. Add a row for the skill to the table above.
-4. Bump `version` in `.claude-plugin/plugin.json`, so installed copies pick up the update.
+4. Run `scripts/sync-house-rules.ps1`. It copies `HOUSE-RULES.md` (output in ASD-STE100, subagents for parallel work, ask with clickable options when unclear) to the end of every `SKILL.md`. Edit the rules only in `HOUSE-RULES.md`.
+5. Bump `version` in `.claude-plugin/plugin.json`, so installed copies pick up the update.
 
 `scripts/check-skills.ps1` runs on every push (GitHub Actions). It fails if a skill folder lacks the `am-` prefix, if its `SKILL.md` name doesn't match the folder, or if it's missing from the table above.
