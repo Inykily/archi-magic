@@ -70,7 +70,27 @@ if (-not (Test-Path -LiteralPath $rulesMd)) {
     if (($ruleLines -join '').Trim().Length -eq 0) { $problems.Add('hooks/session-rules.md is empty') }
 }
 
+# Design tokens: every page template carries an identical copy of design/tokens.css.
+$tokensPath = Join-Path $Root 'design/tokens.css'
+$designOk = 0
+if (Test-Path -LiteralPath $tokensPath) {
+    $tokens = ([IO.File]::ReadAllText($tokensPath) -replace "`r`n", "`n").Trim()
+    . (Join-Path $Root 'scripts/lib/design-templates.ps1')
+    $tokRx = [regex]'(?s)/\* am-tokens:start.*?/\* am-tokens:end \*/'
+    foreach ($rel in $AmDesignTemplates) {
+        $p = Join-Path $Root $rel
+        if (-not (Test-Path -LiteralPath $p)) { $problems.Add("$rel : page template is missing (listed in scripts/lib/design-templates.ps1)"); continue }
+        $m = $tokRx.Match(([IO.File]::ReadAllText($p) -replace "`r`n", "`n"))
+        if (-not $m.Success) { $problems.Add("$rel : no design tokens block (am-tokens markers); run scripts/sync-design-tokens.ps1 after adding it") }
+        elseif ($m.Value.Trim() -ne $tokens) { $problems.Add("$rel : design tokens differ from design/tokens.css (run scripts/sync-design-tokens.ps1)") }
+        else { $designOk++ }
+    }
+} else {
+    $problems.Add('design/tokens.css is missing')
+}
+
 Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach-Object Name) -join ', '))
+Write-Host ("Checked design tokens: {0} page template(s) in sync" -f $designOk)
 Write-Host ("Checked SessionStart rules hook: {0}" -f $(if (Test-Path -LiteralPath $rulesMd) { "$(@(([IO.File]::ReadAllText($rulesMd) -replace "`r`n", "`n").Trim() -split "`n").Count) line(s)" } else { 'missing' }))
 if ($problems.Count -gt 0) {
     Write-Host "FAIL: $($problems.Count) problem(s)"
