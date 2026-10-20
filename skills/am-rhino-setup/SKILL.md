@@ -1,6 +1,6 @@
 ---
 name: am-rhino-setup
-description: Connect Claude Code to Rhino 8 on Windows WITHOUT admin rights, with McNeel's official rhino-mcp plugin. Checks Rhino 8 and Node.js, installs the Rhino-MCP-Platform Rhino package per-user with Yak, guides the `/plugin install rhino-mcp@archi-magic` step, and adds permission rules so Claude must ask before every Rhino tool that can change a file or the model (run_python, run_csharp, run_command, open/save/close document, Grasshopper apply/clear/delete and more). Use when the user asks to "set up Rhino", "connect Claude to Rhino", "install the Rhino MCP", "rhino mcp", "Rhino-MCP-Platform", "let Claude model in Rhino", or when the Rhino tools do not appear in Claude Code. NOT for Revit (use am-pyrevit7-setup).
+description: Connect Claude Code to Rhino 8 on Windows WITHOUT admin rights, with McNeel's official rhino-mcp plugin. Checks Rhino 8 and Node.js, installs the Rhino-MCP-Platform Rhino package per-user with Yak, guides the `/plugin install rhino-mcp@archi-magic` step, and adds permission rules so Claude must ask before every Rhino tool that can change a file or the model (run_python, run_csharp, run_command, open/save/close document, layer materials, plugin commands and every Grasshopper canvas change). Use when the user asks to "set up Rhino", "connect Claude to Rhino", "install the Rhino MCP", "rhino mcp", "Rhino-MCP-Platform", "let Claude model in Rhino", or when the Rhino tools do not appear in Claude Code. NOT for Revit (use am-pyrevit7-setup).
 ---
 
 # am-rhino-setup
@@ -25,14 +25,13 @@ An MCP server is a small program that gives Claude tools for another app. Here t
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\rhino-setup.ps1"`
    - Exit code 7: Node.js is missing. Give the user the download link that the script prints. Node.js is a program that the rhino-mcp plugin needs to start. If its installer asks for admin rights, the user must ask IT. Wait, then run the script again.
    - Exit code 3: Yak could not install the Rhino package. Give the user the PackageManager steps that the script prints, and wait. Then run the script again.
-   - Exit code 4: Rhino has not loaded the package yet. Ask the user to open Rhino 8 once and wait until it has started. Then run the script again.
    - Exit code 5: the settings file was not changed. Show the reason. Do not edit the file by hand unless the user asks.
 3. When the script prints `NEXT: ... /plugin install rhino-mcp@archi-magic`, ask the user to type that command in Claude Code. Then ask them to restart the Claude desktop app and open a new Code session. The Rhino tools load only in new sessions.
 4. Ask the user to type `SetDotNetRuntime` in Rhino 8. It must say **NETCore**. The plugin does not load on .NET Framework.
 5. Run `-Verify` again. All checks must pass.
 6. Suggest this first test in the new session: "use the rhino tools to list the objects in my open Rhino document".
 7. Close with these points:
-   - Claude asks before it runs Python, C# or a Rhino command, and before it opens, saves or closes a file or changes Grasshopper. Read each request before you approve it. Rhino has no Keep/Discard step, so use Undo in Rhino if a change is wrong.
+   - Claude asks before it runs Python, C# or a Rhino command, and before it opens, saves or closes a file, changes a layer material, or changes Grasshopper. Read each request before you approve it. Rhino has no Keep/Discard step, so use Undo in Rhino if a change is wrong.
    - Anything Claude reads from the model, and every viewport screenshot, goes to the AI provider. Use it only on projects where that is allowed.
    - If more than one Rhino window is open, Claude can edit a different document than the one you look at. Keep one Rhino open. If no Rhino is open, a Rhino tool call can start a new Rhino.
    - Save your file before you ask Claude to change it.

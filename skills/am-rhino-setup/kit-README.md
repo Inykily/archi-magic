@@ -16,10 +16,9 @@ With the archi-magic plugin installed, ask Claude Code to "set up Rhino". The `a
 ## Option B: run the script yourself
 
 1. Run `powershell -NoProfile -ExecutionPolicy Bypass -File rhino-setup.ps1`.
-2. If it says the router is not ready, open Rhino 8 once, wait until it has started, and run the script again.
-3. In Claude Code, type `/plugin install rhino-mcp@archi-magic`.
-4. In Rhino 8, type `SetDotNetRuntime`. It must say **NETCore**.
-5. Restart the Claude desktop app. In a **new** Code session, ask: *"use the rhino tools to list the objects in my open Rhino document"*.
+2. In Claude Code, type `/plugin install rhino-mcp@archi-magic`.
+3. In Rhino 8, type `SetDotNetRuntime`. It must say **NETCore**.
+4. Restart the Claude desktop app. In a **new** Code session, ask: *"use the rhino tools to list the objects in my open Rhino document"*.
 
 If Yak cannot install the package, install it in Rhino: type `PackageManager`, search for **Rhino-MCP-Platform**, click Install, and restart Rhino.
 
@@ -29,7 +28,7 @@ If Node.js is missing, download it from https://nodejs.org/en/download. If the i
 
 Claude Code asks before these tools run. The rules cover both names: `mcp__plugin_rhino-mcp_rhino__<tool>` (plugin) and `mcp__rhino__<tool>` (manual setup, for example with Rhino's `MCPConnect` command).
 
-`run_python`, `run_csharp`, `run_command`, `open_doc`, `save_doc`, `close_doc`, `set_layer_material`, `manage_plugin_commands`, `g1_apply_graph`, `g1_clear_canvas`, `g1_delete_component`, `g2_apply_graph`, `g2_clear_canvas`, `g2_delete_component`.
+`run_python`, `run_csharp`, `run_command`, `open_doc`, `save_doc`, `close_doc`, `set_layer_material`, `manage_plugin_commands`, and the Grasshopper tools that change the canvas: `g1_apply_graph`, `g1_clear_canvas`, `g1_delete_component`, `g1_connect`, `g1_connect_many`, `g1_place_component`, `g1_place_slider`, `g1_solve_graph`, `g1_start`, and the same `g2_` tools (`g2_solve_canvas` in place of `g1_solve_graph`).
 
 Ask rules prompt in every permission mode, also in auto mode. Tools that only read or move the view (for example `list_objects`, `get_context`, `get_viewport_image`, `set_camera`) run without a prompt.
 
@@ -53,7 +52,6 @@ Exit codes:
 | 0 | OK |
 | 2 | Rhino 8 (or the selected version) is not installed |
 | 3 | Rhino package install failed |
-| 4 | Router not ready: open Rhino once, then run again |
 | 5 | settings.json not changed (invalid JSON or unexpected shape) |
 | 6 | Verify found problems |
 | 7 | Node.js not found |

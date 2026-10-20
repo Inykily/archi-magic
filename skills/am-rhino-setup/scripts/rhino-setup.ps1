@@ -7,8 +7,8 @@
 .DESCRIPTION
   Safe to re-run. Steps (default: Install, AskRules, Verify, in this order):
     -Install   Check Rhino and Node.js, run 'Yak.exe install Rhino-MCP-Platform' for the
-               current user (never --all-users), check that Rhino has staged the MCP
-               router, and print the plugin install command for Claude Code.
+               current user (never --all-users), and print the plugin install command
+               for Claude Code.
                Skips yak when the package is already installed (-Force runs it again).
     -AskRules  Merge permissions.ask rules for the Rhino tools that can change a file or
                the model into the Claude Code user settings. Both tool-name forms are
@@ -24,8 +24,8 @@
   Never needs admin. Never starts, stops or kills Rhino.
 
   Exit codes: 0 ok, 2 required Rhino version not installed, 3 package install failed,
-  4 router not staged yet (open Rhino once), 5 settings.json not changed (invalid JSON
-  or unexpected shape), 6 verify found problems, 7 Node.js not found.
+  5 settings.json not changed (invalid JSON or unexpected shape), 6 verify found
+  problems, 7 Node.js not found. (4 is not used.)
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File .\rhino-setup.ps1
@@ -67,7 +67,9 @@ $WriteTools = @(
     'open_doc', 'save_doc', 'close_doc',
     'set_layer_material', 'manage_plugin_commands',
     'g1_apply_graph', 'g1_clear_canvas', 'g1_delete_component',
-    'g2_apply_graph', 'g2_clear_canvas', 'g2_delete_component'
+    'g1_connect', 'g1_connect_many', 'g1_place_component', 'g1_place_slider', 'g1_solve_graph', 'g1_start',
+    'g2_apply_graph', 'g2_clear_canvas', 'g2_delete_component',
+    'g2_connect', 'g2_connect_many', 'g2_place_component', 'g2_place_slider', 'g2_solve_canvas', 'g2_start'
 )
 # Plugin-bundled server: mcp__plugin_<plugin>_<server>__<tool> (Claude Code docs, "Plugin MCP tool names").
 # Manual registration as 'rhino' (McNeel's MCPConnect): mcp__rhino__<tool>.
@@ -272,11 +274,6 @@ if ($Install) {
         Say "Installed $PackageName $($have[0].Name)."
     }
 
-    if (-not (Test-Path $StagedExe)) {
-        Fail 4 "The MCP router is not ready yet ($StagedExe is missing). Open Rhino $RhinoVersion once (close it first if it is open), wait until it has started, then run this script again. Rhino puts the router there when it loads the plugin."
-    }
-    Say "Router: $StagedExe"
-
     if ((Test-PluginInstalled).Count -gt 0) {
         Say "Claude Code plugin '$PluginName' is installed: $((Test-PluginInstalled) -join ', ')"
     } else {
@@ -308,7 +305,13 @@ if ($Verify) {
 
     $pk = @(Get-PackageVersions $RhinoVersion)
     if ($pk.Count -gt 0) { Say "${PackageName}: $(($pk | ForEach-Object Name) -join ', ') (Rhino $RhinoVersion)" } else { Warn "$PackageName is not installed for Rhino $RhinoVersion. Run -Install." }
-    if (Test-Path $StagedExe) { Say "Router: $StagedExe" } else { Warn "Router not found at $StagedExe. Open Rhino $RhinoVersion once." }
+    # Info only: McNeel's router-launcher.mjs finds the router in the installed package itself.
+    if (Test-Path $StagedExe) { Say "Router (info): $StagedExe" }
+    else {
+        $payload = @(Get-ChildItem (Join-Path $RhinoData 'packages\*\Rhino-MCP-Platform\*\router\*\rhino-mcp-router.exe') -ErrorAction SilentlyContinue | Select-Object -First 1)
+        if ($payload.Count -gt 0) { Say "Router (info): not staged yet; the plugin launcher will use $($payload[0].FullName)" }
+        else { Say 'Router (info): not found yet; the plugin launcher locates it in the installed Rhino package.' }
+    }
 
     $installed = @(Test-PluginInstalled)
     if ($installed.Count -gt 0) { Say "Claude Code plugin: $($installed -join ', ')" }
