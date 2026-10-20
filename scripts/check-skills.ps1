@@ -6,6 +6,9 @@
     - the SKILL.md frontmatter "name" is not the folder name
     - the SKILL.md frontmatter has no "description"
     - the root README.md does not mention the skill as `am-<name>`
+    - the house rules at the end of a SKILL.md differ from HOUSE-RULES.md
+    - hooks/hooks.json has no SessionStart command hook that reads hooks/session-rules.md
+    - hooks/session-rules.md is missing, empty, not ASCII, or longer than 12 lines
   Runs on Windows PowerShell 5.1 and PowerShell 7 (GitHub Actions ubuntu: pwsh).
 
 .EXAMPLE
@@ -40,7 +43,35 @@ foreach ($d in $dirs) {
     }
 }
 
+# SessionStart rules hook: hooks/hooks.json must run it, and hooks/session-rules.md must stay a
+# short ASCII block (it is added to every session, and PS 5.1 writes stdout in the OEM code page).
+$hooksJson = Join-Path $Root 'hooks/hooks.json'
+$rulesMd   = Join-Path $Root 'hooks/session-rules.md'
+$maxRuleLines = 12
+if (-not (Test-Path -LiteralPath $hooksJson)) {
+    $problems.Add('hooks/hooks.json is missing (SessionStart rules hook)')
+} else {
+    try {
+        $hj = [IO.File]::ReadAllText($hooksJson) | ConvertFrom-Json
+        $ss = @($hj.hooks.SessionStart | ForEach-Object { $_.hooks } | Where-Object { $_.type -eq 'command' })
+        $refs = @($ss | Where-Object { ((@($_.command) + @($_.args)) -join ' ') -match 'session-rules\.md' })
+        if ($refs.Count -eq 0) { $problems.Add('hooks/hooks.json has no SessionStart command hook that reads hooks/session-rules.md') }
+    } catch {
+        $problems.Add("hooks/hooks.json is not valid JSON: $($_.Exception.Message)")
+    }
+}
+if (-not (Test-Path -LiteralPath $rulesMd)) {
+    $problems.Add('hooks/session-rules.md is missing')
+} else {
+    $ruleBytes = [IO.File]::ReadAllBytes($rulesMd)
+    if (@($ruleBytes | Where-Object { $_ -gt 127 }).Count -gt 0) { $problems.Add('hooks/session-rules.md must be ASCII only') }
+    $ruleLines = @(([Text.Encoding]::ASCII.GetString($ruleBytes) -replace "`r`n", "`n").Trim() -split "`n")
+    if ($ruleLines.Count -gt $maxRuleLines) { $problems.Add("hooks/session-rules.md has $($ruleLines.Count) lines; max is $maxRuleLines") }
+    if (($ruleLines -join '').Trim().Length -eq 0) { $problems.Add('hooks/session-rules.md is empty') }
+}
+
 Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach-Object Name) -join ', '))
+Write-Host ("Checked SessionStart rules hook: {0}" -f $(if (Test-Path -LiteralPath $rulesMd) { "$(@(([IO.File]::ReadAllText($rulesMd) -replace "`r`n", "`n").Trim() -split "`n").Count) line(s)" } else { 'missing' }))
 if ($problems.Count -gt 0) {
     Write-Host "FAIL: $($problems.Count) problem(s)"
     $problems | ForEach-Object { Write-Host "  - $_" }

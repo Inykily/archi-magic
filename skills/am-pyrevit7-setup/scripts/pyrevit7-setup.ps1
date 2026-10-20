@@ -10,19 +10,31 @@
                   Skipped if pyRevit 7+ is already installed (use -Force to reinstall).
     -Repoint      Write per-user Revit manifests (%APPDATA%\Autodesk\Revit\Addins\<year>)
                   that load pyRevit 7, overriding an admin-owned machine-wide 6.x install.
-    -EnableAgent  Turn on the agent host and register 'pyrevit mcp' with Claude Code.
-    -Verify       Print the final state. Read-only.
+    -EnableAgent  Turn on the agent host, set the agent policy to 'ask' (or the
+                  -Policy value), and register 'pyrevit mcp' with Claude Code.
+    -Verify       Print the final state. Read-only. A policy other than 'ask' or
+                  'readonly' is a problem (exit 6).
+
+  -Policy ask|readonly  Policy that -EnableAgent sets. Default 'ask': every model
+                  change needs Keep/Discard in Revit. 'readonly' blocks all changes.
+                  'auto' (changes without approval) is never set by this script.
+
+  Installer trust: the installer runs only when (1) GitHub gives a SHA256 digest
+  and the file matches it, (2) the Authenticode signature is Valid, and (3) the
+  signer is the known pyRevit signer (subject CN/O + Microsoft ID Verified issuer).
 
   Never needs admin, never kills Revit. Re-run -Repoint after any pyRevit update
   or 'pyrevit attach': those remove per-user manifests and then fail on the
   admin-owned ones.
 
-  Exit codes: 0 ok, 2 Revit must be closed, 3 install failed, 4 repoint failed,
-  5 agent/MCP setup incomplete, 6 verify found problems.
+  Exit codes: 0 ok, 1 unexpected error (see log), 2 Revit must be closed,
+  3 install failed, 4 repoint failed, 5 agent/MCP setup incomplete,
+  6 verify found problems.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -Repoint -Verify
+  powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -EnableAgent -Policy readonly
 #>
 [CmdletBinding()]
 param(
@@ -30,7 +42,8 @@ param(
     [switch]$Repoint,
     [switch]$EnableAgent,
     [switch]$Verify,
-    [switch]$Force
+    [switch]$Force,
+    [ValidateSet('ask', 'readonly')][string]$Policy = 'ask'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,6 +78,7 @@ function AmLog($level, $msg, $code) {
     else { Write-AmLog -Skill 'am-pyrevit7-setup' -Step $script:AmStep -Level $level -Message $msg }
 }
 
+function Info($msg) { Write-Host "[pyrevit7] $msg"; AmLog 'info' $msg $null }
 function Say($msg)  { Write-Host "[pyrevit7] $msg" }
 function Warn($msg) { Write-Host "[pyrevit7] WARNING: $msg" -ForegroundColor Yellow; $script:Problems.Add($msg); AmLog 'warn' $msg $null }
 function Fail($code, $msg) {
@@ -99,6 +113,81 @@ function Find-ClaudeCli {
     return $null
 }
 
+# Known pyRevit installer signer (read 2026-10-20 from pyRevit_7.0.0.26278_signed.exe).
+#   Subject: CN=Jean-Marc Couffin, O=Jean-Marc Couffin, L=Zlin, S=Zlinsky (with accents), C=CZ
+#   Issuer : CN=Microsoft ID Verified CS AOC CA 03, O=Microsoft Corporation, C=US
+# Microsoft's ID Verified signing service issues certificates that live about 3 days, so the
+# thumbprint changes with almost every release. The hard pin is therefore subject CN + O + C and
+# the Microsoft ID Verified issuer. Known thumbprints are recorded; a new one is reported, not refused.
+$SignerCN          = 'Jean-Marc Couffin'
+$SignerO           = 'Jean-Marc Couffin'
+$SignerC           = 'CZ'
+$SignerIssuerRegex = '^CN=Microsoft ID Verified CS (AOC|EOC) CA \d+, O=Microsoft Corporation, C=US$'
+$KnownThumbprints  = @('D20345056E74D1858EEB0D336472C5B462CE0120')
+
+function Get-DnPart([string]$dn, [string]$key) {
+    $m = [regex]::Match($dn, '(?:^|,\s*)' + $key + '=([^,]+)')
+    if ($m.Success) { return $m.Groups[1].Value.Trim() } else { return $null }
+}
+
+function Test-InstallerTrust([string]$Path, $Digest) {
+    # Returns a list of failure reasons. An empty list means the installer may run.
+    $why = New-Object System.Collections.Generic.List[string]
+    if (-not ($Digest -is [string]) -or $Digest -notmatch '^sha256:([0-9a-fA-F]{64})$') {
+        $why.Add('GitHub did not give a SHA256 checksum for this file, so its content cannot be confirmed.')
+    } else {
+        $want = $Matches[1].ToUpperInvariant()
+        $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+        if ($hash -ne $want) { $why.Add("The file checksum does not match GitHub (got $hash, GitHub says $want). The download is damaged or changed.") }
+    }
+    $sig = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($sig.Status -ne 'Valid') {
+        $why.Add("The digital signature is '$($sig.Status)', not Valid.")
+    } else {
+        $cert = $sig.SignerCertificate
+        $cn = Get-DnPart $cert.Subject 'CN'; $o = Get-DnPart $cert.Subject 'O'; $c = Get-DnPart $cert.Subject 'C'
+        if ($cn -ne $SignerCN -or $o -ne $SignerO -or $c -ne $SignerC) {
+            $why.Add("The signer is '$($cert.Subject)', not the known pyRevit signer (CN=$SignerCN, O=$SignerO, C=$SignerC).")
+        }
+        if ($cert.Issuer -notmatch $SignerIssuerRegex) {
+            $why.Add("The signer certificate comes from '$($cert.Issuer)', not from Microsoft ID Verified signing.")
+        }
+    }
+    return ,$why
+}
+
+function Get-AgentPolicy {
+    # 'pyrevit configs agent policy' prints "Agent policy: ask". Returns ask|readonly|auto, or $null.
+    if (-not (Test-Path $Py7)) { return $null }
+    $out = (& $Py7 configs agent policy 2>&1 | Out-String)
+    $m = [regex]::Match($out, 'Agent policy:\s*(\w+)')
+    if ($m.Success) { return $m.Groups[1].Value.ToLowerInvariant() }
+    return $null
+}
+
+function Get-NetFailureText($err) {
+    # Plain words for a failed call to GitHub. Names the two usual office causes.
+    $status = $null
+    try { $status = [int]$err.Exception.Response.StatusCode } catch { $status = $null }
+    $why = if ($status -eq 403 -or $status -eq 429) {
+        "GitHub refused the request (HTTP $status). GitHub limits each office internet address to 60 requests per hour. Wait one hour, then run this again."
+    } elseif ($status) {
+        "GitHub answered HTTP $status."
+    } else {
+        'The computer could not reach GitHub. A corporate proxy or TLS inspection can block it. Ask IT to allow api.github.com and github.com, or run this from another network.'
+    }
+    return "$why Details: $($err.Exception.Message)"
+}
+
+# Any error that no step handles: stop with exit 1 and show the log, not a raw stack trace.
+trap {
+    Write-Host "[pyrevit7] FAILED: Unexpected error: $($_.Exception.Message)" -ForegroundColor Red
+    AmLog 'error' "Unexpected error: $($_.Exception.Message)" 1
+    Write-Host "[pyrevit7] Log: $LogFile"
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 1
+}
+
 Say "Log file: $LogFile"
 AmLog 'info' ("Setup started. Install={0} Repoint={1} EnableAgent={2} Verify={3} Force={4}" -f [bool]$Install, [bool]$Repoint, [bool]$EnableAgent, [bool]$Verify, [bool]$Force) $null
 
@@ -112,7 +201,11 @@ if ($Install) {
     } else {
         if (Test-RevitRunning) { Fail 2 'Revit is running. Save your work, close Revit, and run this again.' }
 
-        $rel = Invoke-RestMethod 'https://api.github.com/repos/pyrevitlabs/pyRevit/releases/latest' -Headers @{ 'User-Agent' = 'pyrevit7-setup' }
+        try {
+            $rel = Invoke-RestMethod 'https://api.github.com/repos/pyrevitlabs/pyRevit/releases/latest' -Headers @{ 'User-Agent' = 'pyrevit7-setup' }
+        } catch {
+            Fail 3 ("Could not read the latest pyRevit release from GitHub. " + (Get-NetFailureText $_))
+        }
         $asset = @($rel.assets | Where-Object { $_.name -match '^pyRevit_[\d\.]+_signed\.exe$' })
         if ($asset.Count -ne 1) { Fail 3 "Expected exactly one per-user installer in release $($rel.tag_name), found $($asset.Count)." }
         $asset = $asset[0]
@@ -121,15 +214,20 @@ if ($Install) {
         $dl = Join-Path $WorkDir 'download'
         New-Item -ItemType Directory -Force $dl | Out-Null
         $exe = Join-Path $dl $asset.name
-        Invoke-WebRequest $asset.browser_download_url -OutFile $exe -UseBasicParsing
+        try {
+            Invoke-WebRequest $asset.browser_download_url -OutFile $exe -UseBasicParsing
+        } catch {
+            Fail 3 ("Could not download the pyRevit installer. " + (Get-NetFailureText $_))
+        }
 
-        $sig = Get-AuthenticodeSignature $exe
-        if ($sig.Status -ne 'Valid') { Fail 3 "Installer signature is '$($sig.Status)', not Valid. Not running it." }
-        Say "Signature: Valid ($($sig.SignerCertificate.Subject))"
-        if ($asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
-            $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
-            if ($hash -ne $Matches[1].ToUpper()) { Fail 3 "SHA256 mismatch: got $hash, GitHub says $($Matches[1])." }
-            Say 'SHA256 matches GitHub.'
+        $trust = Test-InstallerTrust -Path $exe -Digest $asset.digest
+        if ($trust.Count -gt 0) {
+            Fail 3 ("The pyRevit installer did not pass the safety check. The script did not run it. " + ($trust -join ' ') + " Tell your BIM manager or IT. Do not run $exe yourself.")
+        }
+        $cert = (Get-AuthenticodeSignature -LiteralPath $exe).SignerCertificate
+        Say "SHA256 matches GitHub. Signature: Valid, signer $(Get-DnPart $cert.Subject 'CN'), issuer $(Get-DnPart $cert.Issuer 'CN')."
+        if ($KnownThumbprints -notcontains $cert.Thumbprint) {
+            Info "New signer certificate thumbprint $($cert.Thumbprint) (subject and issuer match). Maintainers: add it to `$KnownThumbprints."
         }
 
         # Do NOT pass /LOG. With /LOG this installer (Inno Setup 6.7.1) crashes intermittently at
@@ -137,15 +235,19 @@ if ($Install) {
         # with /LOG, 5/5 clean installs of the same file without it.
         # The installer also runs 'pyrevit attach' itself, which fails silently when an admin-owned
         # machine-wide manifest exists and may delete a per-user manifest. -Repoint fixes that.
+        # A failed first attempt followed by a good retry is info, not a problem (it must not force exit 6).
         $ok = $false
+        $failedCodes = New-Object System.Collections.Generic.List[string]
         foreach ($attempt in 1, 2) {
             Say "Running installer (attempt $attempt, ~20s)..."
             $p = Start-Process $exe -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
             if ($p.ExitCode -eq 0) { $ok = $true; break }
-            Warn "Installer exit code $($p.ExitCode)."
-            Start-Sleep -Seconds 5
+            Say "Installer attempt $attempt stopped with exit code $($p.ExitCode)."
+            $failedCodes.Add([string]$p.ExitCode)
+            if ($attempt -lt 2) { Start-Sleep -Seconds 5 }
         }
-        if (-not $ok) { Fail 3 "Installer failed twice. Double-click $exe yourself (no admin needed), then run this script again." }
+        if (-not $ok) { Fail 3 "Installer failed twice (exit codes $($failedCodes -join ', ')). Double-click $exe yourself (no admin needed), then run this script again." }
+        if ($failedCodes.Count -gt 0) { Info "Installer attempt 1 failed (exit code $($failedCodes[0])); the retry succeeded." }
         $ver = Get-Py7Version
         if (-not $ver -or $ver.Major -lt 7) { Fail 3 "After install, $Py7 does not report version 7+." }
         Say "Installed pyRevit $ver"
@@ -198,9 +300,19 @@ if ($EnableAgent) {
     if (-not (Test-Path $Py7)) { Fail 5 "pyRevit 7 not found at $Py7. Run with -Install first." }
 
     & $Py7 configs agent enable | Out-Host
-    $policy = (& $Py7 configs agent policy 2>&1 | Out-String).Trim()
-    Say $policy
-    if ($policy -notmatch '\bask\b') { Warn "Agent policy is not 'ask'. Recommended: & `"$Py7`" configs agent policy ask" }
+    # Keep/Discard in Revit exists only under policy 'ask'. Set it explicitly; never leave 'auto' in place.
+    $before = Get-AgentPolicy
+    # A re-run must never loosen a stricter choice: keep an existing 'readonly' unless -Policy was passed.
+    if ($before -eq 'readonly' -and -not $PSBoundParameters.ContainsKey('Policy')) { $Policy = 'readonly' }
+    & $Py7 configs agent policy $Policy | Out-Host
+    $policyNow = Get-AgentPolicy
+    if ($policyNow -ne $Policy) {
+        Warn "Agent policy is '$policyNow', not '$Policy'. Run: & `"$Py7`" configs agent policy $Policy"
+    } elseif ($before -and $before -ne $Policy) {
+        Info "Agent policy changed from '$before' to '$Policy'."
+    } else {
+        Say "Agent policy: $policyNow"
+    }
 
     $claude = Find-ClaudeCli
     if (-not $claude) {
@@ -259,6 +371,9 @@ if ($Verify) {
         $agent = (& $Py7 agent status 2>&1 | Out-String).Trim()
         $agent -split "`r?`n" | ForEach-Object { Say "agent: $_" }
         if ($agent -notmatch 'Agent host: enabled') { Warn 'Agent host is not enabled. Run -EnableAgent.' }
+        $pol = Get-AgentPolicy
+        if ($pol -eq 'ask' -or $pol -eq 'readonly') { Say "Agent policy: $pol" }
+        else { Warn "Agent policy is '$pol'. Only 'ask' (Keep/Discard in Revit) or 'readonly' is safe. Run -EnableAgent to set 'ask'." }
         if ($agent -notmatch 'responding') {
             Say 'No Revit is connected yet. To finish: open Revit (restart it if it was already open), OPEN A MODEL (an Autodesk sample such as Snowdon Towers is fine), then run this script with -Verify again.'
         }
