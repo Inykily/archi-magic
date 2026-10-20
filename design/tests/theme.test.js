@@ -29,4 +29,21 @@ assert.strictEqual(makeEnv('2026-10-20T18:00:00', ov).attrs['data-am-theme'], 'n
 const late = makeEnv('2026-10-20T19:30:00', ov); assert.strictEqual(late.attrs['data-am-theme'], 'night'); assert.ok(!('am-theme-override' in late.store), 'expired override removed');
 const late2 = makeEnv('2026-10-21T08:00:00', ov); assert.strictEqual(late2.attrs['data-am-theme'], 'paper');
 e.api.set('auto'); assert.ok(!('am-theme-override' in e.store)); assert.strictEqual(e.api.get(), 'paper');
+// storage blocked: a manual switch must still change the theme AND send am-theme-change
+(function () {
+  const src2 = src;
+  const classes = new Set(); const attrs = {}; const events = [];
+  const RealDate = Date; const fixed = new RealDate('2026-10-20T10:00:00').getTime();
+  class FakeDate extends RealDate { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } }
+  const throwing = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } };
+  const env = { Date: FakeDate, JSON, setInterval: () => 0, localStorage: throwing,
+    document: { documentElement: { classList: { toggle: (c, on) => on ? classes.add(c) : classes.delete(c) }, setAttribute: (k, v) => { attrs[k] = v; } }, dispatchEvent: e => events.push(e.detail.theme) },
+    CustomEvent: function (n, o) { this.detail = o.detail; }, window: {} };
+  new Function(...Object.keys(env), src2)(...Object.values(env));
+  assert.deepStrictEqual(events, ['paper']);
+  env.window.amTheme.set('night');
+  assert.strictEqual(attrs['data-am-theme'], 'night'); assert.ok(classes.has('am-night'));
+  assert.deepStrictEqual(events, ['paper', 'night'], 'blocked storage must still send am-theme-change');
+  env.window.amTheme.set('auto'); assert.deepStrictEqual(events, ['paper', 'night', 'paper']);
+})();
 console.log('theme.js: all assertions passed');

@@ -34,8 +34,7 @@
     } catch (e) { /* storage blocked: time of day only */ }
     return null;
   }
-  function apply() {
-    var now = new Date(), theme = readOverride() || timeTheme(now);
+  function show(theme) {   // the one place that changes the page theme, so every path sends the event
     if (theme === current) return;
     current = theme;
     root.classList.toggle('am-night', theme === 'night');
@@ -43,14 +42,21 @@
     root.setAttribute('data-am-theme', theme);
     try { document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: theme } })); } catch (e) { /* old browsers */ }
   }
+  var pinned = null;   // manual choice kept in memory when storage is blocked
+  function apply() {
+    var now = new Date();
+    if (pinned && Date.now() >= pinned.until) pinned = null;
+    show((pinned && pinned.theme) || readOverride() || timeTheme(now));
+  }
   window.amTheme = {
     get: function () { return current; },
     set: function (t) {
       try {
         if (t === 'auto') localStorage.removeItem(KEY);
         else localStorage.setItem(KEY, JSON.stringify({ theme: t, until: nextBoundary(new Date()) }));
-      } catch (e) { /* storage blocked: apply for this page view only */ if (t !== 'auto') { current = null; root.classList.toggle('am-night', t === 'night'); root.classList.toggle('am-paper', t === 'paper'); root.setAttribute('data-am-theme', t); return; } }
-      current = null; apply();
+      } catch (e) { /* storage blocked: keep the choice in memory for this page view */ }
+      pinned = (t === 'auto') ? null : { theme: t, until: nextBoundary(new Date()) };
+      apply();
     },
     toggle: function () { this.set(current === 'night' ? 'paper' : 'night'); },
     _timeTheme: timeTheme, _nextBoundary: nextBoundary
