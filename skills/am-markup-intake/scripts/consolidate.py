@@ -46,7 +46,9 @@ Rules (deterministic; no text is ever rewritten):
            (fallback) a shared subject word plus opposite verbs (add/remove,
            widen/keep, ...) or different dimension values.
   Priority high: conflict, or life-safety / code words; low: fyi; else medium.
-  Next     question -> answer or RFI; fyi -> no action; change -> am-safe-change
+  Next     question -> "Check in model (read-only)" when it names a room, door,
+           window, grid, detail or sheet; else answer the reviewer; RFI for a
+           non-architectural discipline; fyi -> no action; change -> am-safe-change
            (model element), drawing edit (notes, dimensions, details), or
            consultant (non-architectural discipline).
 Pure CPython 3.6+, ASCII source.
@@ -359,6 +361,26 @@ def conflict_reason(a, b):
     return ""
 
 
+CHECK_IN_MODEL = "Check in model (read-only)"
+SHEET_REF_RE = re.compile(r"\bsheets?\s*#?\s*([A-Z]{1,3}-?\d{2,4}(?:\.\d{1,2})?)\b", re.I)
+MODEL_REF_KINDS = ("room", "door", "window", "grid", "detail")
+
+
+def model_refs(item):
+    """Model things a markup names in its own words: room/door/window/grid tags,
+    detail callouts, or a "sheet A503" reference. The item's own sheet field
+    does not count (every item has one)."""
+    texts = [item.get("location"), item.get("text"), item.get("interpreted")] + list(item.get("textVariants") or [])
+    ents = entities(*texts)
+    refs = []
+    for kind in MODEL_REF_KINDS:
+        refs.extend("%s %s" % (kind, v) for v in sorted(ents.get(kind, [])))
+    for t in texts:
+        for m in SHEET_REF_RE.finditer(t or ""):
+            refs.append("sheet %s" % m.group(1).upper())
+    return refs
+
+
 def next_step(item):
     k = item["kind"]
     disc = (item.get("discipline") or "").strip()
@@ -368,7 +390,11 @@ def next_step(item):
     if k == "fyi":
         return "No action. Keep as a note"
     if k == "question":
-        return "Answer the reviewer" if arch else "RFI to %s consultant" % disc
+        if not arch:
+            return "RFI to %s consultant" % disc
+        # A question that names a door, room, grid, detail or sheet can be checked
+        # with a read-only model query before anyone answers the reviewer.
+        return CHECK_IN_MODEL if model_refs(item) else "Answer the reviewer"
     if not arch:
         return "Send to %s consultant" % disc
     body = " ".join([item["text"], item["interpreted"], item["markupType"]])
