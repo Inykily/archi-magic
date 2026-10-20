@@ -1,6 +1,6 @@
 ---
 name: am-pyrevit7-setup
-description: Install pyRevit 7 per-user on Windows WITHOUT admin rights, repoint Revit 2024-2026 to it (overriding an admin-owned machine-wide pyRevit 6.x), enable the pyRevit Agent Runtime, and register its MCP server with Claude Code so Claude can read and edit the open Revit model. Also the fix when Revit still loads pyRevit 6.x after installing 7, or after any pyRevit update or `pyrevit attach` broke it. Triggers on "install pyrevit 7", "update pyrevit", "pyrevit still shows 6.4", "connect claude to revit", "pyrevit agent runtime", "pyrevit mcp", "revit agent setup".
+description: "Install pyRevit 7 per-user on Windows WITHOUT admin rights, repoint Revit 2024-2026 to it (overriding an admin-owned machine-wide pyRevit 6.x), enable the pyRevit Agent Runtime, and register its MCP server with Claude Code so Claude can read and edit the open Revit model. Can undo a setup run (-Undo restores the backed-up manifests, the MCP registration and the agent policy). Use when the user wants first-time setup, \"install pyrevit 7\", \"update pyrevit\", \"pyrevit still shows 6.4\", \"connect claude to revit\", \"set up the pyrevit agent runtime\", \"revit agent setup\", \"undo the pyrevit setup\", or when Revit still loads pyRevit 6.x after an update or `pyrevit attach`. NOT for problems after setup (use am-doctor) or Revit crashes (use am-revit-crash-doctor)."
 ---
 
 # am-pyrevit7-setup
@@ -29,7 +29,8 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 2. When it prints `Done`, ask the user to open Revit and **open a model**. The connection check can't finish from the Home screen. An Autodesk sample such as *Snowdon Towers Sample Architectural* is fine. If Revit was already open, ask them to restart it.
 3. Run it again with `-Verify`. Success looks like `agent: Revit 2026 (build ...) pid ...: responding`.
    - If it says "No running Revit with the agent host", ask for pyRevit tab → Reload, then verify again. This can take a second reload.
-4. Tell the user to restart the Claude desktop app and open a new Code session; the `pyrevit` MCP tools load only in new sessions. Suggest asking it "use the pyrevit tools to get the context of my open Revit model" as the first test.
+4. Tell the user to restart the Claude desktop app and open a new Code session; the `pyrevit` MCP tools load only in new sessions. After the restart, tell the user to paste exactly this line:
+   "Setup is done. Run am-welcome and give me a first safe Revit question."
 5. Close with these points:
    - Every model change needs their **Keep/Discard** approval in Revit.
    - Anything the agent reads from the model is sent to the AI provider (see step 0), so only use it on projects where that's allowed.
