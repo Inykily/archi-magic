@@ -77,10 +77,16 @@ if (Test-Path -LiteralPath $tokensPath) {
     $tokens = ([IO.File]::ReadAllText($tokensPath) -replace "`r`n", "`n").Trim()
     . (Join-Path $Root 'scripts/lib/design-templates.ps1')
     $tokRx = [regex]'(?s)/\* am-tokens:start.*?/\* am-tokens:end \*/'
+    $themeRx = [regex]'(?s)// am-theme:start.*?// am-theme:end'
+    $theme = ([IO.File]::ReadAllText((Join-Path $Root 'design/theme.js')) -replace "`r`n", "`n").Trim()
     foreach ($rel in $AmDesignTemplates) {
         $p = Join-Path $Root $rel
         if (-not (Test-Path -LiteralPath $p)) { $problems.Add("$rel : page template is missing (listed in scripts/lib/design-templates.ps1)"); continue }
-        $m = $tokRx.Match(([IO.File]::ReadAllText($p) -replace "`r`n", "`n"))
+        $pageText = [IO.File]::ReadAllText($p) -replace "`r`n", "`n"
+        $tm = $themeRx.Match($pageText)
+        if (-not $tm.Success) { $problems.Add("$rel : no time-of-day theme block (am-theme markers); run scripts/sync-design-tokens.ps1 after adding it") }
+        elseif ($tm.Value.Trim() -ne $theme) { $problems.Add("$rel : theme block differs from design/theme.js (run scripts/sync-design-tokens.ps1)") }
+        $m = $tokRx.Match($pageText)
         if (-not $m.Success) { $problems.Add("$rel : no design tokens block (am-tokens markers); run scripts/sync-design-tokens.ps1 after adding it") }
         elseif ($m.Value.Trim() -ne $tokens) { $problems.Add("$rel : design tokens differ from design/tokens.css (run scripts/sync-design-tokens.ps1)") }
         else { $designOk++ }

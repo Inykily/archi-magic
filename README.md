@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="design/logo/archi-magic-mark-paper.svg">
-    <img src="design/logo/archi-magic-mark.svg" width="120" alt="archi-magic: two tangent circles meeting at one point">
+    <img src="design/logo/archi-magic-mark.svg" width="120" alt="archi-magic: two tangent circles and a dot where they meet">
   </picture>
 </p>
 

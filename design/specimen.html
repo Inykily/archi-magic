@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
+<script src="theme.js"></script>
 <style>
   body { margin: 0; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: var(--space-6) var(--space-4); display: grid; gap: var(--space-6); }
@@ -70,7 +71,7 @@
 </style>
 </head>
 <body class="am-surface">
-<div class="theme"><button class="btn" id="theme">night / paper</button></div>
+<div class="theme"><button class="btn" id="theme" title="switch now; returns to automatic at 07:00 or 19:00">night / paper</button></div>
 <div class="wrap">
 
   <section class="poster am-night" aria-label="poster study">
@@ -149,13 +150,7 @@
   </section>
 </div>
 <script>
-  document.getElementById('theme').onclick = () => {
-    const r = document.documentElement;
-    const osDark = matchMedia('(prefers-color-scheme: dark)').matches;
-    const isNight = r.classList.contains('am-night') || (osDark && !r.classList.contains('am-paper'));
-    r.classList.toggle('am-night', !isNight);
-    r.classList.toggle('am-paper', isNight);
-  };
+  document.getElementById('theme').onclick = () => window.amTheme.toggle();
 </script>
 </body>
 </html>

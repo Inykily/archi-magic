@@ -27,7 +27,12 @@ The tokens live in `design/tokens.css`. That file is the only source. `scripts/s
 | `--fs-micro`, `--fs-body`, `--fs-lead` | 10.5 / 12.5 / 14 px | label, body, the one lead line |
 | `--radius`, `--round` | 0 / 999px | square rectangles, fully round dots and rings |
 
-Themes: **paper** for tables and dashboards; **night** (`.am-night`) for the 3D viewport. Night is also the default for every page when the OS is in dark mode.
+Themes follow the **time of day** (`design/theme.js`, copied into every page between the `// am-theme` markers):
+- **paper** (day) runs from 07:00 to 19:00 local time, and **night** (`.am-night`) runs at all other hours. The page checks every minute and switches by itself.
+- A manual switch (`amTheme.toggle()` or `amTheme.set('night'|'paper'|'auto')`) holds until the next 07:00 or 19:00. After that the page is automatic again.
+- On each switch the page sends an `am-theme-change` event. The 3D viewer listens for it and recolors its scene.
+- Without JavaScript, pages follow the OS light/dark setting through the CSS tokens.
+- `design/tests/theme.test.js` tests the boundaries, the override and its expiry. CI runs it.
 
 ## Functional states without color
 
@@ -54,10 +59,10 @@ Files are in `design/logo/`. `index.html` shows them all.
 
 | File | Use |
 |---|---|
-| `archi-magic-mark.svg` | The mark on paper: two tangent circles, two construction lines through the tangent point, and the focal dot at that point. |
+| `archi-magic-mark.svg` | The mark on paper: two tangent circles and the focal dot at the point where they meet. |
 | `archi-magic-mark-paper.svg` | The same mark for night backgrounds. |
 | `archi-magic-icon.svg` | The app icon tile: the mark on the light beam with vignette and grain. |
-| `archi-magic-mark-small.svg`, `-small-paper.svg` | 32 px and below (favicon, pane, badge). It shows one circle and the dot, like an "o." Below 48 px the full mark's lines fill in and its dot disappears. |
+| `archi-magic-mark-small.svg`, `-small-paper.svg` | 32 px and below (favicon, pane, badge). It shows one circle and the dot, like an "o." Below 48 px the two circles of the full mark run together and its dot disappears. |
 
 Rules:
 - Use only these files. Do not recolor them (they use ink and paper only), stretch them, or add effects.
