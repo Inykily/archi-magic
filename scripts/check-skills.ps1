@@ -45,8 +45,8 @@ foreach ($d in $dirs) {
 
 # SessionStart rules hook: hooks/hooks.json must run it, and hooks/session-rules.md must stay a
 # short ASCII block (it is added to every session, and PS 5.1 writes stdout in the OEM code page).
-$hooksJson = Join-Path $Root 'hooks\hooks.json'
-$rulesMd   = Join-Path $Root 'hooks\session-rules.md'
+$hooksJson = Join-Path $Root 'hooks/hooks.json'
+$rulesMd   = Join-Path $Root 'hooks/session-rules.md'
 $maxRuleLines = 12
 if (-not (Test-Path -LiteralPath $hooksJson)) {
     $problems.Add('hooks/hooks.json is missing (SessionStart rules hook)')
