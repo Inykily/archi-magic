@@ -95,6 +95,11 @@ Start-Transcript -Path $LogFile -Append | Out-Null
 
 # Durable backups + undo journal (not %TEMP%, which cleanup tools empty).
 $JournalDir  = Join-Path $BackupRoot $RunStamp
+if (-not $Undo) {
+    # Two runs in the same second must not share (and overwrite) one backup folder.
+    $baseStamp = $RunStamp; $n = 2
+    while (Test-Path -LiteralPath $JournalDir) { $RunStamp = "$baseStamp-$n"; $JournalDir = Join-Path $BackupRoot $RunStamp; $n++ }
+}
 $BackupDir   = Join-Path $JournalDir 'backup'
 $JournalPath = Join-Path $JournalDir 'journal.json'
 
@@ -464,6 +469,10 @@ if ($Undo) {
 
 AmLog 'info' ("Setup started. Install={0} Repoint={1} EnableAgent={2} Verify={3} Force={4}" -f [bool]$Install, [bool]$Repoint, [bool]$EnableAgent, [bool]$Verify, [bool]$Force) $null
 
+# Snapshot the per-user manifests before Install too: the installer runs 'pyrevit attach' itself,
+# which can delete a per-user manifest. Undo must return to the state before the whole run.
+if ($Install -or $Repoint) { Start-RepointJournal }
+
 # ---------------------------------------------------------------- Install
 if ($Install) {
     $script:AmStep = 'install'; AmLog 'info' 'Install step started.' $null
@@ -526,6 +535,7 @@ if ($Install) {
         Say "Installed pyRevit $ver"
     }
     AmLog 'info' 'Install step finished.' $null
+    if (-not $Repoint) { Complete-RepointJournal }
 }
 
 # ---------------------------------------------------------------- Repoint
@@ -535,8 +545,8 @@ if ($Repoint) {
     if (-not (Test-Path $Py7)) { Fail 4 "pyRevit 7 not found at $Py7. Run with -Install first." }
     if (Test-RevitRunning) { Say 'Revit is running: changes apply the next time Revit starts.' }
 
-    Start-RepointJournal
-    $machine = @(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
+    if (-not $script:RepointSnap) { Start-RepointJournal }
+    $machine =@(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
     if ($machine.Count -eq 0) {
         Say 'No machine-wide pyRevit manifests found. Using the normal attach.'
         & $Py7 attach master default --installed
@@ -571,16 +581,19 @@ if ($EnableAgent) {
     Say '== Agent Runtime + Claude Code MCP =='
     if (-not (Test-Path $Py7)) { Fail 5 "pyRevit 7 not found at $Py7. Run with -Install first." }
 
-    # Journal the previous agent state before changing it.
     $wasEnabled = Get-AgentEnabled
     $before = Get-AgentPolicy
-    $script:Journal['agent'] = [ordered]@{ wasEnabled = $wasEnabled; policy = $before }
-    Save-Journal
-
-    & $Py7 configs agent enable | Out-Host
     # Keep/Discard in Revit exists only under policy 'ask'. Set it explicitly; never leave 'auto' in place.
     # A re-run must never loosen a stricter choice: keep an existing 'readonly' unless -Policy was passed.
     if ($before -eq 'readonly' -and -not $PSBoundParameters.ContainsKey('Policy')) { $Policy = 'readonly' }
+    # Journal the previous agent state only when this run changes it, so a no-op re-run never
+    # becomes the "latest run" that -Undo would pick.
+    if ($wasEnabled -ne $true -or $before -ne $Policy) {
+        $script:Journal['agent'] = [ordered]@{ wasEnabled = $wasEnabled; policy = $before }
+        Save-Journal
+    }
+
+    & $Py7 configs agent enable | Out-Host
     & $Py7 configs agent policy $Policy | Out-Host
     $policyNow = Get-AgentPolicy
     if ($policyNow -ne $Policy) {
@@ -623,7 +636,7 @@ if ($EnableAgent) {
         }
     }
     if (Test-RevitRunning) { Say 'Revit is running: restart Revit (or pyRevit > Reload) so it picks up the agent setting.' }
-    Say "Undo journal: $JournalPath (run with -Undo to reverse this run)"
+    if (Test-Path -LiteralPath $JournalPath) { Say "Undo journal: $JournalPath (run with -Undo to reverse this run)" }
     AmLog 'info' 'EnableAgent step finished.' $null
 }
 

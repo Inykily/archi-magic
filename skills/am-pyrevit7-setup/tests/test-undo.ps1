@@ -75,6 +75,13 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     $mid = [IO.File]::ReadAllText((Join-Path $stubDir 'state.json')) | ConvertFrom-Json
     Check ($mid.enabled -eq $true -and $mid.policy -eq 'ask' -and $mid.mcp.command -eq $py7) "state after setup: $($mid | ConvertTo-Json -Compress -Depth 5)" $problems
 
+    # A no-op re-run (what users do after a pyRevit update) must not write a journal, so -Undo
+    # still reverses the run that made the changes.
+    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPath -Repoint -EnableAgent @common 2>&1 | Out-String
+    Check ($LASTEXITCODE -eq 0) "re-run exit $LASTEXITCODE`n$out" $problems
+    $journals = @(Get-ChildItem $backups -Recurse -Filter journal.json)
+    Check ($journals.Count -eq 1) "no-op re-run wrote a journal: $($journals.Count) journal(s)" $problems
+
     $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPath -Undo @common 2>&1 | Out-String
     $code = $LASTEXITCODE
     Check ($code -eq 0) "undo exit $code`n$out" $problems
@@ -93,6 +100,7 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
 
 try {
     New-Item -ItemType Directory -Force $Base | Out-Null
+    $env:ARCHI_MAGIC_LOG_DIR = Join-Path $Base 'logs'   # keep test runs out of the real shared log
     $p = Invoke-Scenario $Setup (Join-Path $Base 'real')
     if ($p.Count -eq 0) { Write-Host 'PASS write -> undo restores byte-identical originals, MCP and agent state' }
     else { $script:Fail++; Write-Host "FAIL real script:`n  - $($p -join "`n  - ")" }
@@ -111,7 +119,7 @@ try {
     if ($pm.Count -gt 0 -and @($pm | Where-Object { $_ -match 'not byte-identical' }).Count -eq 1 -and @($pm | Where-Object { $_ -notmatch 'not byte-identical|^undo exit 8' }).Count -eq 0) { Write-Host 'PASS mutation (text-mode restore) goes RED on the byte-identical check' }
     else { $script:Fail++; Write-Host "FAIL mutation stayed green: $($pm -join '; ')" }
 } finally {
-    Remove-Item Env:\AM_STUB_DIR, Env:\AM_STUB_PY7 -ErrorAction SilentlyContinue
+    Remove-Item Env:\AM_STUB_DIR, Env:\AM_STUB_PY7, Env:\ARCHI_MAGIC_LOG_DIR -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $Base -Recurse -Force -ErrorAction SilentlyContinue
 }
 Write-Host "$script:Asserts assertion(s), $script:Fail failed"

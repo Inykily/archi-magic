@@ -21,7 +21,7 @@ Read this before you start the setup.
 3. Open Revit and **open a model**. The connection check needs one. Any Autodesk sample model is fine, for example *Snowdon Towers Sample Architectural* from the Home screen.
 4. Check pyRevit → About. It should say **7.0**. A duplicate add-in warning at startup is expected and harmless.
 5. Double-click `Setup-pyRevit7.cmd` again. This time the Verify section shows `Revit 20xx ... responding`.
-6. Restart the Claude desktop app. In a **new** Code session, ask Claude: *"use the pyrevit tools to get the context of my open Revit model"*.
+6. Restart the Claude desktop app. In a **new** Code session, paste this line: *"Setup is done. Run am-welcome and give me a first safe Revit question."* Without the archi-magic plugin (kit only), ask instead: *"use the pyrevit tools to get the context of my open Revit model"*.
 
 ## Option B: let Claude Code do it
 
