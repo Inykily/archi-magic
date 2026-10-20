@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/logo/archi-magic-mark-paper.svg">
+    <img src="design/logo/archi-magic-mark.svg" width="120" alt="archi-magic: two tangent circles meeting at one point">
+  </picture>
+</p>
+
 # archi-magic
 
 archi-magic gives Claude Code skills for architects who work in Revit and Rhino. You do not need to know how to code. You talk to Claude in normal words, and Claude does the technical steps.

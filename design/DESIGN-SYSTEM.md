@@ -48,6 +48,22 @@ Themes: **paper** for tables and dashboards; **night** (`.am-night`) for the 3D 
 - Do: an empty state drawn as two tangent hairline circles with a dot where they meet, plus one lowercase line ("click an element / to see its data").
 - Don't: colored chips, colored status pills, `border-left` accent bars, gradients with hue, rounded cards, shadows, emoji.
 
+## Logo
+
+Files are in `design/logo/`. `index.html` shows them all.
+
+| File | Use |
+|---|---|
+| `archi-magic-mark.svg` | The mark on paper: two tangent circles, two construction lines through the tangent point, and the focal dot at that point. |
+| `archi-magic-mark-paper.svg` | The same mark for night backgrounds. |
+| `archi-magic-icon.svg` | The app icon tile: the mark on the light beam with vignette and grain. |
+| `archi-magic-mark-small.svg`, `-small-paper.svg` | 32 px and below (favicon, pane, badge). It shows one circle and the dot, like an "o." Below 48 px the full mark's lines fill in and its dot disappears. |
+
+Rules:
+- Use only these files. Do not recolor them (they use ink and paper only), stretch them, or add effects.
+- Give the mark clear space of at least half its width on every side.
+- Use the full mark only at 48 px and above. Below that, use the small mark.
+
 ## Accessibility
 
 - Text contrast (measured with the WCAG formula): `--ink` on paper is 17.97:1. `--ink-2` on paper is 4.85:1 and on night 7.01:1, so both pass AA for body text. `--ink-3` is 2.56:1 on paper and 3.70:1 on night, which is below AA. Use `--ink-3` only for supplementary marks that repeat information shown elsewhere (units, the struck-out old value next to the new value, counts in chips). Never use it for text the user must read.
