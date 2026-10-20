@@ -57,6 +57,7 @@ Every feature the user asked for in the build session, with its status. **Shippe
 | 51 | First-person walking mode | viewer walk mode: WASD + mouse look, 5.5 ft eye height, floor following, collision, tests | in progress |
 | 52 | Help popup too sensitive: open only when hovering the "?" | ? hit area only, 150 ms intent delay, no open during drags, tests | in progress |
 | 53 | Gumball supports precise typed input | click-to-type per axis, ft / ft-in / mm / m parser, side-panel numeric fields, tests | in progress |
+| 54 | View control must reach Back and other directions: use a view cube | ViewCube (6 faces, edges, corners, compass ring, home) replaces the view buttons and axis gizmo; per-face direction tests | in progress |
 
 ## To finish before the v0.4.0 release
 
