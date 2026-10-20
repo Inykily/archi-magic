@@ -52,6 +52,15 @@ Build this table from the output of `list-skills.ps1`. **Do not use a fixed list
 
 Tailor the steps to the result of Step 1. Mark completed steps as "done" and skip them.
 
+If the setup is not done, give this data warning **before** step 1. Do not wait until after the setup.
+
+- Claude sends what it reads from the model to the AI provider. This includes element data, parameter values, pictures of views (screenshots), and project and file names.
+- pyRevit keeps a plain-text record of each run in `%APPDATA%\pyRevit\agent` for up to 14 days. This folder is in your Roaming profile, so it can copy to your office servers.
+- Claude keeps the chat records in `%USERPROFILE%\.claude\projects`.
+- If you are not sure the project allows AI tools, ask your BIM manager first.
+
+The setup skill asks the user to confirm this warning before it changes anything.
+
 1. **Set up.** Type "set up pyRevit 7". This installs pyRevit 7 for your user account. You do not need admin rights. It takes about 2 minutes. Skip it if pyRevit 7 is installed and the `pyrevit` connection is registered.
 2. **Open a model.** Start Revit and open a model. The Revit Home screen is not sufficient. An Autodesk sample model, for example *Snowdon Towers Sample Architectural*, is a good first choice.
 3. **Ask a safe question first.** Ask a question that only reads the model, for example "How many rooms are on Level 1?" A question that only reads does not change the model.
@@ -63,7 +72,7 @@ Then tell the user about the two safety points:
   - `readonly`: Claude can only read the model. Claude cannot change it.
   - `auto`: Claude can change the model **without** asking you. Tell the user this clearly. Recommend the fix: type "set up pyRevit 7" to set the policy to `ask`. Do not change the policy yourself unless the user asks for it in the chat.
   - Unknown (the check failed): say "I cannot confirm that Revit asks you before each change." Do not promise Keep/Discard.
-- **Data goes to the AI provider.** Claude sends the model data that it reads to the AI company. Use it only on projects where your office and your client permit this.
+- **Data goes to the AI provider.** Claude sends what it reads (model data, pictures of views, project and file names) to the AI company. Use it only on projects where your office and your client permit this. If you are not sure, ask your BIM manager first.
 
 ## Step 5: Teach how to ask well
 

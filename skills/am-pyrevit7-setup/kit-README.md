@@ -5,6 +5,15 @@ This kit sets three things up for the current Windows user:
 2. **Revit 2024–2026 repointed** to pyRevit 7. This works even when IT installed an older pyRevit (6.x) machine-wide.
 3. **The pyRevit Agent Runtime connected to Claude Code**, so Claude can read and edit your open Revit model.
 
+## Read this first: your data
+
+Read this before you start the setup.
+
+- Claude sends what it reads from the model to the AI provider. This includes element data, parameter values, pictures of views (`capture_view` takes them), and project and file names.
+- pyRevit keeps a plain-text record of each run in `%APPDATA%\pyRevit\agent` for up to 14 days. This folder is in your Roaming profile, so it can copy to your office servers.
+- Claude keeps the chat records in `%USERPROFILE%\.claude\projects`.
+- If you are not sure the project allows AI tools, ask your BIM manager first.
+
 ## Option A: double-click (about 2 minutes)
 
 1. Save your work and **close Revit**.
@@ -22,7 +31,7 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 
 - **Re-run the kit after any pyRevit update.** The pyRevit installer and `pyrevit attach` remove the per-user fix, so Revit can fall back to 6.x. Re-running is safe; `Setup-pyRevit7.cmd -Repoint -Verify` only repoints and checks.
 - **Approvals:** every model change Claude makes asks for your approval inside Revit. **Keep** commits it as one undo step. **Discard** rolls it back.
-- **Data:** anything Claude reads from the model is sent to the AI provider. Only use this on projects where that's allowed. Run records are stored under `%APPDATA%\pyRevit\agent` for 14 days.
+- **Data:** see "Read this first: your data" above.
 - **Undo:** delete `%APPDATA%\Autodesk\Revit\Addins\<year>\pyRevit.addin`. Then run `"%APPDATA%\pyRevit-Master\bin\pyrevit.exe" mcp uninstall claude` and `... configs agent disable`.
 - **Installer check:** the script downloads the latest pyRevit release from GitHub. It runs the installer only when the file matches the SHA256 checksum from GitHub and the signature is valid and comes from the known pyRevit signer (Jean-Marc Couffin, through Microsoft ID Verified signing). If one check fails, the script stops with exit code 3 and does not run the installer.
 - **Logs and backups:** each run writes a log and backs up any manifest it replaces under `%TEMP%\pyrevit7-setup\<timestamp>\`.

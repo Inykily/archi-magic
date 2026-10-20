@@ -16,6 +16,13 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 
 ## Steps
 
+0. **Warn about data first, before any setup step.** Tell the user this in plain words:
+   - Claude sends what it reads from the model to the AI provider. This includes element data, parameter values, pictures of views (`capture_view` takes them), and project and file names.
+   - pyRevit keeps a plain-text record of each run in `%APPDATA%\pyRevit\agent` for up to 14 days. This folder is in your Roaming profile, so it can copy to your office servers.
+   - Claude keeps the chat records in `%USERPROFILE%\.claude\projects`.
+   - If you are not sure the project allows AI tools, ask your BIM manager first.
+
+   Then use AskUserQuestion: "Do you want to continue with the setup?" Give two options: "Continue with setup" and "Stop, I will ask my BIM manager first". Do not mark an option as recommended; this is the user's decision. Run nothing until the user picks "Continue with setup". If the user picks "Stop", end the skill.
 1. Run everything (install, repoint, enable agent, verify). It takes about 2 minutes:
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\pyrevit7-setup.ps1"`
    - For a quick re-fix after a pyRevit update, use `-Repoint -Verify` instead.
@@ -25,7 +32,7 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 4. Tell the user to restart the Claude desktop app and open a new Code session; the `pyrevit` MCP tools load only in new sessions. Suggest asking it "use the pyrevit tools to get the context of my open Revit model" as the first test.
 5. Close with these points:
    - Every model change needs their **Keep/Discard** approval in Revit.
-   - Anything the agent reads from the model is sent to the AI provider, so only use it on projects where that's allowed.
+   - Anything the agent reads from the model is sent to the AI provider (see step 0), so only use it on projects where that's allowed.
    - Re-run this skill after any pyRevit update.
 
 ## House rules (all am-* skills)
