@@ -1,26 +1,31 @@
 <#
 .SYNOPSIS
-  Install McNeel's Rhino MCP plugin (Rhino-MCP-Platform) per-user, connect it to
-  Claude Code, and make Claude ask before every code-running Rhino tool.
+  Prepare this Windows user for McNeel's official 'rhino-mcp' Claude Code plugin:
+  check Rhino 8 and Node.js, install the Rhino-MCP-Platform Rhino package per-user,
+  and make Claude Code ask before every Rhino tool that can change a file or the model.
 
 .DESCRIPTION
-  Safe to re-run. Steps (default: Install, Connect, Verify, in this order):
-    -Install   Run 'Yak.exe install Rhino-MCP-Platform' for the current user
-               (never --all-users). Skipped if the package is already installed
-               (use -Force to run it again).
-    -Connect   Copy the MCP router to %APPDATA%\McNeel\Rhinoceros\ai\bin if Rhino has
-               not done it yet, register it with Claude Code (user scope, server name
-               'rhino', full path), then run -AskRules.
-    -AskRules  Merge permissions.ask rules for mcp__rhino__run_python, run_csharp and
-               run_command into the Claude Code user settings (backup first, never
-               drops existing keys or rules, no write when nothing changes).
+  Safe to re-run. Steps (default: Install, AskRules, Verify, in this order):
+    -Install   Check Rhino and Node.js, run 'Yak.exe install Rhino-MCP-Platform' for the
+               current user (never --all-users), check that Rhino has staged the MCP
+               router, and print the plugin install command for Claude Code.
+               Skips yak when the package is already installed (-Force runs it again).
+    -AskRules  Merge permissions.ask rules for the Rhino tools that can change a file or
+               the model into the Claude Code user settings. Both tool-name forms are
+               added: plugin (mcp__plugin_rhino-mcp_rhino__*) and manual (mcp__rhino__*).
+               Backup first, never drops existing keys or rules, no write when nothing
+               changes. The file is re-serialized (formatting can change, content cannot).
     -Verify    Print the final state. Read-only.
+
+  The MCP layer itself is McNeel's plugin (github.com/mcneel/RhinoAI, cc-plugin), installed
+  in Claude Code with: /plugin install rhino-mcp@archi-magic
+  This script does not register any MCP server and does not copy the router.
 
   Never needs admin. Never starts, stops or kills Rhino.
 
-  Exit codes: 0 ok, 2 required Rhino version not installed, 3 plugin install failed,
-  4 MCP registration incomplete, 5 settings.json not changed (invalid JSON or
-  unexpected shape), 6 verify found problems.
+  Exit codes: 0 ok, 2 required Rhino version not installed, 3 package install failed,
+  4 router not staged yet (open Rhino once), 5 settings.json not changed (invalid JSON
+  or unexpected shape), 6 verify found problems, 7 Node.js not found.
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File .\rhino-setup.ps1
@@ -30,7 +35,6 @@
 [CmdletBinding()]
 param(
     [switch]$Install,
-    [switch]$Connect,
     [switch]$AskRules,
     [switch]$Verify,
     [switch]$Force,
@@ -40,10 +44,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-if (-not ($Install -or $Connect -or $AskRules -or $Verify)) {
-    $Install = $true; $Connect = $true; $Verify = $true
+if (-not ($Install -or $AskRules -or $Verify)) {
+    $Install = $true; $AskRules = $true; $Verify = $true
 }
-if ($Connect) { $AskRules = $true }
 
 $Stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
 $WorkDir = Join-Path $env:TEMP "rhino-setup\$Stamp"
@@ -51,13 +54,27 @@ New-Item -ItemType Directory -Force $WorkDir | Out-Null
 $LogFile = Join-Path $WorkDir 'setup.log'
 Start-Transcript -Path $LogFile -Append | Out-Null
 
-$ServerName  = 'rhino'      # McNeel's own name (RouterMcpConfig.ServerName); MCPConnect uses it too.
-$PackageName = 'Rhino-MCP-Platform'
-$AskList     = @('run_python', 'run_csharp', 'run_command') | ForEach-Object { "mcp__${ServerName}__$_" }
-$RhinoData   = Join-Path $env:APPDATA 'McNeel\Rhinoceros'
-$BinDir      = Join-Path $RhinoData 'ai\bin'
-$StagedExe   = Join-Path $BinDir 'rhino-mcp-router.exe'
-$Rid         = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'win-arm64' } else { 'win-x64' }
+$PackageName   = 'Rhino-MCP-Platform'
+$PluginName    = 'rhino-mcp'            # cc-plugin/.claude-plugin/plugin.json "name"
+$PluginInstall = '/plugin install rhino-mcp@archi-magic'
+$NodeUrl       = 'https://nodejs.org/en/download'
+# Tools from rhino/plugin/Tools/*.cs that can change a file or the model.
+# Read-only and view-only tools (list_objects, get_context, get_selection, get_viewport_image,
+# get_commands, set_camera, set_selection, zoom_*, *_describe_*, *_search_*, *_get_canvas_graph)
+# stay prompt-free.
+$WriteTools = @(
+    'run_python', 'run_csharp', 'run_command',
+    'open_doc', 'save_doc', 'close_doc',
+    'set_layer_material', 'manage_plugin_commands',
+    'g1_apply_graph', 'g1_clear_canvas', 'g1_delete_component',
+    'g2_apply_graph', 'g2_clear_canvas', 'g2_delete_component'
+)
+# Plugin-bundled server: mcp__plugin_<plugin>_<server>__<tool> (Claude Code docs, "Plugin MCP tool names").
+# Manual registration as 'rhino' (McNeel's MCPConnect): mcp__rhino__<tool>.
+$AskList = @($WriteTools | ForEach-Object { "mcp__plugin_${PluginName}_rhino__$_" }) +
+           @($WriteTools | ForEach-Object { "mcp__rhino__$_" })
+$RhinoData = Join-Path $env:APPDATA 'McNeel\Rhinoceros'
+$StagedExe = Join-Path $RhinoData 'ai\bin\rhino-mcp-router.exe'
 $script:Problems = New-Object System.Collections.Generic.List[string]
 
 function Say($msg)  { Write-Host "[rhino-setup] $msg" }
@@ -96,15 +113,19 @@ function Get-PackageVersions([string]$Version) {
     return @(Get-ChildItem $base -Directory | Sort-Object { try { [version]($_.Name -replace '[^\d\.].*$', '') } catch { [version]'0.0' } } -Descending)
 }
 
-function Find-RouterPayload {
-    # Same search as McNeel's router-launcher.mjs: Rhino 9 first, then 8, newest package first.
-    foreach ($v in '9', '8') {
-        foreach ($p in (Get-PackageVersions $v)) {
-            $dir = Join-Path $p.FullName "router\$Rid"
-            if (Test-Path (Join-Path $dir 'rhino-mcp-router.exe')) { return $dir }
-        }
-    }
-    return $null
+function Get-Node {
+    $cmd = Get-Command node -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $cmd) { return $null }
+    $v = (Invoke-Native $cmd.Source @('--version')).Out.Trim()
+    return [pscustomobject]@{ Path = $cmd.Source; Version = $v }
+}
+
+function Test-PluginInstalled {
+    $f = Join-Path $env:USERPROFILE '.claude\plugins\installed_plugins.json'
+    if (-not (Test-Path $f)) { return @() }
+    try { $j = [IO.File]::ReadAllText($f) | ConvertFrom-Json } catch { return @() }
+    if (-not $j.plugins) { return @() }
+    return @($j.plugins.PSObject.Properties.Name | Where-Object { $_ -like "$PluginName@*" })
 }
 
 function Find-ClaudeCli {
@@ -149,7 +170,7 @@ function Merge-AskRules([string]$Path, [string[]]$Rules) {
     $exists = Test-Path $Path
     if ($exists) {
         $r = Read-JsonFile $Path
-        if (-not $r.Ok) { Fail 5 "Not valid JSON ($($r.Error)). Nothing was written. Fix the file, or add the ask rules by hand: $($Rules -join ', ')" }
+        if (-not $r.Ok) { Fail 5 "Not valid JSON ($($r.Error)). Nothing was written. Fix the file, then run -AskRules again." }
         $obj = $r.Obj
     } else {
         $obj = New-Object PSObject
@@ -178,7 +199,7 @@ function Merge-AskRules([string]$Path, [string[]]$Rules) {
 
     $missing = @($Rules | Where-Object { $current -notcontains $_ })
     if ($missing.Count -eq 0) {
-        Say 'Ask rules already present. settings.json not changed.'
+        Say "All $($Rules.Count) ask rules already present. settings.json not changed."
         return
     }
     $perm.ask = [object[]]($current + $missing)
@@ -192,6 +213,7 @@ function Merge-AskRules([string]$Path, [string[]]$Rules) {
     $after = $check | ConvertTo-Json -Depth 100 -Compress
     if ($after -ne $before) { Fail 5 'Merge self-check failed: the new JSON would change more than permissions.ask. Nothing was written.' }
 
+    $backup = $null
     if ($exists) {
         $backup = "$Path.am-rhino-backup-$Stamp"
         Copy-Item $Path $backup -Force
@@ -211,7 +233,7 @@ function Merge-AskRules([string]$Path, [string[]]$Rules) {
     if (-not $re.Ok) { Fail 5 "After write, $Path does not parse ($($re.Error)). Restore it from $backup." }
     $now = Get-AskRules $re.Obj
     foreach ($rule in $Rules) { if ($now -notcontains $rule) { Fail 5 "After write, ask rule '$rule' is missing." } }
-    Say "Added ask rule(s): $($missing -join ', ')"
+    Say "Added $($missing.Count) ask rule(s): $($missing -join ', ')"
 }
 
 Say "Log file: $LogFile"
@@ -219,8 +241,16 @@ $rhinoDirs = @(Get-RhinoDirs $RhinoVersion)
 
 # ---------------------------------------------------------------- Install
 if ($Install) {
-    Say "== Install $PackageName for Rhino $RhinoVersion =="
+    Say "== Prerequisites and $PackageName for Rhino $RhinoVersion =="
     if ($rhinoDirs.Count -eq 0) { Fail 2 "Rhino $RhinoVersion is not installed under $env:ProgramFiles. Install it from https://www.rhino3d.com/download first." }
+    Say "Rhino ${RhinoVersion}: $($rhinoDirs[0])"
+
+    $node = Get-Node
+    if (-not $node) {
+        Fail 7 "Node.js is not installed. The rhino-mcp plugin needs it to start. Download the Windows installer from $NodeUrl. If the installer asks for admin rights, ask your IT team to install Node.js. Then run this script again."
+    }
+    Say "Node.js: $($node.Version) ($($node.Path))"
+
     $yak = Join-Path $rhinoDirs[0] 'System\Yak.exe'
     if (-not (Test-Path $yak)) { Fail 3 "Yak.exe not found at $yak." }
     $have = @(Get-PackageVersions $RhinoVersion)
@@ -236,66 +266,28 @@ if ($Install) {
             Say "  1. Open Rhino $RhinoVersion."
             Say '  2. Type PackageManager and press Enter.'
             Say "  3. Search for $PackageName and click Install."
-            Say '  4. Close and open Rhino again, then run this script with -Connect.'
+            Say '  4. Close Rhino, open it again, then run this script again.'
             Fail 3 "yak install exited $($r.Code)."
         }
         Say "Installed $PackageName $($have[0].Name)."
     }
-    if (Get-Process Rhino -ErrorAction SilentlyContinue) { Say 'Rhino is running: close and open it again so it loads the plugin.' }
-}
 
-# ---------------------------------------------------------------- Connect
-if ($Connect) {
-    Say '== Connect the Rhino MCP router to Claude Code =='
     if (-not (Test-Path $StagedExe)) {
-        $payload = Find-RouterPayload
-        if (-not $payload) { Fail 4 "No router found. Run with -Install first, or open Rhino once so the plugin copies it to $BinDir." }
-        # Same copy the plugin and McNeel's launcher do: the stable path survives plugin updates.
-        New-Item -ItemType Directory -Force $BinDir | Out-Null
-        $files = @(Get-ChildItem $payload -Recurse -File | Where-Object { $_.Name -ne 'rhino-mcp-router.exe' }) + @(Get-Item (Join-Path $payload 'rhino-mcp-router.exe'))
-        foreach ($f in $files) {
-            $dst = Join-Path $BinDir $f.FullName.Substring($payload.Length).TrimStart('\')
-            New-Item -ItemType Directory -Force (Split-Path -Parent $dst) | Out-Null
-            Copy-Item $f.FullName $dst -Force
-        }
-        Say "Copied router from $payload to $BinDir"
-    } else {
-        Say "Router: $StagedExe"
+        Fail 4 "The MCP router is not ready yet ($StagedExe is missing). Open Rhino $RhinoVersion once (close it first if it is open), wait until it has started, then run this script again. Rhino puts the router there when it loads the plugin."
     }
+    Say "Router: $StagedExe"
 
-    $claude = Find-ClaudeCli
-    if (-not $claude) {
-        Warn "Claude Code CLI not found. Open Claude Code once, then run -Connect again. Or run: claude mcp add $ServerName -s user -- `"$StagedExe`""
+    if ((Test-PluginInstalled).Count -gt 0) {
+        Say "Claude Code plugin '$PluginName' is installed: $((Test-PluginInstalled) -join ', ')"
     } else {
-        Say "Claude Code CLI: $claude"
-        $addArgs = @('mcp', 'add', $ServerName, '-s', 'user', '--', $StagedExe)
-        if ($RhinoVersion -eq '9') { $addArgs += @('--default-version', '9') }
-        $get = Invoke-Native $claude @('mcp', 'get', $ServerName)
-        $okPath = $get.Out -match [regex]::Escape($StagedExe)
-        $okVer  = ($RhinoVersion -eq '9') -eq ($get.Out -match '--default-version\s+9')
-        if ($get.Code -eq 0 -and $okPath -and $okVer) {
-            Say "MCP server '$ServerName' already registered with this router."
-        } else {
-            if ($get.Code -eq 0) {
-                if ($get.Out -match 'Scope:\s*User') {
-                    Say "Replacing the user-scope '$ServerName' registration that uses another command."
-                    Invoke-Native $claude @('mcp', 'remove', $ServerName, '-s', 'user') | Out-Null
-                } else {
-                    Warn "An MCP server named '$ServerName' exists in another scope (local or project). It can hide this one:`n$($get.Out)"
-                }
-            }
-            $add = Invoke-Native $claude $addArgs
-            Say $add.Out
-            $get = Invoke-Native $claude @('mcp', 'get', $ServerName)
-            if ($get.Code -ne 0 -or $get.Out -notmatch [regex]::Escape($StagedExe)) { Fail 4 "Could not register the '$ServerName' MCP server with Claude Code." }
-            Say "MCP server '$ServerName' registered (user scope)."
-        }
+        Say "NEXT: in Claude Code, type:  $PluginInstall"
+        Say '      Then restart the Claude desktop app and open a new Code session.'
     }
 }
 
 # ---------------------------------------------------------------- AskRules
 if ($AskRules) {
-    Say '== Ask before code-running Rhino tools =='
+    Say '== Ask before Rhino tools that change a file or the model =='
     Merge-AskRules $SettingsPath $AskList
 }
 
@@ -305,26 +297,31 @@ if ($Verify) {
     if ($rhinoDirs.Count -gt 0) { Say "Rhino ${RhinoVersion}: $($rhinoDirs -join ', ')" } else { Warn "Rhino $RhinoVersion is not installed." }
     if ($RhinoVersion -eq '8') {
         $r9 = @(Get-RhinoDirs '9')
-        if ($r9.Count -gt 0) { Say "Also found Rhino 9: $($r9 -join ', '). Not configured (run with -RhinoVersion 9 to use it)." }
+        if ($r9.Count -gt 0) { Say "Also found Rhino 9: $($r9 -join ', '). Not configured (the router uses Rhino 8 by default)." }
     }
     $running = @(Get-Process Rhino -ErrorAction SilentlyContinue)
     Say "Rhino windows open: $($running.Count)"
     if ($running.Count -gt 1) { Say 'More than one Rhino is open. Claude can edit a different document than the one you look at.' }
 
+    $node = Get-Node
+    if ($node) { Say "Node.js: $($node.Version) ($($node.Path))" } else { Warn "Node.js not found. The rhino-mcp plugin cannot start. Get it from $NodeUrl." }
+
     $pk = @(Get-PackageVersions $RhinoVersion)
     if ($pk.Count -gt 0) { Say "${PackageName}: $(($pk | ForEach-Object Name) -join ', ') (Rhino $RhinoVersion)" } else { Warn "$PackageName is not installed for Rhino $RhinoVersion. Run -Install." }
-    if (Test-Path $StagedExe) { Say "Router: $StagedExe" } else { Warn "Router not found at $StagedExe. Run -Connect, or open Rhino once." }
+    if (Test-Path $StagedExe) { Say "Router: $StagedExe" } else { Warn "Router not found at $StagedExe. Open Rhino $RhinoVersion once." }
+
+    $installed = @(Test-PluginInstalled)
+    if ($installed.Count -gt 0) { Say "Claude Code plugin: $($installed -join ', ')" }
+    else { Warn "Claude Code plugin '$PluginName' is not installed. In Claude Code, type: $PluginInstall" }
 
     $claude = Find-ClaudeCli
     if ($claude) {
-        $get = Invoke-Native $claude @('mcp', 'get', $ServerName)
-        $get.Out -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { Say "mcp: $_" }
-        if ($get.Code -ne 0 -or $get.Out -notmatch [regex]::Escape($StagedExe)) { Warn "Claude Code MCP: '$ServerName' is not registered with $StagedExe. Run -Connect." }
-    } else { Warn 'Claude Code CLI not found; cannot check the MCP registration.' }
-
-    $plugins = Join-Path $env:USERPROFILE '.claude\plugins\installed_plugins.json'
-    if ((Test-Path $plugins) -and ([IO.File]::ReadAllText($plugins) -match '"rhino-mcp@')) {
-        Warn "McNeel's 'rhino-mcp' Claude Code plugin is also installed. Its tools (mcp__plugin_rhino-mcp_rhino__*) are not covered by the ask rules. Uninstall it, or add ask rules for it."
+        $get = Invoke-Native $claude @('mcp', 'get', 'rhino')
+        if ($get.Code -eq 0) {
+            $manual = 'Manual MCP server registration named rhino found (for example from the MCPConnect command).'
+            if ($installed.Count -gt 0) { Warn "$manual The plugin also provides one. Two Rhino servers confuse Claude. Remove one: claude mcp remove rhino -s user" }
+            else { Say $manual }
+        }
     }
 
     if (Test-Path $SettingsPath) {
@@ -332,9 +329,9 @@ if ($Verify) {
         if (-not $s.Ok) { Warn "$SettingsPath is not valid JSON ($($s.Error))." }
         else {
             $ask = Get-AskRules $s.Obj
-            foreach ($rule in $AskList) {
-                if ($ask -contains $rule) { Say "ask rule: $rule" } else { Warn "Ask rule missing: $rule. Run -AskRules." }
-            }
+            $miss = @($AskList | Where-Object { $ask -notcontains $_ })
+            if ($miss.Count -eq 0) { Say "Ask rules: all $($AskList.Count) present in $SettingsPath" }
+            else { Warn "$($miss.Count) of $($AskList.Count) ask rules missing in $SettingsPath. Run -AskRules. Missing: $($miss -join ', ')" }
         }
     } else { Warn "$SettingsPath not found: no ask rules. Run -AskRules." }
     Say 'Check by hand in Rhino: run SetDotNetRuntime and make sure it says NETCore (the plugin does not load on .NET Framework).'
