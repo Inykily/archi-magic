@@ -53,6 +53,8 @@ Every feature the user asked for in the build session, with its status. **Shippe
 | 47 | Axis gizmo too large | <=48px, no disc, hairline arms, test | in progress |
 | 48 | Cursor rounded and cute; shadow not working | plump rounded cursors; real blur shadow + night halo; pixel-sampling test | in progress |
 | 49 | Grid looks like moire texture at distance | fwidth-based minor-line fade, variance test with negative control | in progress |
+| 50 | Interaction guide / keybindings in a collapsed panel that expands (animated) on hover over help | viewer help button + animated panel, reduced-motion aware, tests | in progress |
+| 51 | First-person walking mode | viewer walk mode: WASD + mouse look, 5.5 ft eye height, floor following, collision, tests | in progress |
 
 ## To finish before the v0.4.0 release
 
