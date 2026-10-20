@@ -10,7 +10,26 @@
     {
       "name": "archi-magic",
       "source": "./",
-      "description": "AEC skills for Claude Code. All skills are prefixed am-*. First skill: am-pyrevit7-setup (pyRevit 7 + Agent Runtime, no admin rights)."
+      "description": "AEC skills for Claude Code. All skills are prefixed am-*. Also installs superpowers and frontend-design."
+    },
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git",
+        "sha": "bb92a77741419a4ab5f06e711a283343f1ada0c3"
+      },
+      "description": "General work skills by Jesse Vincent (obra), MIT: brainstorming, writing and executing plans, systematic debugging, test-driven development, code review, verification before completion. Pinned to v7.0.0."
+    },
+    {
+      "name": "frontend-design",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-code.git",
+        "path": "plugins/frontend-design",
+        "sha": "ef7bfdca55d906929fe6b782025b93758c325074"
+      },
+      "description": "Anthropic's frontend design skill: distinctive, production-grade web interfaces instead of generic AI-looking pages. Pinned to v1.1.0."
     }
   ]
 }
