@@ -30,6 +30,7 @@ from Autodesk.Revit.DB import (
     Solid,
     SpecTypeId,
     StorageType,
+    View3D,
     ViewDetailLevel,
     ViewType,
 )
@@ -41,9 +42,11 @@ CATEGORIES = []
 MAX_ELEMENTS = 5000
 MAX_TRIANGLES = 1500000
 MAX_PARAMS = 40
-# "auto": the active view when it is a 3D view, else the whole model.
+# "auto": the active view when it is a 3D view; else the 3D view named VIEW3D_NAME
+#         (or the first non-template 3D view), read without activating it; else the whole model.
 # "view": always the active view. "model": always the whole model.
 SOURCE = "auto"
+VIEW3D_NAME = "{3D}"
 # Leave LEVEL empty for all levels, or give a level name, for example "Level 1".
 LEVEL = ""
 OUT_PATH = None  # None: %TEMP%\am-bim-viewer\<model title>.json
@@ -184,6 +187,14 @@ def export():
 
     use_view = SOURCE == "view" or (
         SOURCE == "auto" and view is not None and view.ViewType == ViewType.ThreeD and not view.IsTemplate)
+    if SOURCE == "auto" and not use_view:
+        # The active view is a sheet, plan, etc.: read a 3D view by id. It is not opened or
+        # activated, so the user's view and selection do not change.
+        views = [v for v in FilteredElementCollector(doc).OfClass(View3D) if not v.IsTemplate]
+        named = [v for v in views if v.Name == VIEW3D_NAME]
+        pick = named[0] if named else (views[0] if views else None)
+        if pick is not None:
+            view, use_view = pick, True
     options = Options()
     options.ComputeReferences = False
     options.IncludeNonVisibleObjects = False

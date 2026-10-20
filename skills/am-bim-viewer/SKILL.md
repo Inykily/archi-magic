@@ -20,7 +20,12 @@ Show Revit geometry as an interactive 3D page next to the conversation.
    ```
    & "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe" agent run "<this skill dir>\scripts\export_bim_json.py" --mode=query --revit=2026
    ```
-   With `SOURCE = "auto"` it exports the active view when that is a 3D view, else the whole model. Set `CATEGORIES` and `LEVEL` to export a subset. It prints one JSON line with the file path (default `%TEMP%\am-bim-viewer\<model>.json`), the element and triangle counts, and what it skipped. Tell the user about each skip count that is not zero. Change the caps with `MAX_ELEMENTS` and `MAX_TRIANGLES` at the top of the script. Tested live on Revit 2026.3 (Snowdon Towers sample: 1595 elements, 110,015 triangles, 5.7 MB JSON, about 2.5 minutes, no model change).
+   With `SOURCE = "auto"` it exports the active view when that is a 3D view. When the active view is not 3D (for example a sheet), it reads the `{3D}` view (or the first 3D view that is not a template) by id. It does not open or activate that view, so the user's view and selection do not change. With no 3D view, it exports the whole model. Set `CATEGORIES` and `LEVEL` to export a subset. It prints one JSON line with the file path (default `%TEMP%\am-bim-viewer\<model>.json`), the element and triangle counts, and what it skipped. Tell the user about each skip count that is not zero. Change the caps with `MAX_ELEMENTS` and `MAX_TRIANGLES` at the top of the script.
+
+   Measured on Revit 2026.3 with the Snowdon Towers sample (active view: a sheet) in query mode, with no model change:
+   - `{3D}`, all levels: 4,623 elements. It reaches the 1,500,000 triangle cap, so 2,477 elements are skipped. This took 121 s on the CPython engine.
+   - `{3D}` with `LEVEL = "L2"`: 519 elements, 105,330 triangles, 3.0 MB, 5 s, nothing capped.
+   - Through the MCP `run_query` tool, the IronPython engine stopped at the 900 s timeout in `json.dumps`, because the runner's trace hook slows Python loops. Use `engine: "cpython"` there. The `pyrevit agent run` command line was not measured again after this change (unverified).
 2. **Build the page.** Use `/bim-view <path.json>` (the mod), or with node: `node "<this skill dir>\scripts\build-viewer.mjs" <path.json>`. With no path, both build the demo model. The mod cannot read files over 4 MiB (about 80,000 triangles). Use the node script for larger models.
 3. **Open it.** Open the `file:///...viewer.html` URL in the Browser pane (`preview_start` with `url`). If no Browser pane is available, give the user the path, or run `/bim-view <path> --open` to use the default browser.
 
