@@ -114,20 +114,51 @@
     cursorRows.push(on.shape > 0 && on.halo >= 8 * scale && off.halo === 0);
   }
   results.cursorShadowRenders = cursorRows.length === 20 && cursorRows.every(Boolean);
-  // Help: collapsed at rest, opens on hover and focus, closes on leave and Esc; aria-expanded follows.
+  // Help: the pointer is simulated with real hit-testing (document.elementFromPoint) so the test
+  // measures hit areas, not which element we chose to dispatch on. pointerenter/leave are sent
+  // along the ancestor chains exactly as a browser does when the element under the pointer changes.
   const help = document.getElementById('help'), hb = document.getElementById('helpbtn'), hp = document.getElementById('helppanel');
-  const shown = () => getComputedStyle(hp).visibility === 'visible';
-  const rest = !shown() && hb.getAttribute('aria-expanded') === 'false';
-  help.dispatchEvent(new MouseEvent('mouseenter')); await wait(20);
-  const hovered = shown() && hb.getAttribute('aria-expanded') === 'true' && hp.querySelectorAll('kbd').length >= 9;
-  help.dispatchEvent(new MouseEvent('mouseleave')); await wait(450);
-  const left = !shown() && hb.getAttribute('aria-expanded') === 'false';
+  const isOpen = () => getComputedStyle(hp).visibility === 'visible' && hb.getAttribute('aria-expanded') === 'true';
+  // Closed = collapsed state and no hit area (immediate); visibility fades out over --slow.
+  const isClosed = () => getComputedStyle(hp).pointerEvents === 'none' && hb.getAttribute('aria-expanded') === 'false' && !help.classList.contains('open');
+  let under = null;
+  const chain = el => { const out = []; for (let n = el; n; n = n.parentElement) out.push(n); return out; };
+  function pointerTo(x, y, buttons = 0) {
+    const el = document.elementFromPoint(x, y);
+    if (el === under) return el;
+    const oldC = chain(under), newC = chain(el);
+    const opts = { pointerId: 9, pointerType: 'mouse', clientX: x, clientY: y, buttons };
+    for (const n of oldC) if (!newC.includes(n)) n.dispatchEvent(new PointerEvent('pointerleave', opts));
+    for (const n of newC.slice().reverse()) if (!oldC.includes(n)) n.dispatchEvent(new PointerEvent('pointerenter', opts));
+    under = el; return el;
+  }
+  const hbR = hb.getBoundingClientRect(), hbC = { x: hbR.left + hbR.width / 2, y: hbR.top + hbR.height / 2 };
+  const vpR = document.getElementById('viewport').getBoundingClientRect();
+  const away = { x: vpR.left + 60, y: vpR.top + 80 }; // far from the ? and from the open panel
+  pointerTo(away.x, away.y); await wait(300);
+  const rest = isClosed();
+  pointerTo(hbR.left - 8, hbC.y); await wait(250);                      // 8 px outside the "?"
+  const outside8 = isClosed();
+  pointerTo(hbC.x, hbC.y); await wait(80); pointerTo(away.x, away.y); await wait(250); // < 150 ms then leave
+  const brief = isClosed();
+  pointerTo(hbC.x, hbC.y); await wait(220);                              // > 150 ms
+  const opened = isOpen() && hp.querySelectorAll('kbd').length >= 9;
+  const pR = hp.getBoundingClientRect();
+  pointerTo(hbC.x, hbR.top - 4); await wait(60);                         // the gap between ? and panel
+  pointerTo(pR.left + pR.width / 2, pR.top + pR.height / 2); await wait(350);
+  const keptOverPanel = isOpen();
+  pointerTo(away.x, away.y); await wait(400);                            // leave both
+  const closedAfterLeave = isClosed();
+  pointerTo(hbC.x, hbC.y, 2); await wait(250);                           // right-button drag passing over
+  const dragIgnored = isClosed();
+  pointerTo(away.x, away.y); await wait(300);
   // Without OS focus (an automated pane), focus() moves activeElement but fires no focus events: send focusin.
   hb.focus(); if (!document.hasFocus()) hb.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); await wait(20);
-  const focused = shown() && hb.getAttribute('aria-expanded') === 'true';
+  const focused = isOpen();
   hb.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(450);
-  const escaped = !shown() && hb.getAttribute('aria-expanded') === 'false' && hb.getAttribute('aria-controls') === 'helppanel';
-  results.helpCollapses = rest && hovered && left && focused && escaped;
+  const escaped = isClosed() && hb.getAttribute('aria-controls') === 'helppanel';
+  results.helpHover = { rest, outside8, brief, opened, keptOverPanel, closedAfterLeave, dragIgnored, focused, escaped, isInfo: true };
+  results.helpCollapses = rest && outside8 && brief && opened && keptOverPanel && closedAfterLeave && dragIgnored && focused && escaped;
   // Gumball (left drag on a handle): Top view, X arrow +100 px moves east, Y arrow up moves north,
   // ring CCW is positive; snapping; Esc cancels; undo; Copy for Revit gives the contract JSON.
   __bim.setView('top'); __bim.select(310009); __bim.renderNow(); await wait(30);

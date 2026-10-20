@@ -265,15 +265,16 @@
 
   /* Help: a 22px round "?" at the viewport's bottom right; it opens into a hairline panel of key-cap rows
      on hover, keyboard focus or tap, and closes on leave, blur or Esc. */
-  #help { position: absolute; right: 14px; bottom: 14px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; }
+  /* Only the 22px button is a hover target; the closed panel takes no space and catches no pointer. */
+  #help { position: absolute; right: 14px; bottom: 14px; z-index: 4; width: 22px; height: 22px; }
   #helpbtn { width: 22px; height: 22px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); background: var(--bg);
     color: var(--ink-2); font-size: var(--fs-micro); line-height: 1; padding: 0; cursor: pointer; transition: color var(--slow) var(--ease), border-color var(--slow) var(--ease); }
   #help.open #helpbtn, #helpbtn:hover { color: var(--ink); border-color: var(--ink); }
-  #helppanel { order: -1; margin-bottom: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--bg); border: var(--hair) solid var(--line-strong);
+  #helppanel { position: absolute; right: 0; bottom: 30px; pointer-events: none; padding: var(--space-3) var(--space-4); background: var(--bg); border: var(--hair) solid var(--line-strong);
     display: grid; gap: 6px; color: var(--ink-2); font-size: var(--fs-micro); text-transform: lowercase; white-space: nowrap;
     transform-origin: 100% 100%; opacity: 0; visibility: hidden; transform: translate(4px, 6px) scale(.96);
     transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s linear var(--slow); }
-  #help.open #helppanel { opacity: 1; visibility: visible; transform: none; transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s; }
+  #help.open #helppanel { pointer-events: auto; opacity: 1; visibility: visible; transform: none; transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s; }
   #helppanel .row { display: flex; align-items: center; gap: 5px; }
   #help.open #helppanel .row { animation: rowIn var(--slow) var(--ease) both; animation-delay: calc(var(--i) * 35ms); }
   @keyframes rowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
@@ -641,21 +642,44 @@ function updateHint() {
   helpPanel.innerHTML = helpRows().map(([keys, what], i) =>
     '<span class="row" style="--i:' + i + '">' + keys.map(x => '<kbd>' + escHtml(x) + '</kbd>').join('+') + ' ' + escHtml(what) + '</span>').join('');
 }
-let helpHover = false;
+// Opens only from the "?" itself after a short intent delay (150 ms; leaving earlier cancels), stays
+// open over the "?" or the panel with a 250 ms grace to cross the gap, and ignores hover while any
+// mouse button is down (a camera drag passing over the corner). Focus and tap still open it.
+const HELP_INTENT_MS = 150, HELP_GRACE_MS = 250;
+let helpOpenTimer = 0, helpCloseTimer = 0, helpOver = 0;
 function setHelp(isOpen) {
+  clearTimeout(helpOpenTimer); clearTimeout(helpCloseTimer);
   if (helpEl.classList.contains('open') === isOpen) return;
   helpEl.classList.toggle('open', isOpen);
   helpBtn.setAttribute('aria-expanded', String(isOpen));
 }
-helpEl.addEventListener('mouseenter', () => { helpHover = true; setHelp(true); });
-helpEl.addEventListener('mouseleave', () => { helpHover = false; if (!helpEl.contains(document.activeElement)) setHelp(false); });
+function helpEnter(e, isButton) {
+  if (e.pointerType === 'touch') return;
+  helpOver++; clearTimeout(helpCloseTimer);
+  if (helpEl.classList.contains('open') || !isButton || e.buttons !== 0) return;
+  clearTimeout(helpOpenTimer);
+  helpOpenTimer = setTimeout(() => setHelp(true), HELP_INTENT_MS);
+}
+function helpLeave(e) {
+  if (e.pointerType === 'touch') return;
+  helpOver = Math.max(0, helpOver - 1);
+  clearTimeout(helpOpenTimer);
+  if (helpOver === 0 && !helpEl.contains(document.activeElement)) {
+    clearTimeout(helpCloseTimer);
+    helpCloseTimer = setTimeout(() => { if (helpOver === 0) setHelp(false); }, HELP_GRACE_MS);
+  }
+}
+helpBtn.addEventListener('pointerenter', e => helpEnter(e, true));
+helpBtn.addEventListener('pointerleave', helpLeave);
+helpPanel.addEventListener('pointerenter', e => helpEnter(e, false));
+helpPanel.addEventListener('pointerleave', helpLeave);
 helpEl.addEventListener('focusin', () => setHelp(true));
-helpEl.addEventListener('focusout', e => { if (!helpEl.contains(e.relatedTarget) && !helpHover) setHelp(false); });
-// Tap on touch toggles (state taken before the tap's own focus opened it); mouse uses hover and focus.
+helpEl.addEventListener('focusout', e => { if (!helpEl.contains(e.relatedTarget) && helpOver === 0) setHelp(false); });
+// Tap on touch toggles (state taken before the tap's own focus opened it).
 let helpWasOpen = false;
 helpBtn.addEventListener('pointerdown', () => { helpWasOpen = helpEl.classList.contains('open'); });
 helpBtn.addEventListener('pointerup', e => { if (e.pointerType === 'touch') setHelp(!helpWasOpen); });
-helpEl.addEventListener('keydown', e => { if (e.key === 'Escape') { helpHover = false; setHelp(false); helpBtn.blur(); } });
+helpEl.addEventListener('keydown', e => { if (e.key === 'Escape') { helpOver = 0; setHelp(false); helpBtn.blur(); } });
 
 // ---------- Annotations, gizmo, render ----------
 const labelsEl = document.getElementById('labels');
