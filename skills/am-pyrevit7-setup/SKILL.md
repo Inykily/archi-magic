@@ -35,6 +35,15 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
    - Anything the agent reads from the model is sent to the AI provider (see step 0), so only use it on projects where that's allowed.
    - Re-run this skill after any pyRevit update.
 
+## Undo a setup run
+
+Use this when the user wants the setup changes back (for example, Revit loads the wrong pyRevit after the run).
+- Run: `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\pyrevit7-setup.ps1" -Undo`. Add `-Stamp <timestamp>` to undo one given run.
+- Each run that changes something writes a journal and byte backups to `%LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\<timestamp>\`. Undo restores or deletes the per-user manifests, restores the previous `pyrevit` MCP registration (or removes the one the run added), and restores the previous agent setting and policy.
+- Undo never needs admin rights and never stops Revit. If Revit is running, the manifest changes apply at the next start. It does not uninstall pyRevit 7.
+- Exit 7: nothing to undo. Exit 8: some items were skipped (a manifest changed after the run). Show the warnings. Offer `-Force` only after the user agrees.
+- If undo restores the policy `auto`, tell the user that model changes then skip Keep/Discard. Offer `pyrevit configs agent policy ask`.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.

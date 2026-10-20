@@ -32,14 +32,26 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 - **Re-run the kit after any pyRevit update.** The pyRevit installer and `pyrevit attach` remove the per-user fix, so Revit can fall back to 6.x. Re-running is safe; `Setup-pyRevit7.cmd -Repoint -Verify` only repoints and checks.
 - **Approvals:** every model change Claude makes asks for your approval inside Revit. **Keep** commits it as one undo step. **Discard** rolls it back.
 - **Data:** see "Read this first: your data" above.
-- **Undo:** delete `%APPDATA%\Autodesk\Revit\Addins\<year>\pyRevit.addin`. Then run `"%APPDATA%\pyRevit-Master\bin\pyrevit.exe" mcp uninstall claude` and `... configs agent disable`.
+- **Undo:** run `Setup-pyRevit7.cmd -Undo`. See "Undo" below.
 - **Installer check:** the script downloads the latest pyRevit release from GitHub. It runs the installer only when the file matches the SHA256 checksum from GitHub and the signature is valid and comes from the known pyRevit signer (Jean-Marc Couffin, through Microsoft ID Verified signing). If one check fails, the script stops with exit code 3 and does not run the installer.
-- **Logs and backups:** each run writes a log and backs up any manifest it replaces under `%TEMP%\pyrevit7-setup\<timestamp>\`.
+- **Logs and backups:** each run writes a log to `%TEMP%\pyrevit7-setup\<timestamp>\`. Backups and the undo journal go to `%LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\<timestamp>\`, because cleanup tools can empty `%TEMP%`.
 - **Clean long-term fix (IT, needs admin):** uninstall the machine-wide pyRevit 6.x, or delete `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. The per-user setup keeps working after that.
+
+## Undo
+
+`Setup-pyRevit7.cmd -Undo` reverses the latest setup run that is not undone yet. `Setup-pyRevit7.cmd -Undo -Stamp <timestamp>` reverses one given run. The timestamp is a folder name under `%LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\`.
+
+Each run that changes something writes `journal.json` in that folder. Undo reads it and does this:
+
+- It restores each per-user Revit manifest that the run replaced or deleted (an exact byte copy). It deletes each manifest that the run created.
+- It restores the previous `pyrevit` MCP registration in Claude Code, or removes the one that the run added.
+- It restores the previous agent setting (enabled or disabled) and the previous policy. If the previous policy was `auto`, undo restores it and shows a warning: model changes then run without Keep/Discard.
+
+Undo does not need admin rights and does not stop Revit. If Revit is running, the manifest changes apply the next time Revit starts. Undo does not uninstall pyRevit 7. A manifest that changed after the run (for example, after a pyRevit update) is skipped with a warning. Add `-Force` to restore it anyway.
 
 ## Script switches
 
-`pyrevit7-setup.ps1 [-Install] [-Repoint] [-EnableAgent] [-Verify] [-Force] [-Policy ask|readonly]`. With no switch, it runs all four steps. `-Force` reinstalls even when 7.x is present.
+`pyrevit7-setup.ps1 [-Install] [-Repoint] [-EnableAgent] [-Verify] [-Force] [-Policy ask|readonly]`, or `pyrevit7-setup.ps1 -Undo [-Stamp <timestamp>] [-Force]`. With no switch, it runs all four setup steps. `-Force` reinstalls even when 7.x is present.
 
 `-EnableAgent` sets the agent policy to `ask`, so every model change needs Keep/Discard in Revit. Use `-Policy readonly` to block all model changes. A re-run keeps an existing `readonly` policy unless you pass `-Policy`. The script never sets `auto` (changes without approval). `-Verify` reports a problem when the policy is not `ask` or `readonly`.
 
@@ -54,3 +66,5 @@ Exit codes:
 | 4 | Repoint failed |
 | 5 | Agent setup incomplete |
 | 6 | Verify found problems |
+| 7 | Nothing to undo (no journal, or the run is already undone) |
+| 8 | Undo finished with problems (some items were skipped or failed) |
