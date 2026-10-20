@@ -342,7 +342,7 @@ export function gridLayout(bounds) {
 
 // One plane in the scene graph (not a screen overlay). A shader draws the
 // lines from world XY with a radial alpha fade, so it has no hard edge.
-export function createGroundGrid(THREE, bounds, color = '#22221f') {
+export function createGroundGrid(THREE, bounds, color = '#f4f4f1') {
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: {
@@ -383,21 +383,60 @@ export function placeGroundGrid(grid, bounds) {
   return g;
 }
 
+// ---- Scene colors per theme (design/DESIGN-SYSTEM.md, "selected (3D)") ----
+// tokens: CSS token values read from the page: v0..v7 ('#rrggbb'), ink, line.
+// Night: the selected element turns paper with an ink hairline outline.
+// Paper: the inverse, an ink element with a paper hairline outline.
+// Hover lifts the category value a little toward the selection value.
+export function scenePalette(theme, tokens) {
+  const isNight = theme === 'night';
+  const steps = {};
+  for (const k of [2, 3, 4, 5, 6]) steps[k] = tokens['v' + k];
+  const selected = isNight ? tokens.v7 : tokens.v0;
+  return {
+    theme: isNight ? 'night' : 'paper',
+    steps,
+    selected,
+    outline: isNight ? tokens.v0 : tokens.v7,
+    hoverToward: selected,
+    hoverLift: 0.22,
+    edge: tokens.v0,
+    edgeOpacity: isNight ? 0.7 : 0.5,
+    grid: tokens.line,
+    gizmo: tokens.ink,
+  };
+}
+
 // ---- Static SVG rendering, for surfaces without WebGL (the inline pane) ----
 // Same camera math as the 3D page. Painter's algorithm, flat shading.
-export const CATEGORY_RGB = {
-  Walls: [201, 196, 184], Floors: [154, 163, 173], Doors: [181, 101, 29], Columns: [91, 127, 158],
-  'Structural Columns': [91, 127, 158], Windows: [127, 196, 217], Roofs: [160, 82, 45],
+// Categories are told apart by VALUE, not hue (design/DESIGN-SYSTEM.md):
+// each category gets one step of the gray scale --v2..--v6 (design/tokens.css).
+// The 3D page reads the steps from CSS at runtime; VALUE_RGB is the same scale
+// as literal RGB for surfaces without CSS (the inline pane SVG, node tests).
+export const VALUE_RGB = {
+  0: [10, 10, 10], 2: [58, 58, 56], 3: [107, 107, 104], 4: [154, 154, 150], 5: [201, 201, 196], 6: [231, 231, 227], 7: [244, 244, 241],
 };
-const EXTRA_RGB = [[141, 181, 128], [209, 154, 102], [159, 134, 192], [111, 183, 183]];
+export const CATEGORY_STEP = {
+  Floors: 2, Roofs: 3, Walls: 4, Columns: 5, 'Structural Columns': 5, Doors: 6, Windows: 6,
+};
+const EXTRA_STEPS = [3, 5, 2, 6, 4];
 
-export function categoryColors(elements) {
+// Category -> value step (2..6), in first-seen order for unknown categories.
+export function categoryValues(elements) {
   const out = {};
   let extra = 0;
   for (const el of elements) {
     const cat = el.category || 'Generic';
-    if (!(cat in out)) out[cat] = CATEGORY_RGB[cat] || EXTRA_RGB[extra++ % EXTRA_RGB.length];
+    if (!(cat in out)) out[cat] = CATEGORY_STEP[cat] || EXTRA_STEPS[extra++ % EXTRA_STEPS.length];
   }
+  return out;
+}
+
+// Category -> [r, g, b] of its value step.
+export function categoryColors(elements) {
+  const steps = categoryValues(elements);
+  const out = {};
+  for (const cat of Object.keys(steps)) out[cat] = VALUE_RGB[steps[cat]].slice();
   return out;
 }
 
@@ -445,9 +484,9 @@ export function renderSvg(elements, state, opts = {}) {
         [world[2][0] - world[0][0], world[2][1] - world[0][1], world[2][2] - world[0][2]]);
       const len = Math.hypot(n[0], n[1], n[2]) || 1;
       const shade = 0.55 + 0.45 * Math.abs((n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / len);
-      // The selected element is one flat highlight color, so it reads at a glance.
-      const rgb = isSel ? [255, 176, 0] : cats[cat].map(c => Math.round(Math.min(255, c * shade)));
-      tris.push({ depth: depth / 3, pts, rgb, el });
+      // The selected element turns flat paper (--v7), so it reads at a glance.
+      const rgb = isSel ? VALUE_RGB[7] : cats[cat].map(c => Math.round(Math.min(255, c * shade)));
+      tris.push({ depth: depth / 3, pts, rgb, el, isSel });
     }
   }
   tris.sort((a, b) => a.depth - b.depth); // far first
@@ -466,14 +505,23 @@ export function renderSvg(elements, state, opts = {}) {
     body += '<path d="M' + t.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z" fill="' + fill + '" stroke="' + fill + '" stroke-width=".6"/>';
   }
   if (open) body += '</g>';
-  // Axis gizmo, bottom-left: X red, Y green, Z blue.
+  // The one focal dot: an ink dot ringed in paper at the selected element's center.
+  let dot = '';
+  const selTris = drawn.filter(t => t.isSel);
+  if (selTris.length) {
+    let sx = 0, sy = 0, n = 0;
+    for (const t of selTris) for (const p of t.pts) { sx += p[0]; sy += p[1]; n++; }
+    dot = '<circle cx="' + (sx / n).toFixed(1) + '" cy="' + (sy / n).toFixed(1) + '" r="4.5" fill="rgb(' + VALUE_RGB[0].join(',') + ')" stroke="rgb(' + VALUE_RGB[7].join(',') + ')" stroke-width="1.5"/>';
+  }
+  // Axis gizmo, bottom-left, without hue: X solid, Y dashed, Z dotted, each labeled.
   const gx = 34, gy = height - 34;
+  const ink = opts.ink || 'rgb(' + VALUE_RGB[7].join(',') + ')';
   let gizmo = '';
-  for (const [k, col, lab] of [[0, '#d62828', 'X'], [1, '#2a9d3f', 'Y'], [2, '#1f5fbf', 'Z']]) {
-    gizmo += '<line x1="' + gx + '" y1="' + gy + '" x2="' + (gx + r[k] * 22).toFixed(1) + '" y2="' + (gy - u[k] * 22).toFixed(1) + '" stroke="' + col + '" stroke-width="2.5" stroke-linecap="round"/>' +
-      '<text x="' + (gx + r[k] * 30).toFixed(1) + '" y="' + (gy - u[k] * 30 + 4).toFixed(1) + '" fill="' + col + '" font-size="11" font-family="sans-serif" font-weight="700" text-anchor="middle">' + lab + '</text>';
+  for (const [k, lab, dash, w] of [[0, 'X', '', 2], [1, 'Y', '4 3', 1.6], [2, 'Z', '0.1 3.4', 2.2]]) {
+    gizmo += '<line x1="' + gx + '" y1="' + gy + '" x2="' + (gx + r[k] * 22).toFixed(1) + '" y2="' + (gy - u[k] * 22).toFixed(1) + '" stroke="' + ink + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+      '<text x="' + (gx + r[k] * 30).toFixed(1) + '" y="' + (gy - u[k] * 30 + 4).toFixed(1) + '" fill="' + ink + '" font-size="11" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
   }
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
-    '<rect width="100%" height="100%" fill="' + (opts.background || '#eef0ee') + '"/>' + body + gizmo + '</svg>';
+    '<rect width="100%" height="100%" fill="' + (opts.background || '#0a0a0a') + '"/>' + body + dot + gizmo + '</svg>';
   return { svg, drawn: drawn.length, total, isCut: drawn.length < tris.length };
 }

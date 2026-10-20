@@ -51,6 +51,20 @@
   results.wallsChipMatchesVisibility = on0 && off && chip.getAttribute('aria-pressed') === 'true' && wallsVisible() === 6;
   const cm = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); c.dispatchEvent(cm);
   results.contextMenuBlocked = cm.defaultPrevented;
-  results.oneViewLabel = document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
+  // Theme: dispatching am-theme-change with each theme recolors the scene (selection, outline, grid,
+  // gizmo, categories) and the CSS backdrop. Restores the page's own theme afterwards.
+  const html = document.documentElement, was = html.className;
+  async function themed(theme) {
+    html.classList.toggle('am-night', theme === 'night'); html.classList.toggle('am-paper', theme === 'paper');
+    document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme } })); await wait(60);
+    return __bim.sceneColors();
+  }
+  const night = await themed('night'), paper = await themed('paper');
+  html.className = was; document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: (window.amTheme && amTheme.get()) || 'paper' } })); await wait(60);
+  results.themeNight = night.theme === 'night' && night.selected === '#f4f4f1' && night.outline === '#0a0a0a' && night.gizmo === '#f4f4f1' && night.backdrop === 'rgb(10, 10, 10)';
+  results.themePaper = paper.theme === 'paper' && paper.selected === '#0a0a0a' && paper.outline === '#f4f4f1' && paper.gizmo === '#0a0a0a' && paper.backdrop === 'rgb(244, 244, 241)';
+  results.themeRecolorsGrid = night.grid !== paper.grid;
+  results.categoriesAreGray = Object.values(night.categories).every(h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return Math.max(...c) - Math.min(...c) <= 6; });
+  results.oneViewLabel =document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
   return { pass: Object.values(results).every(Boolean), results };
 })();

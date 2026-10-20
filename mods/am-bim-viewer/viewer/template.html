@@ -4,135 +4,260 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2248%22%20r%3D%2230%22%20fill%3D%22none%22%20stroke%3D%22%230a0a0a%22%20stroke-width%3D%229%22%2F%3E%3Ccircle%20cx%3D%2284%22%20cy%3D%2282%22%20r%3D%2211%22%20fill%3D%22%230a0a0a%22%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script>
+// am-theme:start
+// archi-magic time-of-day theme (see design/DESIGN-SYSTEM.md). Single source: copied between the
+// am-theme markers into every page template by scripts/sync-design-tokens.ps1. Edit only here.
+// Day (paper) 07:00-19:00 local time, night otherwise; re-checked every minute. A manual choice
+// (window.amTheme.set('night'|'paper'|'auto')) holds until the next day/night boundary.
+// Without JavaScript the page follows the OS light/dark setting through the CSS tokens.
+(function () {
+  var DAY_START = 7, NIGHT_START = 19, KEY = 'am-theme-override';
+  var root = document.documentElement, current = null;
+  function timeTheme(d) { var h = d.getHours(); return (h >= DAY_START && h < NIGHT_START) ? 'paper' : 'night'; }
+  function nextBoundary(d) {
+    var b = new Date(d); var h = d.getHours();
+    if (h < DAY_START) b.setHours(DAY_START, 0, 0, 0);
+    else if (h < NIGHT_START) b.setHours(NIGHT_START, 0, 0, 0);
+    else { b.setDate(b.getDate() + 1); b.setHours(DAY_START, 0, 0, 0); }
+    return b.getTime();
+  }
+  function readOverride() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && (o.theme === 'night' || o.theme === 'paper') && Date.now() < o.until) return o.theme;
+      if (o) localStorage.removeItem(KEY);
+    } catch (e) { /* storage blocked: time of day only */ }
+    return null;
+  }
+  function apply() {
+    var now = new Date(), theme = readOverride() || timeTheme(now);
+    if (theme === current) return;
+    current = theme;
+    root.classList.toggle('am-night', theme === 'night');
+    root.classList.toggle('am-paper', theme === 'paper');
+    root.setAttribute('data-am-theme', theme);
+    try { document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: theme } })); } catch (e) { /* old browsers */ }
+  }
+  window.amTheme = {
+    get: function () { return current; },
+    set: function (t) {
+      try {
+        if (t === 'auto') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, JSON.stringify({ theme: t, until: nextBoundary(new Date()) }));
+      } catch (e) { /* storage blocked: apply for this page view only */ if (t !== 'auto') { current = null; root.classList.toggle('am-night', t === 'night'); root.classList.toggle('am-paper', t === 'paper'); root.setAttribute('data-am-theme', t); return; } }
+      current = null; apply();
+    },
+    toggle: function () { this.set(current === 'night' ? 'paper' : 'night'); },
+    _timeTheme: timeTheme, _nextBoundary: nextBoundary
+  };
+  apply();
+  setInterval(apply, 60000);
+})();
+// am-theme:end
+</script>
 <style>
-  /* Drawing-set look: vellum and graphite by day, blueprint by night.
-     One sharp accent (redline orange) marks what you selected. */
-  :root {
-    --paper: #f1ede3;
-    --sheet: #f8f6f0;
-    --ink: #22221f;
-    --ink-2: #5d5a52;
-    --ink-3: #8c887d;
-    --rule: #d8d2c3;
-    --view: #e9e5da;
-    --chip: #ebe6da;
-    --chip-on: #22221f;
-    --chip-on-ink: #f8f6f0;
-    --accent: #e2541b;
-    --accent-soft: rgba(226, 84, 27, .12);
-    --hover: #3c7dd9;
-    --edge: #3a3833;
-    --shadow: 0 1px 0 rgba(0, 0, 0, .04), 0 8px 24px rgba(40, 32, 16, .08);
-    --ui: 'Archivo', 'Segoe UI', sans-serif;
-    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+/* am-tokens:start
+   archi-magic design tokens: "Visual Research" (see design/DESIGN-SYSTEM.md).
+   Single source. Copied between the am-tokens markers into every page template by
+   scripts/sync-design-tokens.ps1; check-skills fails if a copy drifts. Edit only here. */
+:root {
+  /* value scale: black to paper, no hue */
+  --v0: #0a0a0a;  /* ink, the dot */
+  --v1: #1c1c1b;
+  --v2: #3a3a38;
+  --v3: #6b6b68;  /* secondary text (the "is the clay" gray) */
+  --v4: #9a9a96;
+  --v5: #c9c9c4;
+  --v6: #e7e7e3;
+  --v7: #f4f4f1;  /* paper */
+
+  /* paper theme (tables, dashboards) */
+  --bg: var(--v7);
+  --surface: #fbfbf9;
+  --ink: var(--v0);
+  --ink-2: var(--v3);
+  --ink-3: var(--v4);
+  --line: rgba(10, 10, 10, .14);      /* hairline */
+  --line-strong: rgba(10, 10, 10, .42);
+  --beam: radial-gradient(ellipse 22% 70% at 50% 45%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+  --vignette: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.10) 100%);
+  /* strong beam (hero, empty states, viewport backdrop): a bright column, soft edges, haze at the top */
+  --beam-hero: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.55) 22%, rgba(244,244,241,.0) 34%, rgba(244,244,241,0) 66%, rgba(10,10,10,.55) 78%, rgba(10,10,10,.9) 100%),
+               radial-gradient(ellipse 60% 30% at 50% 0%, rgba(244,244,241,.95), rgba(244,244,241,0) 70%),
+               linear-gradient(var(--v7), var(--v6));
+  --on-beam: var(--v0);   /* text and the dot that sit on the bright beam */
+
+  /* type: one monospace family; hierarchy by tone, not size */
+  --font: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-micro: 10.5px;  /* uppercase tracked labels, the "VISUAL RESEARCH 13 / 30" header */
+  --fs-body: 12.5px;
+  --fs-lead: 14px;     /* the one emphasized line ("future") */
+  --track-micro: .18em;
+  --w-light: 300; --w-regular: 400; --w-medium: 500;
+
+  /* geometry */
+  --hair: 1px;
+  --radius: 0px;       /* rectangles stay square ... */
+  --round: 999px;      /* ... round things are fully round (dots, rings, pills) */
+  --dot: 9px;          /* the focal dot */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 20px; --space-5: 32px; --space-6: 56px;
+
+  /* grain: fixed SVG luminance noise (gray = the noise's red channel, alpha 1), tiled; opacity per theme.
+     It must vary in brightness: flat 50% gray is neutral under mix-blend-mode overlay and shows nothing. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-opacity: .16;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --slow: 420ms;
+}
+
+/* night theme (3D viewport, and every page when the OS is dark) */
+.am-night, :root.am-night {
+  --bg: var(--v0);
+  --surface: #121211;
+  --ink: var(--v7);
+  --ink-2: var(--v4);
+  --ink-3: var(--v3);
+  --line: rgba(244, 244, 241, .22);
+  --line-strong: rgba(244, 244, 241, .7);
+  --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+  --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+  --grain-opacity: .22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.am-paper) {
+    --bg: var(--v0); --surface: #121211; --ink: var(--v7); --ink-2: var(--v4); --ink-3: var(--v3);
+    --line: rgba(244, 244, 241, .22); --line-strong: rgba(244, 244, 241, .7);
+    --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+    --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+    --grain-opacity: .22;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
-      --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
-      --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
-      --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
-    }
-  }
-  :root[data-theme="dark"] {
-    --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
-    --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
-    --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
-    --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
-  }
+}
+
+/* shared primitives */
+.am-surface { background: var(--bg); color: var(--ink); font: var(--w-regular) var(--fs-body)/1.6 var(--font); position: relative; }
+.am-surface::after { /* grain over everything, never blocks input */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background-image: var(--grain); opacity: var(--grain-opacity); mix-blend-mode: overlay;
+}
+.am-micro { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink); }
+.am-index { font-size: var(--fs-micro); letter-spacing: var(--track-micro); color: var(--ink); word-spacing: .6em; } /* "13 / 30" */
+.am-lead  { font-size: var(--fs-lead); color: var(--ink); text-transform: lowercase; }
+.am-quiet { color: var(--ink-2); }
+.am-hair  { border: var(--hair) solid var(--line); border-radius: var(--radius); }
+.am-dot   { display: inline-block; width: var(--dot); height: var(--dot); border-radius: var(--round); background: var(--ink); }
+/* status by shape, not color: ok = ring, warn = half, bad = solid dot */
+.am-status { display: inline-block; width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--ink); vertical-align: -1px; }
+.am-status.warn { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.am-status.bad  { background: var(--ink); }
+/* am-tokens:end */
+
+  /* Page CSS: "Visual Research" (design/DESIGN-SYSTEM.md). Only the tokens above; no other colors.
+     The whole page, viewport included, follows the time-of-day theme set on <html> by am-theme. */
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
-    font: 13px/1.45 var(--ui); font-stretch: 100%; -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; height: 100%; }
+  body { -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; }
+  :focus-visible { outline: var(--hair) solid var(--ink); outline-offset: 2px; }
   #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
 
-  /* Title block */
-  header { grid-column: 1 / 3; display: flex; align-items: stretch; gap: 0; background: var(--sheet);
-    box-shadow: inset 0 -1px 0 var(--rule); min-height: 56px; flex-wrap: wrap; }
-  .tb { display: flex; flex-direction: column; justify-content: center; padding: 8px 16px; box-shadow: inset -1px 0 0 var(--rule); }
-  .tb small { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-stretch: 80%; font-weight: 600; }
-  .tb strong { font-size: 15px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
-  .tb.meta strong { font: 500 12px var(--mono); }
-  .tools { display: flex; align-items: center; gap: 10px; padding: 8px 16px; margin-left: auto; flex-wrap: wrap; }
-  .seg { display: inline-flex; background: var(--chip); border-radius: 9px; padding: 3px; gap: 2px; }
-  .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer;
-    font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--ink-2); transition: background .15s, color .15s; }
-  .seg button:hover { color: var(--ink); }
-  .seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
-  .act { border: 0; background: var(--chip-on); color: var(--chip-on-ink); padding: 7px 12px; border-radius: 8px;
-    font-weight: 600; font-size: 12px; cursor: pointer; }
-  .act.ghost { background: var(--chip); color: var(--ink); }
-  .act:disabled { opacity: .4; cursor: default; }
+  /* Header: micro uppercase title with an index, the views, one action */
+  header { grid-column: 1 / 3; display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4); border-bottom: var(--hair) solid var(--line); }
+  .brand { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
+  .brand .mark { width: 16px; height: 16px; flex: none; align-self: center; color: var(--ink); }
+  .brand .am-micro { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
+  .meta { display: flex; gap: var(--space-4); text-transform: lowercase; white-space: nowrap; }
+  .meta b { font-weight: var(--w-regular); color: var(--ink); }
+  .tools { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; flex-wrap: wrap; }
 
-  /* Viewport. The grid is a world-space ground plane in the 3D scene. */
-  #viewport { position: relative; overflow: hidden; background: var(--view); min-height: 260px; }
+  /* segmented control: dividers are the 1px gap showing the hairline color behind the buttons */
+  .seg { display: inline-flex; gap: var(--hair); background: var(--line); border: var(--hair) solid var(--line-strong); }
+  .seg button { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; background: var(--bg);
+    color: var(--ink-2); border: 0; padding: 6px 12px; cursor: pointer; transition: color var(--slow) var(--ease); }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  .btn { background: none; color: var(--ink); border: var(--hair) solid var(--line-strong); border-radius: var(--radius);
+    padding: 6px 14px; cursor: pointer; text-transform: lowercase; transition: border-color var(--slow) var(--ease); }
+  .btn:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn.sm { padding: 0 8px; font-size: var(--fs-micro); }
+  .btn:disabled { color: var(--ink-2); cursor: default; }
+  .link { border: 0; background: none; padding: 0 0 0 var(--space-3); color: var(--ink-2); cursor: pointer;
+    font-size: var(--fs-micro); text-transform: lowercase; transition: color var(--slow) var(--ease); }
+  .link:hover { color: var(--ink); }
+
+  /* Viewport: the light beam inside the vignette; the canvas is transparent over it.
+     The grid is a world-space ground plane in the 3D scene. */
+  #viewport { position: relative; overflow: hidden; min-height: 260px; background: var(--vignette), var(--beam), var(--bg); }
   #viewport canvas { position: relative; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   #labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-  .tag { position: absolute; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 4px;
-    background: var(--ink); color: var(--sheet); font: 500 10.5px var(--mono); white-space: nowrap; letter-spacing: .02em; }
-  #viewname { position: absolute; left: 12px; top: 12px; z-index: 2; pointer-events: none; padding: 3px 9px; border-radius: 6px;
-    background: var(--ink); color: var(--sheet); font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; font-stretch: 85%; }
+  .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; background: var(--bg); color: var(--ink);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; }
+  #viewname { position: absolute; left: var(--space-4); top: var(--space-3); z-index: 2; pointer-events: none; }
   #gizmo { position: absolute; left: 12px; bottom: 12px; width: 92px; height: 92px; pointer-events: none; z-index: 2; }
 
-  /* Property sheet */
-  aside { grid-row: 2 / 4; grid-column: 2; background: var(--sheet); box-shadow: inset 1px 0 0 var(--rule); overflow: auto; }
-  .sec { padding: 14px 16px 16px; box-shadow: inset 0 -1px 0 var(--rule); animation: rise .5s both; }
-  .sec:nth-child(2) { animation-delay: .08s; }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-  .h b { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; font-stretch: 80%; color: var(--ink-2); }
-  .h button { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: 11px; padding: 0 0 0 10px; }
-  .h button:hover { color: var(--ink); }
-  .empty { color: var(--ink-3); font-size: 12.5px; padding: 6px 0 2px; }
-  .empty kbd { font-size: 10.5px; }
-  .sel-name { font-size: 17px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; margin: 2px 0 4px; }
-  .sel-cat { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); margin-bottom: 10px; }
-  .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 45%, transparent); }
-  .grp { margin-top: 12px; }
-  .grp > div:first-child { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
-    font-stretch: 80%; font-weight: 600; padding-bottom: 4px; box-shadow: inset 0 -1px 0 var(--rule); }
+  /* Side panel: property sheet and category chips */
+  aside { grid-row: 2 / 4; grid-column: 2; overflow: auto; background: var(--bg); position: relative; }
+  aside::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: var(--hair); background: var(--line); }
+  .sec { padding: var(--space-4); border-bottom: var(--hair) solid var(--line); animation: fade var(--slow) var(--ease) both; }
+  .sec:nth-child(2) { animation-delay: 80ms; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2);
+    padding-bottom: var(--space-2); margin-bottom: var(--space-3); border-bottom: var(--hair) solid var(--line); }
+  .head .r { display: inline-flex; align-items: baseline; }
+
+  .empty { display: grid; justify-items: center; text-align: center; padding: var(--space-2) 0 var(--space-3); }
+  .empty svg { width: 160px; height: 124px; fill: none; stroke: var(--line-strong); stroke-width: 1; }
+  .empty svg .dot { fill: var(--ink); stroke: none; }
+  .sel-head { display: flex; align-items: center; gap: var(--space-2); margin: 2px 0 4px; }
+  .sel-head .am-dot { flex: none; }
+  .sel-name { overflow-wrap: anywhere; }
+  .sel-cat { display: inline-flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); text-transform: lowercase; }
+  .sw { width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); flex: none; }
+  .grp { margin-top: var(--space-4); }
+  .grp > .lbl { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2);
+    padding-bottom: 4px; border-bottom: var(--hair) solid var(--line-strong); }
   dl { margin: 0; display: grid; grid-template-columns: minmax(96px, 42%) 1fr; }
-  dt, dd { margin: 0; padding: 5px 0; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--rule) 55%, transparent); }
-  dt { color: var(--ink-2); font-size: 12px; padding-right: 8px; }
-  dd { font: 12px/1.45 var(--mono); word-break: break-word; }
+  dt, dd { margin: 0; padding: 6px 0; border-bottom: var(--hair) solid var(--line); }
+  dt { color: var(--ink-2); padding-right: var(--space-2); text-transform: lowercase; }
+  dd { word-break: break-word; font-variant-numeric: tabular-nums; }
   dd .u { color: var(--ink-3); }
-  .idrow { display: flex; align-items: center; gap: 6px; }
-  .copy { border: 0; background: var(--chip); border-radius: 5px; padding: 1px 7px; font: 600 10.5px var(--ui); cursor: pointer; color: var(--ink-2); }
-  .copy:hover { background: var(--accent-soft); color: var(--accent); }
-  .sel-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .idrow { display: flex; align-items: center; gap: var(--space-2); }
+  .sel-actions { display: flex; gap: var(--space-2); }
 
-  /* Category chips */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: center; gap: 7px; border: 0; background: var(--chip); color: var(--ink);
-    padding: 5px 10px 5px 8px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 500;
-    transition: background .15s, opacity .15s, transform .1s; }
-  .chip:active { transform: scale(.97); }
-  .chip .n { font: 500 10.5px var(--mono); color: var(--ink-3); }
-  .chip[aria-pressed="false"] { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); color: var(--ink-3); }
-  .chip .tick { width: 10px; font: 700 10px var(--ui); color: var(--ink); }
-  .chip[aria-pressed="false"] .tick { visibility: hidden; }
-  .chip[aria-pressed="false"] .sw { background: transparent !important; }
-  .chip[aria-pressed="false"] .label { text-decoration: line-through; text-decoration-color: var(--ink-3); }
+  /* chips: hairline pills, value swatch, never color */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-2); padding: 3px 12px 3px 8px; border-radius: var(--round);
+    border: var(--hair) solid var(--line); background: none; color: var(--ink-2); cursor: pointer; text-transform: lowercase;
+    transition: border-color var(--slow) var(--ease), color var(--slow) var(--ease); }
+  .chip:hover { border-color: var(--line-strong); }
+  .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--line-strong); }
+  .chip[aria-pressed="false"] .sw { background: none !important; }
+  .chip .n { color: var(--ink-3); }
 
-  /* Key-cap hints */
-  footer { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 14px; background: var(--sheet);
-    box-shadow: inset 0 1px 0 var(--rule); color: var(--ink-3); font-size: 11.5px; }
+  /* Key hints */
+  footer { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px var(--space-4); padding: var(--space-2) var(--space-4);
+    border-top: var(--hair) solid var(--line); color: var(--ink-2); font-size: var(--fs-micro); text-transform: lowercase; }
   footer span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-  kbd { font: 500 10px var(--mono); color: var(--ink-2); background: var(--paper); border-radius: 4px; padding: 1px 5px;
-    box-shadow: inset 0 -1px 0 var(--rule), 0 0 0 1px var(--rule); }
-  #toast { position: fixed; left: 50%; bottom: 52px; transform: translate(-50%, 8px); opacity: 0; background: var(--ink); color: var(--sheet);
-    padding: 6px 12px; border-radius: 8px; font-size: 12px; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 5; }
-  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  kbd { font: inherit; color: var(--ink); border: var(--hair) solid var(--line-strong); padding: 0 5px; }
+  #toast { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); opacity: 0; background: var(--ink); color: var(--bg);
+    padding: 6px 12px; text-transform: lowercase; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 5; }
+  #toast.on { opacity: 1; }
 
   @media (max-width: 760px) {
     #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto auto; }
-    header { grid-column: 1; }
-    .tb.meta { display: none; }
+    header { grid-column: 1; padding: var(--space-3) 16px; }
+    .meta { display: none; }
     .tools { margin-left: 0; }
-    aside { grid-column: 1; grid-row: 3; box-shadow: inset 0 1px 0 var(--rule); }
+    aside { grid-column: 1; grid-row: 3; }
+    aside::before { top: 0; left: 0; right: 0; bottom: auto; width: auto; height: var(--hair); }
     footer { grid-row: 4; }
   }
   @media (prefers-reduced-motion: reduce) { .sec { animation: none; } }
@@ -141,12 +266,15 @@
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
 </script>
 </head>
-<body>
+<body class="am-surface">
 <div id="app">
   <header>
-    <div class="tb"><small>Model</small><strong id="title">__TITLE__</strong></div>
-    <div class="tb meta"><small>Source view</small><strong id="srcview">-</strong></div>
-    <div class="tb meta"><small>Units</small><strong>ft · Z up</strong></div>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="40" cy="48" r="30" fill="none" stroke="currentColor" stroke-width="9"/><circle cx="84" cy="82" r="11" fill="currentColor"/></svg>
+      <span class="am-micro" id="title">__TITLE__</span>
+      <span class="am-index" id="count"></span>
+    </div>
+    <div class="meta am-quiet"><span>view <b id="srcview">-</b></span><span>ft / z up</span></div>
     <div class="tools">
       <div class="seg" role="group" aria-label="Named views">
         <button data-view="top">Top</button>
@@ -154,21 +282,22 @@
         <button data-view="right">Right</button>
         <button data-view="perspective">Perspective</button>
       </div>
-      <button class="act ghost" id="fit" title="Zoom extents">Zoom extents</button>
+      <button class="btn" id="fit" title="Zoom extents">zoom extents</button>
+      <button class="link" id="theme" title="Switch day / night until the next 07:00 or 19:00">paper / night</button>
     </div>
   </header>
   <div id="viewport">
-    <div id="viewname">Perspective</div>
+    <div id="viewname" class="am-micro">Perspective</div>
     <div id="labels"></div>
-    <svg id="gizmo" viewBox="-46 -46 92 92" aria-label="Axis gizmo"></svg>
+    <svg id="gizmo" viewBox="-46 -46 92 92" aria-label="Axis gizmo: X solid, Y dashed, Z dotted"></svg>
   </div>
   <aside>
     <section class="sec">
-      <div class="h"><b>Selected</b><button id="clear" hidden>Clear</button></div>
+      <div class="head"><span class="am-micro">selected</span><span class="r"><span class="am-index" id="selidx">--</span><button class="link" id="clear" hidden>clear</button></span></div>
       <div id="props"></div>
     </section>
     <section class="sec">
-      <div class="h"><b>Categories</b><span><button id="all">All</button><button id="none">None</button></span></div>
+      <div class="head"><span class="am-micro">categories</span><span class="r"><span class="am-index" id="catidx"></span><button class="link" id="all">all</button><button class="link" id="none">none</button></span></div>
       <div class="chips" id="cats"></div>
     </section>
   </aside>
@@ -182,30 +311,55 @@ import * as THREE from 'three';
 
 const DATA = /*__DATA__*/null;
 
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const vp = document.getElementById('viewport');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+// Theme tokens are read from the viewport, which inherits the page theme (am-paper / am-night on <html>).
+const css = name => getComputedStyle(vp).getPropertyValue(name).trim();
+// Grid strength from the hairline token's alpha: major lines land near --line, minor lines finer.
+function gridOpacity(s) { const m = /^rgba\([^)]*,\s*([\d.]+)\s*\)/i.exec(s || ''); return Math.min(1, (m ? Number(m[1]) : .2) * 2.5); }
+// '#rrggbb' or 'rgb(a)(r, g, b, a)' -> THREE.Color (sRGB in, linear inside three.js).
+function toColor(s, fallback) {
+  const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(s || '');
+  if (m) return new THREE.Color().setRGB(m[1] / 255, m[2] / 255, m[3] / 255, THREE.SRGBColorSpace);
+  return new THREE.Color(s && s[0] === '#' ? s : fallback);
+}
+function readTokens() {
+  const t = { ink: css('--ink') || '#0a0a0a', line: css('--line') || 'rgba(10, 10, 10, .14)' };
+  for (const k of [0, 1, 2, 3, 4, 5, 6, 7]) t['v' + k] = css('--v' + k) || '#' + VALUE_RGB[k in VALUE_RGB ? k : 0].map(c => c.toString(16).padStart(2, '0')).join('');
+  return t;
+}
+function currentTheme() {
+  const r = document.documentElement;
+  if (r.classList.contains('am-night')) return 'night';
+  if (r.classList.contains('am-paper')) return 'paper';
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'paper';
+}
+let pal = scenePalette(currentTheme(), readTokens());
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setClearColor(0x000000, 0); // transparent: the CSS beam and vignette are the backdrop
 vp.prepend(renderer.domElement);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(css('--view') || '#e9e5da');
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.15));
-const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+scene.background = null;
+// Neutral (hue-free) light, bright enough that lit faces read close to their token value.
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(-0.5, -0.8, 1.6); // from the south-west, above (world Z up)
 scene.add(sun);
 
 const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1e5) };
 const state = createViewState();
 let viewName = 'perspective';
-const ACCENT = new THREE.Color(css('--accent') || '#e2541b');
-const HOVER = new THREE.Color(css('--hover') || '#3c7dd9');
-const EDGE = new THREE.Color(css('--edge') || '#3a3833');
+const SELECTED = toColor(pal.selected, '#f4f4f1');
+const OUTLINE = toColor(pal.outline, '#0a0a0a');
+const EDGE = toColor(pal.edge, '#0a0a0a');
 
 // One mesh per element. Data stays in Revit coordinates (Z up).
+// Categories are value steps --v2..--v6 (categoryValues), never hue.
 const elements = DATA.elements;
-const rgb = categoryColors(elements);
+const catStep = categoryValues(elements);
 const catColor = {};
-for (const k of Object.keys(rgb)) catColor[k] = new THREE.Color(rgb[k][0] / 255, rgb[k][1] / 255, rgb[k][2] / 255);
+for (const k of Object.keys(catStep)) catColor[k] = toColor(pal.steps[catStep[k]], '#9a9a96');
 const meshes = [];
 const byCat = {};
 for (const el of elements) {
@@ -214,9 +368,9 @@ for (const el of elements) {
   const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: catColor[cat].clone(), side: THREE.DoubleSide,
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
   mesh.userData.el = el;
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: .55 }));
-  // Selection outline: the same edges in the accent color, drawn on top of everything.
-  const outline = new THREE.LineSegments(edges.geometry, new THREE.LineBasicMaterial({ color: ACCENT, depthTest: false, transparent: true }));
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: pal.edgeOpacity }));
+  // Selection outline: the same edges as a hairline, drawn on top of everything.
+  const outline = new THREE.LineSegments(edges.geometry, new THREE.LineBasicMaterial({ color: OUTLINE, depthTest: false, transparent: true }));
   outline.visible = false; outline.renderOrder = 10;
   mesh.add(edges, outline);
   mesh.userData.outline = outline;
@@ -227,8 +381,10 @@ for (const el of elements) {
 const bounds = meshBounds(elements);
 setScene(state, bounds);
 
-// Ground grid: in the scene, at the base of the visible model, fading out.
-const grid = createGroundGrid(THREE, bounds, css('--ink') || '#22221f');
+// Ground grid: in the scene, at the base of the visible model, fading out. Hairline token color.
+const grid = createGroundGrid(THREE, bounds, '#f4f4f1');
+grid.material.uniforms.uColor.value.copy(toColor(pal.grid, '#f4f4f1'));
+grid.material.uniforms.uOpacity.value = gridOpacity(pal.grid);
 scene.add(grid);
 function updateGrid() {
   const shown = meshes.filter(m => m.visible).map(m => m.userData.el);
@@ -236,47 +392,56 @@ function updateGrid() {
   if (shown.length) placeGroundGrid(grid, meshBounds(shown));
 }
 document.getElementById('srcview').textContent = (DATA.source && DATA.source.view) || 'Demo';
+document.getElementById('count').textContent = elements.length + ' elements';
 
 // ---------- Category chips ----------
 const catsEl = document.getElementById('cats');
 const chipFor = {};
+function updateCatIndex() {
+  const cats = Object.keys(byCat);
+  document.getElementById('catidx').textContent = cats.filter(c => chipFor[c].getAttribute('aria-pressed') === 'true').length + ' / ' + cats.length;
+}
 function setCategory(cat, on) {
   for (const m of byCat[cat]) m.visible = on;
   updateGrid();
   chipFor[cat].setAttribute('aria-pressed', String(on));
+  updateCatIndex();
   if (selected && !selected.visible) select(null);
   if (hovered && !hovered.visible) setHover(null);
   requestRender();
 }
+function paintSwatch(el, cat) { el.style.background = '#' + catColor[cat].getHexString(THREE.SRGBColorSpace); }
 for (const cat of Object.keys(byCat).sort()) {
   const b = document.createElement('button');
   b.className = 'chip'; b.setAttribute('aria-pressed', 'true'); b.dataset.cat = cat;
-  b.innerHTML = '<span class="tick" aria-hidden="true">✓</span><span class="sw"></span><span class="label"></span><span class="n"></span>';
+  b.innerHTML = '<span class="sw"></span><span class="label"></span><span class="n"></span>';
   b.title = 'Show or hide ' + cat;
-  b.querySelector('.sw').style.background = '#' + catColor[cat].getHexString();
+  paintSwatch(b.querySelector('.sw'), cat);
   b.querySelector('.label').textContent = cat;
   b.querySelector('.n').textContent = byCat[cat].length;
   b.addEventListener('click', () => setCategory(cat, b.getAttribute('aria-pressed') !== 'true'));
   chipFor[cat] = b;
   catsEl.append(b);
 }
+updateCatIndex();
 document.getElementById('all').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, true)));
 document.getElementById('none').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, false)));
 
 // ---------- Hover and selection ----------
 let hovered = null, selected = null, panelRenders = 0;
+const HOVER_TO = SELECTED.clone();
 function tint(mesh) {
   if (!mesh) return;
   const base = catColor[mesh.userData.el.category || 'Generic'];
   const c = mesh.material.color;
-  if (mesh === selected) c.copy(base).lerp(ACCENT, .78);
-  else if (mesh === hovered) c.copy(base).lerp(HOVER, .35);
+  if (mesh === selected) c.copy(SELECTED);
+  else if (mesh === hovered) c.copy(base).lerp(HOVER_TO, pal.hoverLift);
   else c.copy(base);
   mesh.userData.outline.visible = mesh === selected;
 }
-// ---------- Cursors: chunky rounded SVG, readable on light and dark views ----------
-// Each shape is drawn twice: a soft shadow offset by 1px, then a white body with a dark outline.
-const CURSOR_INK = '#22221f', CURSOR_FILL = '#ffffff';
+// ---------- Cursors: SVG, readable on paper and night ----------
+// Paper body with an ink hairline outline; the hover cursor carries the focal dot (ink, ringed in paper).
+const CURSOR_INK = '#0a0a0a', CURSOR_FILL = '#f4f4f1';
 const CURSOR_SHAPES = {
   idle:   { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z' },
   hover:  { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z', dot: [24, 24.5] },
@@ -286,13 +451,13 @@ const CURSOR_SHAPES = {
 };
 function cursorCss(name) {
   const s = CURSOR_SHAPES[name];
-  const layer = (stroke, fill, w, dx) =>
-    '<path d="' + s.d + '" transform="translate(' + dx + ',' + dx + ')" fill="' + (s.open ? 'none' : fill) +
+  const layer = (stroke, fill, w) =>
+    '<path d="' + s.d + '" fill="' + (s.open ? 'none' : fill) +
     '" stroke="' + stroke + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"/>';
   const body = s.open
-    ? layer('rgba(0,0,0,.28)', 'none', 6.5, 1) + layer(CURSOR_INK, 'none', 5.5, 0) + layer(CURSOR_FILL, 'none', 2.6, 0)
-    : layer('rgba(0,0,0,.28)', 'rgba(0,0,0,.28)', 3, 1) + layer(CURSOR_INK, CURSOR_FILL, 2.4, 0);
-  const dot = s.dot ? '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="4.6" fill="' + ACCENT.getStyle() + '" stroke="' + CURSOR_FILL + '" stroke-width="2"/>' : '';
+    ? layer(CURSOR_INK, 'none', 5.5) + layer(CURSOR_FILL, 'none', 2.6)
+    : layer(CURSOR_INK, CURSOR_FILL, 2.4);
+  const dot = s.dot ? '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="4.6" fill="' + CURSOR_INK + '" stroke="' + CURSOR_FILL + '" stroke-width="2"/>' : '';
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' + body + dot + '</svg>';
   const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
   return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
@@ -320,32 +485,35 @@ function lengthHtml(ft) { return valueHtml({ v: ft, u: 'ft' }); }
 function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function rows(list) { return '<dl>' + list.filter(r => r[1] !== '' && r[1] !== undefined).map(r => '<dt>' + escHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>'; }
 
+// Empty state: two tangent hairline circles, the focal dot where they meet, one lowercase line.
+const EMPTY_HTML = '<div class="empty">' +
+  '<svg viewBox="0 0 160 124" aria-hidden="true"><circle cx="80" cy="44" r="38"/><circle cx="80" cy="102" r="20"/><circle class="dot" cx="80" cy="82" r="4.5"/></svg>' +
+  '<div class="am-lead">element</div><div class="am-quiet">click one to see its data</div></div>';
+
 function showProps(el) {
   panelRenders++;
   const box = document.getElementById('props');
   document.getElementById('clear').hidden = !el;
-  if (!el) {
-    box.innerHTML = '<div class="empty"><kbd>Click</kbd> an element to see its data. <kbd>Double-click</kbd> to zoom to it.</div>';
-    return;
-  }
+  document.getElementById('selidx').textContent = el ? String(el.id) : '--';
+  if (!el) { box.innerHTML = EMPTY_HTML; return; }
   const b = elementBounds(el);
   const c = [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
   const cat = el.category || 'Generic';
   const params = Object.entries(el.params || {}).map(([k, v]) => [k, valueHtml(v)]);
   box.innerHTML =
-    '<div class="sel-name"></div>' +
-    '<div class="sel-cat"><span class="sw" style="background:#' + catColor[cat].getHexString() + '"></span><span></span></div>' +
-    '<div class="grp"><div>Identity</div>' + rows([
-      ['Element ID', '<span class="idrow">' + escHtml(el.id) + ' <button class="copy" id="copyid" title="Copy element ID">Copy</button></span>'],
+    '<div class="sel-head"><span class="am-dot" aria-hidden="true"></span><span class="sel-name am-lead"></span></div>' +
+    '<div class="sel-cat am-quiet"><span></span></div>' +
+    '<div class="grp"><div class="lbl">identity</div>' + rows([
+      ['Element ID', '<span class="idrow">' + escHtml(el.id) + ' <button class="btn sm" id="copyid" title="Copy element ID">copy</button></span>'],
       ['Category', escHtml(cat)], ['Family', escHtml(el.family || '')], ['Type', escHtml(el.type || '')],
     ]) + '</div>' +
-    '<div class="grp"><div>Location</div>' + rows([
+    '<div class="grp"><div class="lbl">location</div>' + rows([
       ['Level', escHtml(el.level || '')],
       ['Size X (E-W)', lengthHtml(b.max[0] - b.min[0])], ['Size Y (N-S)', lengthHtml(b.max[1] - b.min[1])], ['Size Z', lengthHtml(b.max[2] - b.min[2])],
       ['Center X, Y, Z', escHtml(c.map(fmtNum).join(', ')) + ' <span class="u">ft</span>'],
     ]) + '</div>' +
-    (params.length ? '<div class="grp"><div>Parameters</div>' + rows(params) + '</div>' : '') +
-    '<div class="grp sel-actions"><button class="act" id="zoomsel">Zoom selected</button></div>';
+    (params.length ? '<div class="grp"><div class="lbl">parameters</div>' + rows(params) + '</div>' : '') +
+    '<div class="grp sel-actions"><button class="btn primary" id="zoomsel">zoom selected</button></div>';
   box.querySelector('.sel-name').textContent = el.name || (cat + ' ' + el.id);
   box.querySelector('.sel-cat span:last-child').textContent = cat;
   document.getElementById('copyid').addEventListener('click', () => copyText(String(el.id)));
@@ -425,7 +593,7 @@ const viewButtons = [...document.querySelectorAll('[data-view]')];
 function setViewName(n) {
   viewName = n;
   const label = n === 'rotated' ? 'Rotated' : n;
-  document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' · ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
+  document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' / ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
   viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n)));
   updateHint();
 }
@@ -444,14 +612,16 @@ function updateHint() {
 const labelsEl = document.getElementById('labels');
 const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
 const gizmo = document.getElementById('gizmo');
+// Axes without hue: X solid, Y dashed, Z dotted, each labeled, in the ink token.
 function drawGizmo() {
   const ax = gizmoAxes(state);
-  const spec = [['x', '#d62828', 'X'], ['y', '#2a9d3f', 'Y'], ['z', '#1f6fd9', 'Z']];
-  let svg = '<circle r="43" fill="' + css('--sheet') + '" fill-opacity=".8"/><circle r="43" fill="none" stroke="' + css('--rule') + '"/>';
-  for (const [key, col, lab] of spec) {
+  const ink = pal.gizmo;
+  const spec = [['x', 'X', '', 2], ['y', 'Y', '5 3.5', 1.6], ['z', 'Z', '0.1 4', 2.4]];
+  let svg = '<circle r="43" fill="none" stroke="' + css('--line') + '"/>';
+  for (const [key, lab, dash, w] of spec) {
     const [sx, sy] = ax[key];
-    svg += '<line x1="0" y1="0" x2="' + (sx * 28).toFixed(1) + '" y2="' + (-sy * 28).toFixed(1) + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>' +
-      '<text x="' + (sx * 37).toFixed(1) + '" y="' + (-sy * 37 + 4).toFixed(1) + '" fill="' + col + '" font-size="11.5" font-family="JetBrains Mono, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
+    svg += '<line x1="0" y1="0" x2="' + (sx * 28).toFixed(1) + '" y2="' + (-sy * 28).toFixed(1) + '" stroke="' + ink + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+      '<text x="' + (sx * 37).toFixed(1) + '" y="' + (-sy * 37 + 4).toFixed(1) + '" fill="' + ink + '" font-size="11" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
   }
   gizmo.innerHTML = svg;
 }
@@ -475,19 +645,33 @@ function render() {
 }
 new ResizeObserver(requestRender).observe(vp);
 
-// Follow the app's light/dark switch while the page is open.
+// ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
+// On each am-theme-change, re-read the tokens and recolor the scene: category values,
+// selection, outline, edges, grid and gizmo. The backdrop (beam, vignette) is CSS.
 function applyTheme() {
-  scene.background = new THREE.Color(css('--view') || '#e9e5da');
-  ACCENT.set(css('--accent') || '#e2541b');
-  HOVER.set(css('--hover') || '#3c7dd9');
-  EDGE.set(css('--edge') || '#3a3833');
-  grid.material.uniforms.uColor.value.set(css('--ink') || '#22221f');
-  for (const m of meshes) { m.children[0].material.color.copy(EDGE); m.userData.outline.material.color.copy(ACCENT); tint(m); }
+  pal = scenePalette(currentTheme(), readTokens());
+  for (const k of Object.keys(catStep)) catColor[k].copy(toColor(pal.steps[catStep[k]], '#9a9a96'));
+  SELECTED.copy(toColor(pal.selected, '#f4f4f1'));
+  HOVER_TO.copy(SELECTED);
+  OUTLINE.copy(toColor(pal.outline, '#0a0a0a'));
+  EDGE.copy(toColor(pal.edge, '#0a0a0a'));
+  grid.material.uniforms.uColor.value.copy(toColor(pal.grid, '#f4f4f1'));
+  grid.material.uniforms.uOpacity.value = gridOpacity(pal.grid);
+  for (const m of meshes) {
+    m.children[0].material.color.copy(EDGE); m.children[0].material.opacity = pal.edgeOpacity;
+    m.userData.outline.material.color.copy(OUTLINE); tint(m);
+  }
+  for (const cat of Object.keys(chipFor)) paintSwatch(chipFor[cat].querySelector('.sw'), cat);
   requestRender();
 }
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+document.addEventListener('am-theme-change', applyTheme);
+// Also catch a class change made without the event (am-theme's storage-blocked path).
+new MutationObserver(() => { if (currentTheme() !== pal.theme) applyTheme(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+document.getElementById('theme').addEventListener('click', () => { if (window.amTheme) window.amTheme.toggle(); });
 
-// Test hooks: project a world point to page pixels, read the selection.
+// Test hooks: project a world point to page pixels, read the selection and the scene colors.
+const hex = c => '#' + c.getHexString(THREE.SRGBColorSpace);
 window.__bim = {
   state, setView, bounds,
   select: id => select(meshes.find(m => String(m.userData.el.id) === String(id)) || null),
@@ -498,6 +682,11 @@ window.__bim = {
   isAnimating: () => anim !== null,
   grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
   visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
+  sceneColors: () => ({
+    theme: pal.theme, selected: hex(SELECTED), outline: hex(OUTLINE), edge: hex(EDGE),
+    grid: hex(grid.material.uniforms.uColor.value), gizmo: pal.gizmo, backdrop: getComputedStyle(vp).backgroundColor,
+    categories: Object.fromEntries(Object.keys(catColor).map(k => [k, hex(catColor[k])])),
+  }),
 };
 
 state.aspect = aspect();
