@@ -1,0 +1,38 @@
+name: release
+
+# Every merge to main is a new plugin version (commit-derived, no pinned "version").
+# This workflow gives each one a readable name: a dated tag + a GitHub Release with the changes.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag and publish release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short=$(git rev-parse --short=12 HEAD)
+          tag="r$(date -u +%Y.%m.%d)-${short}"
+          prev=$(git describe --tags --abbrev=0 --match 'r*' HEAD^ 2>/dev/null || true)
+          if [ -n "$prev" ]; then range="$prev..HEAD"; else range="HEAD~20..HEAD"; fi
+          {
+            echo "Plugin version for users: \`${short}\` (commit-derived)."
+            echo
+            echo "Update: turn on auto-update for archi-magic in \`/plugin\` > Marketplaces, or run \`/plugin marketplace update archi-magic\`."
+            echo
+            echo "## Changes"
+            git log --first-parent --format='- %s (%h)' "$range"
+          } > notes.md
+          git tag "$tag" HEAD
+          git push origin "$tag"
+          gh release create "$tag" --title "archi-magic $tag" --notes-file notes.md

@@ -1,7 +1,10 @@
-# list-skills.ps1 - print "name<TAB>description" for every sibling am-* skill.
+# list-skills.ps1 - print "name<TAB>description<TAB>mode" for every sibling am-* skill.
 # Read-only. Windows PowerShell 5.1. ASCII only.
 # Reads the YAML frontmatter between the first two "---" lines of each
 # skills\am-*\SKILL.md next to this skill. Skips am-welcome itself.
+# mode is "user-only" when the frontmatter has "disable-model-invocation: true"
+# (the user must type /<name>; Claude never picks it), otherwise "auto".
+# This is the offline source; am-welcome merges in the pyrevit MCP list_skills when present.
 # Exit codes: 0 = at least one skill listed, 2 = no sibling skills found.
 
 [CmdletBinding()]
@@ -37,8 +40,12 @@ foreach ($folder in $folders) {
 
     $name = $folder.Name
     $desc = ''
+    $mode = 'auto'
     for ($i = $fences[0] + 1; $i -lt $fences[1]; $i++) {
-        if ($lines[$i] -match '^name:\s*(.+)$') {
+        if ($lines[$i] -match '^disable-model-invocation:\s*true\s*$') {
+            $mode = 'user-only'
+        }
+        elseif ($lines[$i] -match '^name:\s*(.+)$') {
             $name = $Matches[1].Trim().Trim('"', "'")
         }
         elseif ($lines[$i] -match '^description:\s*(.*)$') {
@@ -61,7 +68,7 @@ foreach ($folder in $folders) {
                   -replace "[$([char]0x2013)$([char]0x2014)]", '-' `
                   -replace "$([char]0x2192)", '->' `
                   -replace '[^\x20-\x7E]', ''
-    Write-Output ("{0}`t{1}" -f $name, $desc)
+    Write-Output ("{0}`t{1}`t{2}" -f $name, $desc, $mode)
     $found++
 }
 

@@ -42,6 +42,22 @@ Every feature the user asked for in the build session, with its status. **Shippe
 | 36 | A very agent-friendly README, because users are not developers | README rewrite | To do |
 | 37 | Use the open Revit model for testing | Every Revit skill was tested on Snowdon Towers in read-only or dry-run mode | Done |
 | 38 | Sync the repo at good stopping points | v0.3.1 via PR #1; `main` protected | Shipped; v0.4.0 pending |
+| 39 | Study the poster reference as the plugin's design system | `design/DESIGN-SYSTEM.md`, `tokens.css`, specimen; contrast measured | design branch |
+| 40 | New logos (then: without the 2 stroke lines) | `design/logo/`: tangent-circles mark, night variant, icon tile, small "o." mark; README header | design branch |
+| 41 | Auto switch day/night by time of day | `design/theme.js` (07:00-19:00 paper), synced into pages, tested in CI | design branch |
+| 42 | Apply the design system to the plugin UIs | dashboard + table page restyled and merged; 3D viewer in progress | partial |
+| 43 | Gumball on the selected element for manual edits | viewer gumball -> pending changes -> "element-transforms" JSON -> `am-safe-change` recipe (preview, dry run, Keep/Discard) | in progress |
+| 44 | Merge on main triggers an automatic version bump | commit-derived versions (no pinned version), guard against re-pinning, release tag + notes per merge | design branch |
+| 45 | Test with the real Revit model | viewer QA on the live Snowdon export ({3D} view read without changing the active view) | in progress |
+| 46 | Night 3D background must be clean, no glare blob / flare | spec rule + viewer fix (flat --bg, no beam/vignette/grain over canvas, test) | in progress |
+| 47 | Axis gizmo too large | <=48px, no disc, hairline arms, test | in progress |
+| 48 | Cursor rounded and cute; shadow not working | plump rounded cursors; real blur shadow + night halo; pixel-sampling test | in progress |
+| 49 | Grid looks like moire texture at distance | fwidth-based minor-line fade, variance test with negative control | in progress |
+| 50 | Interaction guide / keybindings in a collapsed panel that expands (animated) on hover over help | viewer help button + animated panel, reduced-motion aware, tests | in progress |
+| 51 | First-person walking mode | viewer walk mode: WASD + mouse look, 5.5 ft eye height, floor following, collision, tests | in progress |
+| 52 | Help popup too sensitive: open only when hovering the "?" | ? hit area only, 150 ms intent delay, no open during drags, tests | in progress |
+| 53 | Gumball supports precise typed input | click-to-type per axis, ft / ft-in / mm / m parser, side-panel numeric fields, tests | in progress |
+| 54 | View control must reach Back and other directions: use a view cube | ViewCube (6 faces, edges, corners, compass ring, home) replaces the view buttons and axis gizmo; per-face direction tests | in progress |
 
 ## To finish before the v0.4.0 release
 

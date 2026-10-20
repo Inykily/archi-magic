@@ -72,11 +72,12 @@ Optional add-ons, installed only when the user needs them:
 
 | The user says (or means) | Use | First action |
 |---|---|---|
-| "I'm new", "what is this", "what can you do" | `am-welcome` | Run its setup check, then show the skill table it builds |
+| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help") | `am-welcome` | Run its setup check, then show the skill table it builds |
 | "set up pyRevit", "connect Claude to Revit", Revit shows pyRevit 6.x | `am-pyrevit7-setup` | Data warning, then ask the user to close Revit, then run the script |
 | "Claude can't see my Revit", any setup error, after a pyRevit update | `am-doctor` | Run `doctor.ps1` (read-only) and explain each finding |
 | "Revit crashed / froze / closed" | `am-revit-crash-doctor` | Run `crash-doctor.ps1` (read-only, Revit may be closed) |
 | ANY change to the Revit model (renumber, rename, set parameters, move elements) | `am-safe-change` | Read, then show the before/after preview, ask, dry run, then Keep/Discard |
+| Paste 3D-viewer changes, or move or rotate elements | `am-safe-change` (element-transforms recipe) | Check the JSON, show the before/after preview, dry run, then Keep/Discard |
 | "check my model", "model health", "dashboard" | `am-model-health` | Read-only query; offer the dashboard |
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
@@ -85,12 +86,14 @@ Optional add-ons, installed only when the user needs them:
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
-| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | Search the installed `RevitAPI.xml` for the user's year |
-| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | Search the docs index, then confirm in the installed source |
+| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | If connected to that Revit year, `lookup_revit_api`; else search the installed `RevitAPI.xml` for the user's year |
+| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
 If you are connected to Revit through the `pyrevit` MCP server, call `get_context` first and `get_skill("revit-scripting")` before you send any script. pyRevit's own built-in skills (scheduling, views, drawings, modeling, family-editing) cover general Revit know-how. The `am-*` skills add archi-magic's workflows, previews and checks on top of them.
+
+API lookups: when connected to Revit, use the `pyrevit` MCP tools `lookup_revit_api` / `lookup_pyrevit_api` and its built-in skills first; for another Revit year, offline, or comparing years, use `am-revit-api-docs` / `am-pyrevit-docs`.
 
 ### Rules you must follow
 
@@ -125,7 +128,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-pyrevit7-setup` | Installs pyRevit 7 per-user **without admin rights** and repoints Revit 2024–2026 to it, even when IT installed pyRevit 6.x machine-wide. It also connects the pyRevit Agent Runtime to Claude Code. Ask Claude to "set up pyRevit 7". |
 | `am-doctor` | Finds and fixes problems with pyRevit 7, the Revit connection and archi-magic. It checks your setup and recent logs, explains each problem, runs the fix you approve, and can draft a bug report. Ask Claude to "run the doctor". |
 | `am-revit-crash-doctor` | Finds out why Revit crashed or froze. It reads Revit journals, crash dumps, Autodesk crash reports and the Windows event log, then explains the likely cause and the next step. It only reads, and works with Revit closed. Ask "why did Revit crash?" |
-| `am-safe-change` | Shows a before/after preview of any Revit model change and asks you to confirm before Revit changes. It then does a dry run, applies the change with your Keep/Discard in Revit, and checks the result. The first recipe is sheet renumbering. Ask "shift all sheet numbers from A301 up by one". |
+| `am-safe-change` | Shows a before/after preview of any Revit model change and asks you to confirm before Revit changes. It then does a dry run, applies the change with your Keep/Discard in Revit, and checks the result. Recipes: sheet renumbering, and moving or rotating elements, including changes copied from the 3D viewer. Ask "shift all sheet numbers from A301 up by one" or paste the viewer's "Copy changes for Revit" JSON. |
 | `am-model-health` | Checks the open Revit model without changing it: warnings, links, in-place families, rooms, duplicate Marks, CAD, views and file size. You get a short ranked report or an HTML dashboard with trends. Ask "check my model health". Adapted from [Utopia5327](https://github.com/Utopia5327/claude-plugin-for-revit-bim) (MIT). |
 | `am-param-qa` | Finds elements whose required parameters are missing or empty (for example door Fire Rating, Mark, or your BEP list). Ask "are my door parameters filled in?". Adapted from Utopia5327 (MIT). |
 | `am-workset-audit` | Checks the worksets of a team model and moves elements only after a dry run and your Keep/Discard. Ask "audit my worksets". Adapted from Utopia5327 (MIT). |
@@ -164,13 +167,13 @@ A SessionStart hook (`hooks/hooks.json`) adds the short rules block in `hooks/se
 2. Put helper scripts in `skills/am-<name>/scripts/`. Scripts are ASCII-only and Windows PowerShell 5.1-compatible; Revit scripts are IronPython 2.7 (no f-strings).
 3. Add a row to the Skills table above and to the routing table in "For AI agents".
 4. Run `scripts/sync-house-rules.ps1`. It copies `HOUSE-RULES.md` to the end of every `SKILL.md`. Edit the rules only in `HOUSE-RULES.md`.
-5. Run `scripts/bump-version.ps1 patch|minor|major`. Claude Code installs new content only when the version changes. A mod change also needs that mod's own version raised.
-6. Open a pull request. `main` is protected: it accepts only pull requests that pass the `check` job.
+5. Open a pull request. `main` is protected: it accepts only pull requests that pass the `check` job.
 
 ### Checks
 
 - `scripts/check-skills.ps1`: the `am-` prefix, name equals folder, a README row, house rules identical to `HOUSE-RULES.md`, and the rules hook present (at most 12 lines).
-- `scripts/check-version-bump.ps1`: every changed path needs a version bump except repo-only files (README.md, LICENSE, docs/, .github/, .gitignore, .gitattributes, `scripts/check-*.ps1`, `bump-version.ps1`, `sync-house-rules.ps1`).
+- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin marketplace update archi-magic`.
+- **Release workflow** (`.github/workflows/release.yml`): each merge to `main` gets a dated tag and a GitHub Release that lists the changes.
 - **Weekly check** (`.github/workflows/weekly-check.yml`, Mondays): runs the drift checks and compares every pinned dependency (superpowers, frontend-design, rhino-mcp) with its upstream. It reports the latest pyRevit release. The results go to one issue, "Weekly archi-magic check".
 
 Plans and decisions: `docs/plans/`.

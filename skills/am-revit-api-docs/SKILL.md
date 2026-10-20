@@ -1,15 +1,24 @@
 ---
 name: am-revit-api-docs
-description: Look up the Revit API (classes, methods, properties, enums, events, parameters, exceptions) in the version-exact documentation shipped with each installed Revit (RevitAPI.xml / RevitAPIUI.xml), before writing or reviewing any Revit add-in, pyRevit script, Dynamo Python or agent-runtime code. Use it to check that a member exists in the user's Revit year, read its signature/params/returns/remarks, and spot version differences (e.g. 2024 vs 2026). Triggers on "revit api", "does Revit have a method for", "what does <Revit class/member> do", "signature of", "which Revit version added/removed", "revitapidocs", "FilteredElementCollector", "Transaction", "ElementId".
+description: Look up the Revit API (classes, methods, properties, enums, events, exceptions) in the version-exact RevitAPI.xml and RevitAPIUI.xml shipped with each installed Revit year. Checks that a member exists in the user's Revit year, reads its signature, parameters and remarks, and compares years (for example 2024 vs 2026). Use when the user asks "revit api", "does Revit have a method for", "what does <Revit class/member> do", "signature of", "which Revit version added/removed", "revitapidocs", "compare the Revit API between years", or when no Revit is connected. When the pyrevit MCP is connected to the same Revit year, call its lookup_revit_api tool first. NOT for pyRevit library, forms, bundles or CLI questions (use am-pyrevit-docs), and NOT for running code in Revit (use the pyrevit MCP tools).
 ---
 
 # am-revit-api-docs
 
 Ground Revit API answers in the documentation for the **Revit version the user actually runs**. Don't rely on memory: members get added, renamed and removed between years (for example `ElementId.IntegerValue` was replaced by `ElementId.Value` in 2024+).
 
+## Which source first
+
+| Situation | Use first | Then |
+|---|---|---|
+| The `pyrevit` MCP tools are in this session and Revit is open in the year you need | `lookup_revit_api` (asks the running Revit), plus pyRevit's built-in skills: `get_skill("revit-scripting")` and `get_skill("pyrevit-library")` | The local search below, to quote the exact XML doc text |
+| Another Revit year, no Revit open, offline, or comparing years | The local search below (`-Year`, `-AllYears`) | revitapidocs.com |
+
+The pyrevit MCP tools can be deferred. Load them with ToolSearch (for example `select:mcp__pyrevit__lookup_revit_api`) before you decide they are absent.
+
 ## Sources, in order
 
-1. **Local, version-exact docs (preferred).** Every Revit install ships `C:\Program Files\Autodesk\Revit <year>\RevitAPI.xml` and `RevitAPIUI.xml`. Search them with the script in this skill's directory:
+1. **Local, version-exact docs.** Every Revit install ships `C:\Program Files\Autodesk\Revit <year>\RevitAPI.xml` and `RevitAPIUI.xml`. Search them with the script in this skill's directory:
    ```
    powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\search-revit-api.ps1" -Query "Wall.Create"
    ```
@@ -17,7 +26,7 @@ Ground Revit API answers in the documentation for the **Revit version the user a
    - `-Kind T|M|P|F|E` filters to types, methods, properties, fields/enum values, or events.
    - `-AllYears` shows which installed years contain a match. Use it for "when was this added/removed".
    - Query words are matched as substrings of the full member name, in any order: `"OfCategory Collector"` finds `FilteredElementCollector.OfCategory`.
-2. **Live Revit, if the pyRevit agent runtime is connected.** The `pyrevit` MCP tool `lookup_revit_api` asks the running Revit directly. Use it to confirm behavior against the open session.
+2. **Live Revit, if the pyrevit MCP is connected.** The `pyrevit` MCP tool `lookup_revit_api` asks the running Revit directly. When the open Revit is the year you need, use it first (see the table above).
 3. **Online:** `https://www.revitapidocs.com/<year>/`, for browsing namespaces or when Revit isn't installed (the script exits 2). Fetch the specific page; don't guess its URL contents.
 4. **The Revit SDK samples and The Building Coder** (jeremytammik.github.io/tbc) cover how-to patterns the XML doesn't explain.
 

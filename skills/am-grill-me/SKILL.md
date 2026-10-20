@@ -1,6 +1,6 @@
 ---
 name: am-grill-me
-description: A relentless interview to sharpen a plan or design.
+description: User command /am-grill-me that starts a relentless interview to sharpen a plan or design. Use when the user types /am-grill-me. NOT for automatic use on grill requests (use am-grilling).
 disable-model-invocation: true
 ---
 

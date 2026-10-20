@@ -8,7 +8,7 @@ The tokens live in `design/tokens.css`. That file is the only source. `scripts/s
 
 1. **Value, not hue.** Use only black, white and grays (`--v0` to `--v7`). Do not use brand color, and do not encode meaning with color.
 2. **One focal dot.** Each view has at most one solid dot (`.am-dot`). It marks the one thing that matters most: the selected element, the current item, or a blocking problem.
-3. **Light is the material.** Backgrounds are a soft vertical beam (`--beam`) inside a vignette (`--vignette`), with fine grain over everything (`.am-surface::after`). Do not use flat fills or drop shadows.
+3. **Light is the material, except behind the model.** Page chrome (headers, hero bands, empty states) uses a soft vertical beam (`--beam`) inside a vignette (`--vignette`), with fine grain (`.am-surface::after`). **The 3D viewport is the exception.** It is a flat, very clean space: `--bg` with no beam, glare, highlight, vignette or grain over the canvas, so the model is the only thing that carries light. Do not use drop shadows anywhere.
 4. **Construction lines, not boxes.** Draw structure with 1 px hairlines (`--line`). Use circles, axes and tangents for empty states, loaders and dividers. Rectangles have square corners. Round things are fully round.
 5. **Monospace only, quiet hierarchy.** Use one family (IBM Plex Mono). Rank by tone: primary in `--ink`, secondary in `--ink-2`. Use size only for the single lead line. Labels are lowercase. Section headers are uppercase micro text, tracked (`.am-micro`), with an index such as `13 / 30` (`.am-index`).
 6. **Axis and air.** Compose along a centered vertical axis where the layout allows it. Leave generous empty space. Put fewer things on screen.
