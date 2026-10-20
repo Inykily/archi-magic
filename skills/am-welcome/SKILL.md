@@ -12,9 +12,8 @@ Welcome a new user and teach them to use archi-magic. Assume the user is an arch
 Run these checks before you talk. They do not change anything.
 
 1. `Test-Path "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe"` - True means pyRevit 7 is installed for this user.
-2. `claude mcp get pyrevit` - a result that shows the server means Claude is connected to Revit. An error means it is not registered.
-3. `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\list-skills.ps1"` - prints one `name<TAB>description` line for each installed am-* skill (am-welcome is not included).
-
+2. Check the Revit connection. If this session has the pyrevit MCP tools (for example a tool named `mcp__pyrevit__get_context`, also in the deferred tool list), Claude is connected. If not, run `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\check-mcp.ps1"`. It prints `registered` (connected after a restart of Claude), `not-registered`, or `no-cli` (Claude Code CLI not found; treat as unknown). Do not run a bare `claude` command: the desktop app's `claude.exe` is not the CLI.
+3. `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\list-skills.ps1"` - prints one `name<TAB>description` line for each installed am-* skill (am-welcome is not included). This output is the only source for what archi-magic can do. Do not name a capability from memory, the README or the marketplace text.
 4. Read the live agent policy. If the pyrevit MCP tools are in this session, call `get_context`; its result names the policy. If not, run `& "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe" configs agent policy`; it prints `Agent policy: ask`, `readonly` or `auto`.
 
 If a check fails or you cannot run it, treat that part as "not set up". Do not tell the user about the commands unless they ask.
@@ -25,14 +24,14 @@ Say this in your own words, in 5 to 8 short sentences:
 
 - archi-magic is a **plugin** for Claude. A plugin is a package that adds new skills to Claude.
 - A **skill** is a set of instructions that teaches Claude one job. You do not type skill names. You ask in normal words, and Claude picks the correct skill.
-- With the setup done, Claude can read your open **Revit model** (the building file that is open in Revit) and change it, but only when you approve.
-- Give 3 or 4 examples from this list:
+- With the setup done, Claude can read your open **Revit model** (the building file that is open in Revit). Claude can also change it. Step 4 tells the user if Revit asks for approval first.
+- Give 3 or 4 examples. Use only examples that an installed skill from Step 1, check 3 supports, or that only read the model. For example:
   - "Count all the doors on Level 2."
-  - "Rename these sheets to our office standard."
+  - "Shift the sheet numbers from A301 up by one." (only if `am-safe-change` is installed)
   - "Find all walls that have no fire rating."
   - "Which Revit version added this feature?"
-  - "List the rooms that have no number."
-- Say that a 3D model viewer is coming soon. Do not promise a date.
+  - "Show this model in 3D." (only if `am-bim-viewer` is installed)
+- Do not promise features that no installed skill provides.
 
 Use [glossary.md](glossary.md) to explain a term in one plain sentence when the user meets it.
 
