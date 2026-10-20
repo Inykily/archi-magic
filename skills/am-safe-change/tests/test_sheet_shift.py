@@ -68,6 +68,60 @@ def test_order_changes_alone_is_safe_for_upward_shift():
     assert_unique_after_every_step(sheets, ordered)
 
 
+DOWN = [sh(11, "A101"), sh(12, "A302"), sh(13, "A303"), sh(14, "A304"), sh(15, "B301")]
+
+
+def downward_shift_problems(mod):
+    """Shift contiguous A302-A304 down by 1 with module `mod`. Return problems.
+
+    Lowest-first needs 0 temporary numbers and stays unique after every
+    assignment. Highest-first would hit A303 while A303 still holds it, so it
+    falls back to temporary numbers: that counts as a problem here.
+    """
+    p = mod.compute_shift(DOWN, "A302", step=-1)
+    problems = []
+    if [after_map(p)[i] for i in (12, 13, 14)] != ["A301", "A302", "A303"]:
+        problems.append("wrong targets: %r" % after_map(p))
+    temps = [st for st in p["steps"] if mod.TMP_PREFIX in st[1] or mod.TMP_PREFIX in st[2]]
+    if temps:
+        problems.append("%d temporary step(s): %r" % (len(temps), temps))
+    if len(p["steps"]) != 3:
+        problems.append("expected 3 steps, got %d" % len(p["steps"]))
+    try:
+        assert_unique_after_every_step(DOWN, p["steps"])
+    except AssertionError as e:
+        problems.append(str(e))
+    if not any("lowest number first" in n for n in p["notes"]):
+        problems.append("notes do not say lowest number first: %r" % p["notes"])
+    return problems
+
+
+def test_downward_shift_lowest_first_no_temp():
+    assert downward_shift_problems(ss) == []
+    p = ss.compute_shift(DOWN, "A302", step=-1)
+    assert [st[1] for st in p["steps"]] == ["A302", "A303", "A304"], p["steps"]
+
+
+def test_mutation_highest_first_for_negative_goes_red():
+    """Mutation: force highest-first for a negative step. The check must fail."""
+    real = ss.order_changes
+
+    def highest_first(changes, step=1):
+        return real(changes, 1)
+    ss.order_changes = highest_first
+    try:
+        problems = downward_shift_problems(ss)
+    finally:
+        ss.order_changes = real
+    assert problems, "the downward-shift check stayed green on the highest-first mutant"
+    assert any("temporary step" in x for x in problems), problems
+
+
+def test_upward_shift_still_highest_first():
+    p = ss.compute_shift(BASE, "A301")
+    assert [st[1] for st in p["steps"]] == ["A305", "A303", "A302", "A301"], p["steps"]
+
+
 def test_gaps_closed():
     p = ss.compute_shift(BASE, "A301", keep_gaps=False)
     m = after_map(p)
