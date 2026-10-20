@@ -62,8 +62,14 @@ const MUTANTS = [
     'front: { n: [0, -1, 0],', 'front: { n: [0, 1, 0],'],
   ['view cube: BOTTOM with north down',
     "azimuth = d[2] > 0 ? -90 * DEG : 90 * DEG;", "azimuth = -90 * DEG;"],
+  ['walk: mouse look yaw sign flipped (+x turns left)',
+    'w.yaw -= dx * WALK.lookRadPerPx;', 'w.yaw += dx * WALK.lookRadPerPx;'],
+  ['walk: collision stops at the wall face, not 1 ft before',
+    'const allowed = Math.max(0, hit - WALK.stopAt);', 'const allowed = Math.max(0, hit);'],
+  ['walk: eye at the floor, not 5.5 ft above it',
+    'pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f + WALK.eye],', 'pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f],'],
 ];
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs', 'viewcube.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs', 'viewcube.test.mjs', 'walk.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;

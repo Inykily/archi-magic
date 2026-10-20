@@ -536,6 +536,75 @@ export function renderSvg(elements, state, opts = {}) {
   return { svg, drawn: drawn.length, total, isCut: drawn.length < tris.length };
 }
 
+// ---- First-person walk (Z up) ----
+// yaw: plan angle of the look direction from +X toward +Y (radians); pitch: up/down, clamped.
+// Moving uses only the XY plane of the look direction, so looking up never flies you up.
+export const WALK = { eye: 5.5, speed: 4.5, run: 3, accel: 10, fov: 70, lookRadPerPx: 0.0025, pitchMax: 85 * DEG, stopAt: 1, followRate: 10, stepUp: 2 };
+
+// Start at the view target dropped to the floor under it, looking along the view direction
+// flattened to XY. floorZ(x, y, zFrom) returns the floor height under a point, or null.
+export function enterWalk(state, floorZ) {
+  const { d } = cameraBasis(state.azimuth, state.elevation);
+  const flat = Math.hypot(d[0], d[1]);
+  const yaw = flat > 1e-6 ? Math.atan2(-d[1], -d[0]) : state.azimuth + Math.PI;
+  const [x, y, z0] = state.target;
+  const f = floorZ ? floorZ(x, y, z0 + WALK.stepUp) : null; // the floor just below the target, not the roof
+  return {
+    saved: { ...state, target: state.target.slice() },
+    pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f + WALK.eye],
+    yaw, pitch: 0, vel: [0, 0], eyeOffset: 0, isCollision: true,
+  };
+}
+
+// Mouse look: +dx turns right (clockwise in plan), +dy looks down.
+export function walkLook(w, dx, dy) {
+  w.yaw -= dx * WALK.lookRadPerPx;
+  w.pitch = Math.max(-WALK.pitchMax, Math.min(WALK.pitchMax, w.pitch - dy * WALK.lookRadPerPx));
+  return w;
+}
+
+// One fixed time step. keys: { forward, back, left, right, up, down, run } (booleans).
+// env.floorZ(x, y, zFrom) -> floor height or null; env.hitDist(origin, dir2, max) -> distance to
+// the nearest wall along the XY direction, or null.
+export function walkStep(w, keys, dt, env = {}) {
+  const fwd = [Math.cos(w.yaw), Math.sin(w.yaw)], right = [Math.sin(w.yaw), -Math.cos(w.yaw)];
+  const f = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0), s = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+  let want = [fwd[0] * f + right[0] * s, fwd[1] * f + right[1] * s];
+  const n = Math.hypot(want[0], want[1]);
+  const speed = WALK.speed * (keys.run ? WALK.run : 1);
+  want = n > 0 ? [want[0] / n * speed, want[1] / n * speed] : [0, 0];
+  const k = Math.min(1, WALK.accel * dt); // smooth start and stop
+  w.vel = [w.vel[0] + (want[0] - w.vel[0]) * k, w.vel[1] + (want[1] - w.vel[1]) * k];
+  let step = [w.vel[0] * dt, w.vel[1] * dt];
+  const len = Math.hypot(step[0], step[1]);
+  if (len > 1e-9 && w.isCollision && env.hitDist) {
+    const dir = [step[0] / len, step[1] / len];
+    const hit = env.hitDist(w.pos, dir, len + WALK.stopAt);
+    if (hit !== null && hit !== undefined) {
+      const allowed = Math.max(0, hit - WALK.stopAt);
+      step = [dir[0] * Math.min(len, allowed), dir[1] * Math.min(len, allowed)];
+      if (allowed < len) w.vel = [0, 0];
+    }
+  }
+  w.pos[0] += step[0]; w.pos[1] += step[1];
+  const feet = w.pos[2] - WALK.eye - w.eyeOffset; // where the feet are now (before this step's Q/E)
+  w.eyeOffset += ((keys.up ? 1 : 0) - (keys.down ? 1 : 0)) * WALK.speed * dt;
+  const floor = env.floorZ ? env.floorZ(w.pos[0], w.pos[1], feet + WALK.stepUp) : null;
+  const targetZ = (floor === null || floor === undefined ? feet : floor) + WALK.eye + w.eyeOffset;
+  w.pos[2] += (targetZ - w.pos[2]) * Math.min(1, WALK.followRate * dt); // stairs and floors, smoothed
+  return w;
+}
+
+// The page camera for a walk: perspective, eye at pos, looking along yaw/pitch.
+export function walkView(w, state) {
+  const look = [Math.cos(w.pitch) * Math.cos(w.yaw), Math.cos(w.pitch) * Math.sin(w.yaw), Math.sin(w.pitch)];
+  return {
+    ...state, projection: 'perspective', fov: WALK.fov, distance: 1,
+    target: [w.pos[0] + look[0], w.pos[1] + look[1], w.pos[2] + look[2]],
+    azimuth: Math.atan2(-look[1], -look[0]), elevation: -w.pitch,
+  };
+}
+
 // ---- View cube (Revit conventions, Z up, Y = north) ----
 // Each face's normal points from the model toward the camera that looks at that face:
 // FRONT = camera south looking north; BACK = camera north looking south; RIGHT = camera east

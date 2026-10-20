@@ -247,7 +247,30 @@
   document.querySelector('#pending [data-undo]').click(); await wait(30);
   results.gumballUndo = items().length === 0 && __bim.gumball.ghostCount() === 0 && __bim.gumball.meshMatrix(310009).every((v, i) => v === [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1][i]);
   __bim.select(null); __bim.setView('perspective');
-  results.noFooter =!document.querySelector('footer');
+  // Walk: G enters (perspective, fov 70, eye 5.5 ft above the floor, gumball and cube off);
+  // W moves along the flattened view direction without changing Z while looking up;
+  // right drag looks (pointer lock is denied in an automated pane); Esc restores the old camera.
+  __bim.setView('perspective'); __bim.select(310009); __bim.state.target = [20, 10, 5]; __bim.renderNow(); await wait(30); // target over the floor slab
+  const camSnap = () => JSON.stringify([__bim.state.azimuth, __bim.state.elevation, __bim.state.target, __bim.state.distance, __bim.state.projection].flat().map(v => typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v));
+  const before0 = camSnap();
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true })); await wait(50);
+  __bim.walk.pause(true);
+  const w0 = __bim.walk.get();
+  results.walkEnter = __bim.walk.active() && __bim.state.fov === 70 && __bim.state.projection === 'perspective' && __bim.selectedId() === null &&
+    document.getElementById('gumball').innerHTML === '' && getComputedStyle(document.getElementById('cubewrap')).pointerEvents === 'none' &&
+    w0.eyeAboveFloor !== null && Math.abs(w0.eyeAboveFloor - 5.5) < 0.05 && document.getElementById('walkinfo').classList.contains('on');
+  results.walkEye = { eyeAboveFloor: w0.eyeAboveFloor, isInfo: true };
+  __bim.walk.look(0, -300); // look up
+  const w1 = __bim.walk.get();
+  for (let i = 0; i < 60; i++) __bim.walk.step(1 / 60, { w: true });
+  const w2 = __bim.walk.get(), mv = [w2.pos[0] - w1.pos[0], w2.pos[1] - w1.pos[1]], ml = Math.hypot(mv[0], mv[1]);
+  results.walkForwardFlat = w1.pitch > 0.5 && ml > 2 && Math.abs(mv[0] / ml - Math.cos(w1.yaw)) < 1e-3 && Math.abs(mv[1] / ml - Math.sin(w1.yaw)) < 1e-3 && Math.abs(w2.pos[2] - w1.pos[2]) < 0.05;
+  const cr = c.getBoundingClientRect(), rx = cr.left + cr.width / 2, ry = cr.top + cr.height / 2;
+  const rv = (t, X) => new PointerEvent(t, { bubbles: true, pointerId: 8, pointerType: 'mouse', button: 2, buttons: t === 'pointerup' ? 0 : 2, clientX: X, clientY: ry });
+  c.dispatchEvent(rv('pointerdown', rx)); c.dispatchEvent(rv('pointermove', rx + 50)); c.dispatchEvent(rv('pointerup', rx + 50));
+  results.walkRightDragLooksRight = __bim.walk.get().yaw < w2.yaw - 0.05;
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(500);
+  results.walkEscRestores = !__bim.walk.active() && camSnap() === before0 && !document.getElementById('walkinfo').classList.contains('on');  results.noFooter = !document.querySelector('footer');
   results.oneViewLabel = document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
   return { pass: Object.entries(results).every(([k, v]) => v && (v === true || v.isInfo)), results };
 })();

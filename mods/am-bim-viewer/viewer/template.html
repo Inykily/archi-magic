@@ -202,6 +202,12 @@
   .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; background: var(--bg); color: var(--ink);
     border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; }
   #viewname { position: absolute; left: var(--space-4); top: var(--space-3); z-index: 2; pointer-events: none; }
+  /* Walk readout (bottom left) */
+  #walkinfo { position: absolute; left: 14px; bottom: 14px; z-index: 4; display: none; padding: 4px 8px; background: var(--bg);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); color: var(--ink-2); pointer-events: none; }
+  #walkinfo.on { display: grid; gap: 2px; }
+  #walkread { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .walking #cubewrap { opacity: .45; pointer-events: none; }
   /* View cube (top right): hairline wireframe, no fill until hover, compass ring with N/E/S/W. */
   #cubewrap { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; align-items: flex-start; gap: 2px; }
   #viewcube { width: 84px; height: 84px; overflow: visible; touch-action: none; }
@@ -335,6 +341,7 @@
       <div class="seg" role="group" aria-label="Projection">
         <button data-proj="perspective">perspective</button>
         <button data-proj="parallel">parallel</button>
+        <button id="walkbtn" aria-pressed="false" title="First-person walk (G)">walk</button>
       </div>
       <button class="btn" id="fit" title="Zoom extents">zoom extents</button>
       <button class="link" id="theme" title="Switch day / night until the next 07:00 or 19:00">paper / night</button>
@@ -350,6 +357,7 @@
       <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
       <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
     </div>
+    <div id="walkinfo" aria-live="polite"><div id="walkhint">click to look around, esc to exit</div><div id="walkread"></div></div>
     <div id="cubewrap">
       <button id="cubehome" type="button" title="Home: the default perspective" aria-label="Home: the default perspective"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.2 L8 3.2 L13.5 8.2 M4.6 6.6 V12.8 H11.4 V6.6"/></svg></button>
       <svg id="viewcube" viewBox="-42 -42 84 84" role="img" aria-label="View cube: click a face, edge or corner; drag to orbit; drag the ring to spin"></svg>
@@ -428,6 +436,7 @@ scene.add(sun);
 const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1e5) };
 const state = createViewState();
 let viewName = 'perspective';
+let walk = null, walkDrag = null; // first-person walk state (see the Walk section)
 const SELECTED = toColor(pal.selected, '#f4f4f1');
 const OUTLINE = toColor(pal.outline, '#0a0a0a');
 const EDGE = toColor(pal.edge, '#0a0a0a');
@@ -614,6 +623,7 @@ let drag = null;
 const canvas = renderer.domElement;
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
+  if (walk) { walkPointerDown(e); return; }
   const action = mapPointer({ button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, isParallel: state.projection === 'parallel' });
   drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
@@ -621,6 +631,7 @@ canvas.addEventListener('pointerdown', e => {
   if (action === 'rotate' || action === 'pan' || action === 'zoom') setCursor(action);
 });
 canvas.addEventListener('pointermove', e => {
+  if (walk) { walkPointerMove(e); return; }
   if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY;
@@ -631,20 +642,22 @@ canvas.addEventListener('pointermove', e => {
   requestRender();
 });
 canvas.addEventListener('pointerup', e => {
+  if (walk) { walkDrag = null; return; }
   if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
   drag = null;
   setCursor(hovered ? 'hover' : 'idle');
 });
 // Double-click: Zoom Selected on an element, zoom extents on empty space.
 canvas.addEventListener('dblclick', e => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || walk) return;
   const m = pick(e.clientX, e.clientY);
   select(m);
   frameTo(dblClickView(state, m ? posedEl(m.userData.el) : null, bounds));
 });
-canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
+canvas.addEventListener('pointerleave', () => { if (!drag && !walk) setHover(null); });
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  if (walk) return;
   const mode = mapWheel({ ctrl: e.ctrlKey || e.metaKey });
   const n = mode === 'zoom-cursor' ? ndcAt(e.clientX, e.clientY) : { x: 0, y: 0 };
   zoomAt(state, Math.exp(Math.sign(e.deltaY) * 0.12), n.x, n.y, aspect());
@@ -669,7 +682,7 @@ function setProjection(p, s = state) {
   s.projection = p;
   return s;
 }
-projButtons.forEach(b => b.addEventListener('click', () => { setProjection(b.dataset.proj); setViewName(viewName === 'perspective' && b.dataset.proj === 'parallel' ? 'rotated' : viewName); requestRender(); }));
+projButtons.forEach(b => b.addEventListener('click', () => { if (walk) return; setProjection(b.dataset.proj); setViewName(viewName === 'perspective' && b.dataset.proj === 'parallel' ? 'rotated' : viewName); requestRender(); }));
 
 // ---------- View cube: faces, edges and corners; drag to orbit; drag the ring to spin ----------
 const cubeEl = document.getElementById('viewcube');
@@ -734,6 +747,8 @@ function helpRows() {
     [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag or the typed value'],
     [['Click handle'], 'type a value: 2.5, 2\'6", 750mm, 15'], [['0-9'], 'while dragging: type the value'],
     [['Enter'], 'apply the typed value'], [['Tab'], 'apply, then the next axis'],
+    [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
+    [['Shift'], 'walk: run'], [['C'], 'walk: collision on / off'], [['Click'], 'walk: look with the mouse (right drag if no lock)'],
   ]);
 }
 function updateHint() {
@@ -814,7 +829,7 @@ for (const m of meshes) meshById[String(m.userData.el.id)] = m;
 const ghosts = {};
 let gdrag = null, lastCopied = null;
 const ARROW_PX = 64, RING_PX = 44;
-function walkActive() { return false; } // walk mode (first person) hides the gumball; see below
+function walkActive() { return walk !== null; } // walk mode (first person) hides the gumball
 const GUM_AXES = [['x', 'X', ''], ['y', 'Y', '4 3'], ['z', 'Z', '1 2.5']];
 
 function poseMesh(mesh) {
@@ -1055,6 +1070,103 @@ document.getElementById('copyrevit').addEventListener('click', async () => {
 });
 renderPending();
 
+// ---------- Walk: first person at eye height (G or the walk button; Esc exits) ----------
+// Look: click the view for pointer lock; if the browser denies it, right drag looks around.
+// In Chrome, the first Esc only releases the pointer lock (no keydown reaches the page), so the
+// view stays in walk with the "click to look around" hint; a second Esc exits to the old camera.
+const FLOOR_CATS = new Set(['Floors', 'Stairs', 'Ramps', 'Roofs', 'Structural Foundations', 'Topography', 'Toposolid']);
+const WALL_CATS = new Set(['Walls', 'Columns', 'Structural Columns', 'Doors', 'Curtain Panels', 'Curtain Wall Mullions', 'Windows']);
+const walkBtn = document.getElementById('walkbtn'), walkInfo = document.getElementById('walkinfo');
+const walkHint = document.getElementById('walkhint'), walkRead = document.getElementById('walkread');
+const walkKeys = {};
+let walkRaf = 0, walkLast = 0, walkPaused = false, walkPrevName = 'perspective', walkFloor = null, walkNoLock = false;
+const castDown = new THREE.Raycaster(), castAcross = new THREE.Raycaster();
+function floorZ(x, y, zFrom) {
+  castDown.set(new THREE.Vector3(x, y, zFrom), new THREE.Vector3(0, 0, -1)); castDown.far = 1e5;
+  const hits = castDown.intersectObjects(meshes.filter(m => m.visible && FLOOR_CATS.has(m.userData.el.category)), false);
+  return hits.length ? hits[0].point.z : null;
+}
+function hitDist(o, dir, max) {
+  castAcross.set(new THREE.Vector3(o[0], o[1], o[2] - WALK.eye + 3), new THREE.Vector3(dir[0], dir[1], 0)); castAcross.far = max;
+  const hits = castAcross.intersectObjects(meshes.filter(m => m.visible && WALL_CATS.has(m.userData.el.category)), false);
+  return hits.length ? hits[0].distance : null;
+}
+const walkEnv = { floorZ, hitDist };
+function walkKeyState() {
+  return { forward: walkKeys.w || walkKeys.arrowup, back: walkKeys.s || walkKeys.arrowdown, left: walkKeys.a || walkKeys.arrowleft,
+    right: walkKeys.d || walkKeys.arrowright, up: walkKeys.e, down: walkKeys.q, run: walkKeys.shift };
+}
+function walkApply() { Object.assign(state, walkView(walk, state)); }
+function updateWalkInfo() {
+  const above = walkFloor === null ? null : walk.pos[2] - walkFloor;
+  walkRead.textContent = 'eye ' + (above === null ? '--' : above.toFixed(2) + ' ft') + '   speed ' + Math.hypot(walk.vel[0], walk.vel[1]).toFixed(1) + ' ft/s   collision ' + (walk.isCollision ? 'on' : 'off');
+  walkHint.textContent = document.pointerLockElement === canvas ? 'mouse looks around, esc to exit' : walkNoLock ? 'right drag to look around, esc to exit' : 'click to look around, esc to exit';
+}
+function walkTick(now) {
+  if (!walk) return;
+  const dt = Math.min(0.1, Math.max(0, (now - walkLast) / 1000)); walkLast = now;
+  if (!walkPaused) walkStepOnce(dt);
+  walkRaf = requestAnimationFrame(walkTick);
+}
+function walkStepOnce(dt) {
+  walkStep(walk, walkKeyState(), dt, walkEnv);
+  walkFloor = floorZ(walk.pos[0], walk.pos[1], walk.pos[2] - WALK.eye - walk.eyeOffset + WALK.stepUp);
+  walkApply(); render(); updateWalkInfo();
+}
+function enterWalkMode() {
+  if (walk) return;
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+  select(null); setHover(null);
+  if (typed) closeTyped();
+  walkPrevName = viewName;
+  walk = enterWalk(state, floorZ);
+  walkApply();
+  vp.classList.add('walking'); walkInfo.classList.add('on'); walkBtn.setAttribute('aria-pressed', 'true');
+  setViewName('walk');
+  walkLast = performance.now(); walkRaf = requestAnimationFrame(walkTick);
+  walkStepOnce(0);
+}
+function exitWalkMode() {
+  if (!walk) return;
+  const saved = walk.saved;
+  cancelAnimationFrame(walkRaf); walk = null; walkDrag = null;
+  for (const k of Object.keys(walkKeys)) delete walkKeys[k];
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  vp.classList.remove('walking'); walkInfo.classList.remove('on'); walkBtn.setAttribute('aria-pressed', 'false');
+  state.projection = saved.projection;
+  setViewName(walkPrevName);
+  frameTo(saved); // animated back to the camera from before the walk
+}
+function walkPointerDown(e) {
+  e.preventDefault();
+  if (e.button === 2) { walkDrag = { x: e.clientX, y: e.clientY }; return; }
+  if (e.button === 0 && document.pointerLockElement !== canvas) {
+    try {
+      const p = canvas.requestPointerLock();
+      if (p && p.catch) p.catch(() => { walkNoLock = true; updateWalkInfo(); });
+    } catch (err) { walkNoLock = true; updateWalkInfo(); }
+  }
+}
+function walkPointerMove(e) {
+  if (!walkDrag) return;
+  walkLook(walk, e.clientX - walkDrag.x, e.clientY - walkDrag.y);
+  walkDrag = { x: e.clientX, y: e.clientY };
+}
+document.addEventListener('mousemove', e => { if (walk && document.pointerLockElement === canvas) walkLook(walk, e.movementX, e.movementY); });
+document.addEventListener('pointerlockchange', () => { if (walk) updateWalkInfo(); });
+document.addEventListener('pointerlockerror', () => { walkNoLock = true; if (walk) updateWalkInfo(); });
+window.addEventListener('keydown', e => {
+  if (e.target && e.target.closest && e.target.closest('input')) return; // typing a value
+  const k = e.key.toLowerCase();
+  if (k === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (walk) exitWalkMode(); else enterWalkMode(); return; }
+  if (!walk) return;
+  if (k === 'escape') { e.preventDefault(); exitWalkMode(); return; }
+  if (k === 'c') { walk.isCollision = !walk.isCollision; updateWalkInfo(); return; }
+  if (['w', 'a', 's', 'd', 'q', 'e', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); walkKeys[k] = true; }
+});
+window.addEventListener('keyup', e => { delete walkKeys[e.key.toLowerCase()]; });
+window.addEventListener('blur', () => { for (const k of Object.keys(walkKeys)) delete walkKeys[k]; });
+walkBtn.addEventListener('click', () => { if (walk) exitWalkMode(); else enterWalkMode(); });
 // ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
 // On each am-theme-change, re-read the tokens and recolor the scene: category values,
 // selection, outline, edges, grid and gizmo. The flat backdrop is CSS (--bg).
@@ -1094,6 +1206,12 @@ window.__bim = {
   isAnimating: () => anim !== null,
   grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
   visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
+  walk: {
+    enter: () => enterWalkMode(), exit: () => exitWalkMode(), active: () => walk !== null,
+    pause: on => { walkPaused = on; }, step: (dt, keys = {}) => { Object.assign(walkKeys, keys); walkStepOnce(dt); for (const k of Object.keys(keys)) delete walkKeys[k]; },
+    get: () => walk && { pos: walk.pos.slice(), yaw: walk.yaw, pitch: walk.pitch, isCollision: walk.isCollision, eyeAboveFloor: walkFloor === null ? null : walk.pos[2] - walkFloor },
+    look: (dx, dy) => walkLook(walk, dx, dy),
+  },
   gumball: {
     layout: () => { const L = gumballLayout(), r = vp.getBoundingClientRect(); if (!L) return null;
       const g = p => ({ x: r.left + p.x, y: r.top + p.y });
