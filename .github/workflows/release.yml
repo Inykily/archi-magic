@@ -5,6 +5,7 @@ name: release
 on:
   push:
     branches: [main]
+  workflow_dispatch:   # re-run for the current main, e.g. after a failed release run
 
 permissions:
   contents: write
@@ -24,15 +25,18 @@ jobs:
           short=$(git rev-parse --short=12 HEAD)
           tag="r$(date -u +%Y.%m.%d)-${short}"
           prev=$(git describe --tags --abbrev=0 --match 'r*' HEAD^ 2>/dev/null || true)
-          if [ -n "$prev" ]; then range="$prev..HEAD"; else range="HEAD~20..HEAD"; fi
+          # First release (no earlier r* tag): list at most the last 20 first-parent commits.
+          # A fixed HEAD~20 fails when main's first-parent history is shorter than 20 commits.
+          if [ -n "$prev" ]; then log_args=("$prev..HEAD"); else log_args=(-n 20 HEAD); fi
           {
             echo "Plugin version for users: \`${short}\` (commit-derived)."
             echo
             echo "Update: turn on auto-update for archi-magic in \`/plugin\` > Marketplaces, or run \`/plugin marketplace update archi-magic\`."
             echo
             echo "## Changes"
-            git log --first-parent --format='- %s (%h)' "$range"
+            git log --first-parent --format='- %s (%h)' "${log_args[@]}"
           } > notes.md
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then echo "tag $tag exists; nothing to do"; exit 0; fi
           git tag "$tag" HEAD
           git push origin "$tag"
           gh release create "$tag" --title "archi-magic $tag" --notes-file notes.md
