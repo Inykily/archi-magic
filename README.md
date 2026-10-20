@@ -164,13 +164,13 @@ A SessionStart hook (`hooks/hooks.json`) adds the short rules block in `hooks/se
 2. Put helper scripts in `skills/am-<name>/scripts/`. Scripts are ASCII-only and Windows PowerShell 5.1-compatible; Revit scripts are IronPython 2.7 (no f-strings).
 3. Add a row to the Skills table above and to the routing table in "For AI agents".
 4. Run `scripts/sync-house-rules.ps1`. It copies `HOUSE-RULES.md` to the end of every `SKILL.md`. Edit the rules only in `HOUSE-RULES.md`.
-5. Run `scripts/bump-version.ps1 patch|minor|major`. Claude Code installs new content only when the version changes. A mod change also needs that mod's own version raised.
-6. Open a pull request. `main` is protected: it accepts only pull requests that pass the `check` job.
+5. Open a pull request. `main` is protected: it accepts only pull requests that pass the `check` job.
 
 ### Checks
 
 - `scripts/check-skills.ps1`: the `am-` prefix, name equals folder, a README row, house rules identical to `HOUSE-RULES.md`, and the rules hook present (at most 12 lines).
-- `scripts/check-version-bump.ps1`: every changed path needs a version bump except repo-only files (README.md, LICENSE, docs/, .github/, .gitignore, .gitattributes, `scripts/check-*.ps1`, `bump-version.ps1`, `sync-house-rules.ps1`).
+- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin marketplace update archi-magic`.
+- **Release workflow** (`.github/workflows/release.yml`): each merge to `main` gets a dated tag and a GitHub Release that lists the changes.
 - **Weekly check** (`.github/workflows/weekly-check.yml`, Mondays): runs the drift checks and compares every pinned dependency (superpowers, frontend-design, rhino-mcp) with its upstream. It reports the latest pyRevit release. The results go to one issue, "Weekly archi-magic check".
 
 Plans and decisions: `docs/plans/`.

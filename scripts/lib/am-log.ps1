@@ -41,6 +41,14 @@ function Get-AmPluginVersion {
                 $m = [regex]::Match([IO.File]::ReadAllText($pj), '"version"\s*:\s*"([^"]+)"')
                 if ($m.Success) { $v = $m.Groups[1].Value }
             }
+            if ($v -eq 'unknown') {
+                # archi-magic has no pinned version: Claude Code derives it from the commit and installs
+                # the plugin under ...\plugins\cache\<marketplace>\archi-magic\<version>\. Use that folder name.
+                $pluginRoot = [IO.Path]::GetFullPath((Join-Path $AmLogHelperDir '..\..'))
+                $parent = Split-Path -Leaf (Split-Path -Parent $pluginRoot)
+                if ($parent -eq 'archi-magic') { $v = Split-Path -Leaf $pluginRoot }
+                else { $v = 'source-checkout' }
+            }
         }
     } catch { $v = 'unknown' }
     $script:AmLogPluginVersion = $v

@@ -1,11 +1,17 @@
 {
   "name": "am-bim-viewer",
-  "version": "0.1.0",
   "description": "Mod: /bim-view builds an interactive 3D BIM viewer page (Rhino-style camera, element data panel) from a Revit JSON export.",
   "author": {
     "name": "zsenarchitect"
   },
   "repository": "https://github.com/zsenarchitect/archi-magic",
   "types": "./types/index.d.ts",
-  "keywords": ["revit", "bim", "3d", "viewer", "rhino", "mod"]
+  "keywords": [
+    "revit",
+    "bim",
+    "3d",
+    "viewer",
+    "rhino",
+    "mod"
+  ]
 }
