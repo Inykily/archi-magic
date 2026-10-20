@@ -22,7 +22,7 @@ The tokens live in `design/tokens.css`. That file is the only source. `scripts/s
 | `--ink`, `--ink-2`, `--ink-3` | theme-dependent | primary, secondary, tertiary text |
 | `--line`, `--line-strong` | ink at 14% / 42% | hairlines, construction geometry |
 | `--beam`, `--vignette` | radial gradients | the light column and the dark edge |
-| `--grain`, `--grain-opacity` | SVG fractal noise, 0.07 (paper) / 0.11 (night) | texture over the whole page |
+| `--grain`, `--grain-opacity` | SVG luminance noise, 0.16 (paper) / 0.22 (night), overlay blend | texture over the whole page |
 | `--font` | IBM Plex Mono 300/400/500 | all text |
 | `--fs-micro`, `--fs-body`, `--fs-lead` | 10.5 / 12.5 / 14 px | label, body, the one lead line |
 | `--radius`, `--round` | 0 / 999px | square rectangles, fully round dots and rings |
@@ -73,4 +73,4 @@ Rules:
 
 - Text contrast (measured with the WCAG formula): `--ink` on paper is 17.97:1. `--ink-2` on paper is 4.85:1 and on night 7.01:1, so both pass AA for body text. `--ink-3` is 2.56:1 on paper and 3.70:1 on night, which is below AA. Use `--ink-3` only for supplementary marks that repeat information shown elsewhere (units, the struck-out old value next to the new value, counts in chips). Never use it for text the user must read.
 - Status is never shown by tone alone. Each status has a shape (ring, half, dot) and a text label.
-- Grain sits at or below 0.11 opacity, has `pointer-events: none`, and never covers text contrast.
+- Grain is luminance noise blended with `overlay`, at 0.16 opacity on paper and 0.22 on night. Overlay barely changes flat ink or flat paper, so text contrast stays as measured. Grain has `pointer-events: none`.
