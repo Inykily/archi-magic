@@ -26,6 +26,11 @@ export const NAMED_VIEWS = {
   front: { azimuth: -90 * DEG, elevation: 0, projection: 'parallel' },
   right: { azimuth: 0, elevation: 0, projection: 'parallel' },
   perspective: { azimuth: -45 * DEG, elevation: Math.atan(1 / Math.SQRT2), projection: 'perspective' },
+  // View cube faces not above: Back = camera at +Y looking south; Left = camera at -X looking east;
+  // Bottom = looking up +Z with north at the top of the screen (east is then on the left).
+  back: { azimuth: 90 * DEG, elevation: 0, projection: 'parallel' },
+  left: { azimuth: 180 * DEG, elevation: 0, projection: 'parallel' },
+  bottom: { azimuth: 90 * DEG, elevation: -90 * DEG, projection: 'parallel' },
 };
 
 // Rhino mouse mapping (Windows defaults), from:
@@ -342,18 +347,23 @@ export function gridLayout(bounds) {
 
 // One plane in the scene graph (not a screen overlay). A shader draws the
 // lines from world XY with a radial alpha fade, so it has no hard edge.
-export function createGroundGrid(THREE, bounds, color = '#22221f') {
+export function createGroundGrid(THREE, bounds, color = '#f4f4f1') {
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: {
       uMinor: { value: 1 }, uMajor: { value: 10 }, uFade: { value: 100 },
       uCenter: { value: new THREE.Vector2() }, uColor: { value: new THREE.Color(color) }, uOpacity: { value: 1 },
+      uDensityFade: { value: 1 }, // 1: lines fade out where cells get denser than a few px (no moire); 0: off (test control)
     },
     vertexShader: 'varying vec3 vWorld; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: [
-      'uniform float uMinor; uniform float uMajor; uniform float uFade; uniform vec2 uCenter; uniform vec3 uColor; uniform float uOpacity;',
+      'uniform float uMinor; uniform float uMajor; uniform float uFade; uniform vec2 uCenter; uniform vec3 uColor; uniform float uOpacity; uniform float uDensityFade;',
       'varying vec3 vWorld;',
-      'float gridLine(vec2 p, float s) { vec2 q = p / s; vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q); return 1.0 - min(min(g.x, g.y), 1.0); }',
+      // Anti-aliased line coverage from fwidth(); then fade by screen-space density: fwidth(q) is
+      // cells per pixel, so as one cell shrinks from ~25 px to ~6 px (far away, or grazing angles)
+      // the lines fade to 0 and dissolve into the clean background instead of aliasing into moire.
+      'float gridLine(vec2 p, float s) { vec2 q = p / s; vec2 w = fwidth(q); vec2 g = abs(fract(q - 0.5) - 0.5) / w; float line = 1.0 - min(min(g.x, g.y), 1.0);',
+      '  float dens = max(w.x, w.y); return line * mix(1.0, 1.0 - smoothstep(0.04, 0.16, dens), uDensityFade); }',
       'void main() {',
       '  vec2 p = vWorld.xy;',
       '  float d = length(p - uCenter);',
@@ -383,21 +393,60 @@ export function placeGroundGrid(grid, bounds) {
   return g;
 }
 
+// ---- Scene colors per theme (design/DESIGN-SYSTEM.md, "selected (3D)") ----
+// tokens: CSS token values read from the page: v0..v7 ('#rrggbb'), ink, ink2, line.
+// Night: the selected element turns paper with an ink hairline outline.
+// Paper: the inverse, an ink element with a paper hairline outline.
+// Hover lifts the category value a little toward the selection value.
+export function scenePalette(theme, tokens) {
+  const isNight = theme === 'night';
+  const steps = {};
+  for (const k of [2, 3, 4, 5, 6]) steps[k] = tokens['v' + k];
+  const selected = isNight ? tokens.v7 : tokens.v0;
+  return {
+    theme: isNight ? 'night' : 'paper',
+    steps,
+    selected,
+    outline: isNight ? tokens.v0 : tokens.v7,
+    hoverToward: selected,
+    hoverLift: 0.22,
+    edge: tokens.v0,
+    edgeOpacity: isNight ? 0.7 : 0.5,
+    grid: tokens.line,
+    gizmo: tokens.ink2 || tokens.ink, // the axis gizmo is quiet: --ink-2
+  };
+}
+
 // ---- Static SVG rendering, for surfaces without WebGL (the inline pane) ----
 // Same camera math as the 3D page. Painter's algorithm, flat shading.
-export const CATEGORY_RGB = {
-  Walls: [201, 196, 184], Floors: [154, 163, 173], Doors: [181, 101, 29], Columns: [91, 127, 158],
-  'Structural Columns': [91, 127, 158], Windows: [127, 196, 217], Roofs: [160, 82, 45],
+// Categories are told apart by VALUE, not hue (design/DESIGN-SYSTEM.md):
+// each category gets one step of the gray scale --v2..--v6 (design/tokens.css).
+// The 3D page reads the steps from CSS at runtime; VALUE_RGB is the same scale
+// as literal RGB for surfaces without CSS (the inline pane SVG, node tests).
+export const VALUE_RGB = {
+  0: [10, 10, 10], 2: [58, 58, 56], 3: [107, 107, 104], 4: [154, 154, 150], 5: [201, 201, 196], 6: [231, 231, 227], 7: [244, 244, 241],
 };
-const EXTRA_RGB = [[141, 181, 128], [209, 154, 102], [159, 134, 192], [111, 183, 183]];
+export const CATEGORY_STEP = {
+  Floors: 2, Roofs: 3, Walls: 4, Columns: 5, 'Structural Columns': 5, Doors: 6, Windows: 6,
+};
+const EXTRA_STEPS = [3, 5, 2, 6, 4];
 
-export function categoryColors(elements) {
+// Category -> value step (2..6), in first-seen order for unknown categories.
+export function categoryValues(elements) {
   const out = {};
   let extra = 0;
   for (const el of elements) {
     const cat = el.category || 'Generic';
-    if (!(cat in out)) out[cat] = CATEGORY_RGB[cat] || EXTRA_RGB[extra++ % EXTRA_RGB.length];
+    if (!(cat in out)) out[cat] = CATEGORY_STEP[cat] || EXTRA_STEPS[extra++ % EXTRA_STEPS.length];
   }
+  return out;
+}
+
+// Category -> [r, g, b] of its value step.
+export function categoryColors(elements) {
+  const steps = categoryValues(elements);
+  const out = {};
+  for (const cat of Object.keys(steps)) out[cat] = VALUE_RGB[steps[cat]].slice();
   return out;
 }
 
@@ -445,9 +494,9 @@ export function renderSvg(elements, state, opts = {}) {
         [world[2][0] - world[0][0], world[2][1] - world[0][1], world[2][2] - world[0][2]]);
       const len = Math.hypot(n[0], n[1], n[2]) || 1;
       const shade = 0.55 + 0.45 * Math.abs((n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / len);
-      // The selected element is one flat highlight color, so it reads at a glance.
-      const rgb = isSel ? [255, 176, 0] : cats[cat].map(c => Math.round(Math.min(255, c * shade)));
-      tris.push({ depth: depth / 3, pts, rgb, el });
+      // The selected element turns flat paper (--v7), so it reads at a glance.
+      const rgb = isSel ? VALUE_RGB[7] : cats[cat].map(c => Math.round(Math.min(255, c * shade)));
+      tris.push({ depth: depth / 3, pts, rgb, el, isSel });
     }
   }
   tris.sort((a, b) => a.depth - b.depth); // far first
@@ -466,14 +515,409 @@ export function renderSvg(elements, state, opts = {}) {
     body += '<path d="M' + t.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z" fill="' + fill + '" stroke="' + fill + '" stroke-width=".6"/>';
   }
   if (open) body += '</g>';
-  // Axis gizmo, bottom-left: X red, Y green, Z blue.
+  // The one focal dot: an ink dot ringed in paper at the selected element's center.
+  let dot = '';
+  const selTris = drawn.filter(t => t.isSel);
+  if (selTris.length) {
+    let sx = 0, sy = 0, n = 0;
+    for (const t of selTris) for (const p of t.pts) { sx += p[0]; sy += p[1]; n++; }
+    dot = '<circle cx="' + (sx / n).toFixed(1) + '" cy="' + (sy / n).toFixed(1) + '" r="4.5" fill="rgb(' + VALUE_RGB[0].join(',') + ')" stroke="rgb(' + VALUE_RGB[7].join(',') + ')" stroke-width="1.5"/>';
+  }
+  // Axis gizmo, bottom-left, without hue: X solid, Y dashed, Z dotted, each labeled.
   const gx = 34, gy = height - 34;
+  const ink = opts.ink || 'rgb(' + VALUE_RGB[7].join(',') + ')';
   let gizmo = '';
-  for (const [k, col, lab] of [[0, '#d62828', 'X'], [1, '#2a9d3f', 'Y'], [2, '#1f5fbf', 'Z']]) {
-    gizmo += '<line x1="' + gx + '" y1="' + gy + '" x2="' + (gx + r[k] * 22).toFixed(1) + '" y2="' + (gy - u[k] * 22).toFixed(1) + '" stroke="' + col + '" stroke-width="2.5" stroke-linecap="round"/>' +
-      '<text x="' + (gx + r[k] * 30).toFixed(1) + '" y="' + (gy - u[k] * 30 + 4).toFixed(1) + '" fill="' + col + '" font-size="11" font-family="sans-serif" font-weight="700" text-anchor="middle">' + lab + '</text>';
+  for (const [k, lab, dash, w] of [[0, 'X', '', 2], [1, 'Y', '4 3', 1.6], [2, 'Z', '0.1 3.4', 2.2]]) {
+    gizmo += '<line x1="' + gx + '" y1="' + gy + '" x2="' + (gx + r[k] * 22).toFixed(1) + '" y2="' + (gy - u[k] * 22).toFixed(1) + '" stroke="' + ink + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+      '<text x="' + (gx + r[k] * 30).toFixed(1) + '" y="' + (gy - u[k] * 30 + 4).toFixed(1) + '" fill="' + ink + '" font-size="11" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
   }
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
-    '<rect width="100%" height="100%" fill="' + (opts.background || '#eef0ee') + '"/>' + body + gizmo + '</svg>';
+    '<rect width="100%" height="100%" fill="' + (opts.background || '#0a0a0a') + '"/>' + body + dot + gizmo + '</svg>';
   return { svg, drawn: drawn.length, total, isCut: drawn.length < tris.length };
+}
+
+// ---- First-person walk (Z up) ----
+// yaw: plan angle of the look direction from +X toward +Y (radians); pitch: up/down, clamped.
+// Moving uses only the XY plane of the look direction, so looking up never flies you up.
+export const WALK = { eye: 5.5, speed: 4.5, run: 3, accel: 10, fov: 70, lookRadPerPx: 0.0025, pitchMax: 85 * DEG, stopAt: 1, followRate: 10, stepUp: 2 };
+
+// Start at the view target dropped to the floor under it, looking along the view direction
+// flattened to XY. floorZ(x, y, zFrom) returns the floor height under a point, or null.
+export function enterWalk(state, floorZ) {
+  const { d } = cameraBasis(state.azimuth, state.elevation);
+  const flat = Math.hypot(d[0], d[1]);
+  const yaw = flat > 1e-6 ? Math.atan2(-d[1], -d[0]) : state.azimuth + Math.PI;
+  const [x, y, z0] = state.target;
+  const f = floorZ ? floorZ(x, y, z0 + WALK.stepUp) : null; // the floor just below the target, not the roof
+  return {
+    saved: { ...state, target: state.target.slice() },
+    pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f + WALK.eye],
+    yaw, pitch: 0, vel: [0, 0], eyeOffset: 0, isCollision: true,
+  };
+}
+
+// Mouse look: +dx turns right (clockwise in plan), +dy looks down.
+export function walkLook(w, dx, dy) {
+  w.yaw -= dx * WALK.lookRadPerPx;
+  w.pitch = Math.max(-WALK.pitchMax, Math.min(WALK.pitchMax, w.pitch - dy * WALK.lookRadPerPx));
+  return w;
+}
+
+// One fixed time step. keys: { forward, back, left, right, up, down, run } (booleans).
+// env.floorZ(x, y, zFrom) -> floor height or null; env.hitDist(origin, dir2, max) -> distance to
+// the nearest wall along the XY direction, or null.
+export function walkStep(w, keys, dt, env = {}) {
+  const fwd = [Math.cos(w.yaw), Math.sin(w.yaw)], right = [Math.sin(w.yaw), -Math.cos(w.yaw)];
+  const f = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0), s = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+  let want = [fwd[0] * f + right[0] * s, fwd[1] * f + right[1] * s];
+  const n = Math.hypot(want[0], want[1]);
+  const speed = WALK.speed * (keys.run ? WALK.run : 1);
+  want = n > 0 ? [want[0] / n * speed, want[1] / n * speed] : [0, 0];
+  const k = Math.min(1, WALK.accel * dt); // smooth start and stop
+  w.vel = [w.vel[0] + (want[0] - w.vel[0]) * k, w.vel[1] + (want[1] - w.vel[1]) * k];
+  let step = [w.vel[0] * dt, w.vel[1] * dt];
+  const len = Math.hypot(step[0], step[1]);
+  if (len > 1e-9 && w.isCollision && env.hitDist) {
+    const dir = [step[0] / len, step[1] / len];
+    const hit = env.hitDist(w.pos, dir, len + WALK.stopAt);
+    if (hit !== null && hit !== undefined) {
+      const allowed = Math.max(0, hit - WALK.stopAt);
+      step = [dir[0] * Math.min(len, allowed), dir[1] * Math.min(len, allowed)];
+      if (allowed < len) w.vel = [0, 0];
+    }
+  }
+  w.pos[0] += step[0]; w.pos[1] += step[1];
+  const feet = w.pos[2] - WALK.eye - w.eyeOffset; // where the feet are now (before this step's Q/E)
+  w.eyeOffset += ((keys.up ? 1 : 0) - (keys.down ? 1 : 0)) * WALK.speed * dt;
+  const floor = env.floorZ ? env.floorZ(w.pos[0], w.pos[1], feet + WALK.stepUp) : null;
+  const targetZ = (floor === null || floor === undefined ? feet : floor) + WALK.eye + w.eyeOffset;
+  w.pos[2] += (targetZ - w.pos[2]) * Math.min(1, WALK.followRate * dt); // stairs and floors, smoothed
+  return w;
+}
+
+// The page camera for a walk: perspective, eye at pos, looking along yaw/pitch.
+export function walkView(w, state) {
+  const look = [Math.cos(w.pitch) * Math.cos(w.yaw), Math.cos(w.pitch) * Math.sin(w.yaw), Math.sin(w.pitch)];
+  return {
+    ...state, projection: 'perspective', fov: WALK.fov, distance: 1,
+    target: [w.pos[0] + look[0], w.pos[1] + look[1], w.pos[2] + look[2]],
+    azimuth: Math.atan2(-look[1], -look[0]), elevation: -w.pitch,
+  };
+}
+
+// ---- View cube (Revit conventions, Z up, Y = north) ----
+// Each face's normal points from the model toward the camera that looks at that face:
+// FRONT = camera south looking north; BACK = camera north looking south; RIGHT = camera east
+// looking west; LEFT = camera west looking east; TOP looks down; BOTTOM looks up.
+// a and b span the face (cell column and row directions, b is "up" on the face as drawn).
+export const CUBE_FACES = {
+  front: { n: [0, -1, 0], a: [1, 0, 0], b: [0, 0, 1] },
+  back: { n: [0, 1, 0], a: [-1, 0, 0], b: [0, 0, 1] },
+  right: { n: [1, 0, 0], a: [0, 1, 0], b: [0, 0, 1] },
+  left: { n: [-1, 0, 0], a: [0, -1, 0], b: [0, 0, 1] },
+  top: { n: [0, 0, 1], a: [1, 0, 0], b: [0, 1, 0] },
+  bottom: { n: [0, 0, -1], a: [1, 0, 0], b: [0, -1, 0] },
+};
+const faceOfNormal = v => Object.keys(CUBE_FACES).find(k => CUBE_FACES[k].n.every((x, i) => x === v[i]));
+
+// A cube region (1 face, 2 faces = an edge, 3 faces = a corner) -> the camera to go to.
+// Faces give the parallel view of that face; edges and corners keep the current projection.
+// Looking straight down or up, north stays at the top of the screen (BOTTOM: east is on the left).
+export function cubeView(names) {
+  const s = [0, 0, 0];
+  for (const k of names) CUBE_FACES[k].n.forEach((v, i) => { s[i] += v; });
+  const len = Math.hypot(s[0], s[1], s[2]);
+  const d = s.map(v => v / len);
+  let azimuth, elevation;
+  if (Math.abs(d[2]) > 1 - 1e-9) { elevation = Math.sign(d[2]) * 90 * DEG; azimuth = d[2] > 0 ? -90 * DEG : 90 * DEG; }
+  else { azimuth = Math.atan2(d[1], d[0]); elevation = Math.asin(d[2]); }
+  return { azimuth, elevation, projection: names.length === 1 ? 'parallel' : null };
+}
+
+const CELL = [[-1, -0.56], [-0.56, 0.56], [0.56, 1]];
+// The visible faces of the unit cube as seen by the camera, in screen units (x right, y up),
+// each split into a 3x3 grid: the center cell is the face, edge cells the edges, corner cells the corners.
+export function cubeLayout(state) {
+  const { r, u, d } = cameraBasis(state.azimuth, state.elevation);
+  const scr = p => [p[0] * r[0] + p[1] * r[1] + p[2] * r[2], p[0] * u[0] + p[1] * u[1] + p[2] * u[2]];
+  const faces = [];
+  for (const [name, f] of Object.entries(CUBE_FACES)) {
+    const facing = f.n[0] * d[0] + f.n[1] * d[1] + f.n[2] * d[2];
+    if (facing <= 1e-6) continue;
+    const at = (x, y) => scr([0, 1, 2].map(i => f.n[i] + f.a[i] * x + f.b[i] * y));
+    const cells = [];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      const [x0, x1] = CELL[i], [y0, y1] = CELL[j];
+      const names = [name];
+      if (i !== 1) names.push(faceOfNormal(f.a.map(v => v * (i - 1))));
+      if (j !== 1) names.push(faceOfNormal(f.b.map(v => v * (j - 1))));
+      cells.push({ names, pts: [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)] });
+    }
+    faces.push({ name, facing, outline: [at(-1, -1), at(1, -1), at(1, 1), at(-1, 1)], center: at(0, 0), cells });
+  }
+  // The compass ring lies in the XY plane under the cube; N = +Y.
+  const ring = [];
+  for (let k = 0; k <= 48; k++) { const t = (k / 48) * 2 * Math.PI; ring.push(scr([Math.cos(t) * 1.5, Math.sin(t) * 1.5, -1])); }
+  const compass = { N: scr([0, 1.95, -1]), E: scr([1.95, 0, -1]), S: scr([0, -1.95, -1]), W: scr([-1.95, 0, -1]) };
+  return { faces, ring, compass };
+}
+
+// ---- Cursors: soft, rounded SVG shapes, value palette only ----
+// Paper fill with an ink outline on BOTH themes: paper is the most legible
+// mark on the night field, and the ink outline separates it on paper.
+// Paper theme: a soft dark drop shadow. Night theme: a dark shadow cannot
+// show on near-black, so a soft paper halo (a glow) takes its place.
+// Shapes keep >= 3px padding inside the 32px canvas so the blur is not clipped.
+export const CURSOR_INK = '#0a0a0a';
+export const CURSOR_PAPER = '#f4f4f1';
+const PLUMP_ARROW = 'M7.5 4.8 L7.5 21.6 Q7.5 24.2 9.6 22.6 L12.4 20.4 L14.9 25.6 Q15.7 27.2 17.3 26.5 L18.9 25.8 Q20.5 25.1 19.7 23.5 L17.3 18.4 L21.3 18.2 Q23.9 18.1 22.1 16.3 L9.9 4.8 Q7.5 2.9 7.5 4.8 Z';
+export const CURSOR_SHAPES = {
+  idle: { hot: [8, 5], fill: PLUMP_ARROW },
+  hover: { hot: [8, 5], fill: PLUMP_ARROW, dot: [24.6, 24.2] },
+  rotate: { hot: [16, 16], strokes: [['M22.6 12.2 A7.6 7.6 0 1 0 22.2 20.6', 6.2, 3], ['M18.6 12.4 L22.8 12.6 L23.2 8.4', 6.2, 3]] },
+  pan: { hot: [16, 16], strokes: [['M12.4 9 L16 5.4 L19.6 9', 5.6, 2.6], ['M12.4 23 L16 26.6 L19.6 23', 5.6, 2.6], ['M9 12.4 L5.4 16 L9 19.6', 5.6, 2.6], ['M23 12.4 L26.6 16 L23 19.6', 5.6, 2.6]], center: 3.2 },
+  zoom: { hot: [13, 13], strokes: [['M19.4 19.4 L25.4 25.4', 7.6, 4.2], ['M13 6 A7 7 0 1 0 13 20 A7 7 0 1 0 13 6 Z', 6, 3]], plus: [13, 13, 3] },
+};
+
+export function cursorSvg(name, theme = 'paper', opts = {}) {
+  const s = CURSOR_SHAPES[name];
+  if (!s) throw new Error('Unknown cursor ' + name);
+  const isNight = theme === 'night';
+  const shadow = isNight
+    ? '<feDropShadow dx="0" dy="0" stdDeviation="1.1" flood-color="' + CURSOR_PAPER + '" flood-opacity="0.35"/>'
+    : '<feDropShadow dx="0.6" dy="1.2" stdDeviation="1.1" flood-color="' + CURSOR_INK + '" flood-opacity="0.45"/>';
+  const hasFilter = opts.filter !== false;
+  let body = '';
+  if (s.fill) body += '<path d="' + s.fill + '" fill="' + CURSOR_PAPER + '" stroke="' + CURSOR_INK + '" stroke-width="2.2" stroke-linejoin="round"/>';
+  for (const [d, outer] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_INK + '" stroke-width="' + outer + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  for (const [d, , inner] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_PAPER + '" stroke-width="' + inner + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  if (s.center) body += '<circle cx="16" cy="16" r="' + s.center + '" fill="' + CURSOR_INK + '" stroke="' + CURSOR_PAPER + '" stroke-width="1.6"/>';
+  if (s.plus) {
+    const [x, y, h] = s.plus;
+    body += '<path d="M' + (x - h) + ' ' + y + ' L' + (x + h) + ' ' + y + ' M' + x + ' ' + (y - h) + ' L' + x + ' ' + (y + h) + '" stroke="' + CURSOR_INK + '" stroke-width="1.8" stroke-linecap="round"/>';
+  }
+  if (s.dot) body += '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="3.6" fill="' + CURSOR_INK + '" stroke="' + CURSOR_PAPER + '" stroke-width="1.6"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    (hasFilter ? '<defs><filter id="s" x="-30%" y="-30%" width="160%" height="160%">' + shadow + '</filter></defs><g filter="url(#s)">' : '<g>') +
+    body + '</g></svg>';
+}
+
+export function cursorCss(name, theme = 'paper') {
+  const s = CURSOR_SHAPES[name];
+  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
+  return 'url("data:image/svg+xml,' + encodeURIComponent(cursorSvg(name, theme)) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
+}
+
+// ---- Gumball: manual move / rotate edits (viewer copy only) ----
+// Handles: 'x', 'y', 'z' move along world X (east), Y (north), Z (up);
+// 'rz' rotates about world Z through the element's center. Rotation is
+// counterclockwise-positive in plan (seen from above), as in Revit.
+export const GUMBALL = { moveSnap: 0.5, rotateSnap: 5 };
+const AXIS_INDEX = { x: 0, y: 1, z: 2 };
+
+export function snapTo(value, step) {
+  return Math.round(value / step) * step + 0; // + 0 turns -0 into 0
+}
+
+// World units per screen pixel at the target plane.
+export function worldPerPixel(state, viewportHeightPx) {
+  return (halfHeight(state) * 2) / Math.max(1, viewportHeightPx);
+}
+
+// A gumball drag from screen point a to b (page pixels, y down).
+// view: { height } of the viewport in px, and for 'rz' the screen point of the
+// rotation center as view.pivot. Returns { move: [dx, dy, dz] } in ft, or
+// { rotateZ } in degrees. isFree (Alt held) turns snapping off.
+export function gumballDrag(handle, state, a, b, view, isFree = false) {
+  const basis = cameraBasis(state.azimuth, state.elevation);
+  if (handle in AXIS_INDEX) {
+    const k = AXIS_INDEX[handle];
+    const s = [basis.r[k], basis.u[k]]; // screen direction of the world axis, y up
+    const len2 = s[0] * s[0] + s[1] * s[1];
+    const move = [0, 0, 0];
+    if (len2 > 0.04) { // an axis that points at the viewer cannot be dragged along
+      const d = [b.x - a.x, -(b.y - a.y)];
+      const amount = ((d[0] * s[0] + d[1] * s[1]) / len2) * worldPerPixel(state, view.height);
+      move[k] = isFree ? amount : snapTo(amount, GUMBALL.moveSnap);
+    }
+    return { move };
+  }
+  if (handle === 'rz') {
+    let deg;
+    const se = Math.sin(state.elevation);
+    if (Math.abs(se) < 0.2) {
+      deg = (b.x - a.x) * 0.5; // ring seen edge-on: a horizontal drag turns it
+    } else {
+      const p = view.pivot;
+      const a0 = Math.atan2(-(a.y - p.y), a.x - p.x), a1 = Math.atan2(-(b.y - p.y), b.x - p.x);
+      let t = a1 - a0;
+      while (t > Math.PI) t -= 2 * Math.PI;
+      while (t < -Math.PI) t += 2 * Math.PI;
+      deg = ((t * 180) / Math.PI) * Math.sign(se); // seen from below, screen CCW is plan CW
+    }
+    return { rotateZ: isFree ? deg : snapTo(deg, GUMBALL.rotateSnap) };
+  }
+  throw new Error('Unknown gumball handle ' + handle);
+}
+
+// Pending edits: one record per element, in the order first edited.
+// Final position = rotate the original about pivot (its original center) by
+// rotateZ, then translate by move. A later rotation turns about the current
+// center (pivot + move), and this form composes that exactly.
+export function createEdits() {
+  return { order: [], byId: {} };
+}
+
+export function editRecord(edits, el) {
+  const key = String(el.id);
+  if (!edits.byId[key]) {
+    const b = elementBounds(el);
+    edits.byId[key] = { id: el.id, el, move: [0, 0, 0], rotateZ: 0, pivot: [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2) };
+    edits.order.push(key);
+  }
+  return edits.byId[key];
+}
+
+export function applyDrag(record, result) {
+  if (result.move) record.move = record.move.map((v, i) => v + result.move[i]);
+  if (result.rotateZ) record.rotateZ += result.rotateZ;
+  return record;
+}
+
+// One drag on one element. update() previews the drag result on top of the
+// record as it was at the start; cancel() (Esc) puts it back; commit() keeps
+// it (and drops a record the drag left without any change).
+export function beginGumballDrag(edits, el) {
+  const isNew = !edits.byId[String(el.id)];
+  const record = editRecord(edits, el);
+  const base = { move: record.move.slice(), rotateZ: record.rotateZ };
+  const reset = () => { record.move = base.move.slice(); record.rotateZ = base.rotateZ; };
+  return {
+    record,
+    update(result) { reset(); return applyDrag(record, result); },
+    cancel() { if (isNew) undoEdit(edits, el.id); else reset(); },
+    commit() { if (isNew && isIdentity(record)) undoEdit(edits, el.id); return record; },
+  };
+}
+
+export function isIdentity(record) {
+  return record.move.every(v => Math.abs(v) < 1e-9) && Math.abs(record.rotateZ % 360) < 1e-9;
+}
+
+export function undoEdit(edits, id) {
+  const key = String(id);
+  delete edits.byId[key];
+  edits.order = edits.order.filter(k => k !== key);
+}
+
+export function clearEdits(edits) {
+  edits.order = [];
+  edits.byId = {};
+}
+
+export function pendingEdits(edits) {
+  return edits.order.map(k => edits.byId[k]).filter(r => !isIdentity(r));
+}
+
+// Column-major 4x4 (three.js Matrix4.fromArray order) for a record.
+export function editMatrix(record) {
+  const t = (record.rotateZ * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  const [px, py] = record.pivot, [mx, my, mz] = record.move;
+  const tx = px + mx - (c * px - s * py), ty = py + my - (s * px + c * py);
+  return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, tx, ty, mz, 1];
+}
+
+export function applyEditToPoint(record, p) {
+  const m = editMatrix(record);
+  return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+}
+
+const roundTo = (v, n) => { const f = Math.pow(10, n); return Math.round(v * f) / f + 0; };
+
+// The hand-off contract for Revit. It is applied only through am-safe-change.
+export function exportTransforms(edits) {
+  return {
+    kind: 'element-transforms',
+    source: 'am-bim-viewer',
+    units: 'ft',
+    items: pendingEdits(edits).map(r => ({
+      id: r.id,
+      name: r.el.name || ((r.el.category || 'Generic') + ' ' + r.id),
+      category: r.el.category || 'Generic',
+      move: r.move.map(v => roundTo(v, 4)),
+      rotateZ: roundTo(r.rotateZ, 3),
+      pivot: r.pivot.map(v => roundTo(v, 4)),
+    })),
+  };
+}
+
+// ---- Typed gumball input: architect units ----
+export const LENGTH_HINT = 'Type a length, for example 2.5, 2\'6", 2\'-6 1/2", 30", 750mm or 0.75m.';
+export const ANGLE_HINT = 'Type an angle in degrees, for example 15, -90 or 22.5.';
+const METRIC_PER_FT = { mm: 304.8, cm: 30.48, m: 0.3048 };
+
+// "2.5" (decimal feet), "2'6\"", "2' 6\"", "2'-6 1/2\"", "2'6", "30\"", "6 1/2\"", "750mm", "0.75m",
+// with an optional leading sign. Returns { ft } or { error } (plain words).
+export function parseLength(text) {
+  const s = String(text === undefined || text === null ? '' : text).trim().replace(/[′’]/g, "'").replace(/[″”]/g, '"');
+  let m = /^([+-]?)\s*(\d+(?:\.\d*)?|\.\d+)\s*(mm|cm|m)$/i.exec(s);
+  if (m) { const v = Number(m[2]) / METRIC_PER_FT[m[3].toLowerCase()]; return { ft: m[1] === '-' ? -v : v }; }
+  m = /^([+-]?)\s*(\d+(?:\.\d*)?|\.\d+)$/.exec(s);
+  if (m) { const v = Number(m[2]); return { ft: m[1] === '-' ? -v : v }; }
+  if (!/['"]/.test(s)) return { error: LENGTH_HINT };
+  m = /^([+-]?)\s*(?:(\d+(?:\.\d+)?)\s*')?\s*-?\s*(\d+(?:\.\d+)?)?(?:\s*-?\s*(\d+)\s*\/\s*(\d+))?\s*("?)$/.exec(s);
+  if (!m || (m[2] === undefined && m[3] === undefined && m[4] === undefined)) return { error: LENGTH_HINT };
+  if (m[2] === undefined && m[6] !== '"') return { error: LENGTH_HINT }; // inches need the " mark
+  if (m[5] !== undefined && Number(m[5]) === 0) return { error: 'The fraction cannot divide by zero. ' + LENGTH_HINT };
+  const inches = Number(m[3] || 0) + (m[4] !== undefined ? Number(m[4]) / Number(m[5]) : 0);
+  const v = Number(m[2] || 0) + inches / 12;
+  return { ft: m[1] === '-' ? -v : v };
+}
+
+export function parseAngle(text) {
+  const m = /^([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+))\s*(?:°|deg|degrees?)?$/i.exec(String(text === undefined || text === null ? '' : text).trim());
+  return m ? { deg: Number(m[1].replace(/\s+/g, '')) } : { error: ANGLE_HINT };
+}
+
+// 2.541666 -> 2'-6 1/2" (inches rounded to 1/16").
+export function formatFeetInches(ft) {
+  const sign = ft < 0 ? '-' : '';
+  let sixteenths = Math.round(Math.abs(ft) * 12 * 16);
+  const feet = Math.floor(sixteenths / (12 * 16));
+  sixteenths -= feet * 12 * 16;
+  const whole = Math.floor(sixteenths / 16);
+  let num = sixteenths - whole * 16, den = 16;
+  while (num && num % 2 === 0) { num /= 2; den /= 2; }
+  return sign + feet + "'-" + whole + (num ? ' ' + num + '/' + den : '') + '"';
+}
+
+// Live readout for typed entry: "move x +2'-6\" (2.500 ft)", "rotate 15 deg".
+export function typedReadout(handle, value) {
+  if (handle === 'rz') return 'rotate ' + value + ' deg';
+  return 'move ' + handle + ' ' + (value < 0 ? '' : '+') + formatFeetInches(value) + ' (' + value.toFixed(3) + ' ft)';
+}
+
+// Typed values apply exactly (no snap) and add to the pending change, like a drag.
+export function applyTyped(edits, el, handle, value) {
+  const d = beginGumballDrag(edits, el);
+  if (handle === 'rz') d.update({ rotateZ: value });
+  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = value; d.update({ move }); }
+  return d.commit();
+}
+
+// Side-panel fields set the pending change to absolute values (move in ft, rotateZ in deg).
+export function setEditValues(edits, el, values) {
+  const rec = editRecord(edits, el);
+  if (values.move) rec.move = values.move.slice();
+  if (values.rotateZ !== undefined) rec.rotateZ = values.rotateZ;
+  if (isIdentity(rec)) undoEdit(edits, el.id);
+  return rec;
+}
+
+function signed(v, digits) { return (v < 0 ? '-' : '+') + Math.abs(v).toFixed(digits); }
+
+// Live readout next to the cursor during a drag: "move x +2.50 ft", "rotate 15 deg".
+export function gumballReadout(handle, result) {
+  if (handle === 'rz') return 'rotate ' + (Number.isInteger(result.rotateZ) ? String(result.rotateZ) : result.rotateZ.toFixed(1)) + ' deg';
+  return 'move ' + handle + ' ' + signed(result.move[AXIS_INDEX[handle]], 2) + ' ft';
 }

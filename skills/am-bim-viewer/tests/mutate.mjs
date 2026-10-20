@@ -42,9 +42,34 @@ const MUTANTS = [
     'z: bounds.min[2] - extent * 1e-4,', 'z: (bounds.min[2] + bounds.max[2]) / 2,'],
   ['repeat click on the selected element counts as a change',
     'isChanged: String(id) !== String(currentId)', 'isChanged: true'],
+  ['gumball: screen y not flipped (Y arrow drags south)',
+    'const d = [b.x - a.x, -(b.y - a.y)];', 'const d = [b.x - a.x, b.y - a.y];'],
+  ['gumball: rotate ring clockwise-positive',
+    'deg = ((t * 180) / Math.PI) * Math.sign(se);', 'deg = ((t * 180) / Math.PI) * -Math.sign(se);'],
+  ['gumball: move ignores the 1/2 ft snap',
+    'move[k] = isFree ? amount : snapTo(amount, GUMBALL.moveSnap);', 'move[k] = amount;'],
+  ['gumball: Esc keeps the previewed drag',
+    'cancel() { if (isNew) undoEdit(edits, el.id); else reset(); },', 'cancel() {},'],
+  ['gumball: export keeps no-op records',
+    'return edits.order.map(k => edits.byId[k]).filter(r => !isIdentity(r));', 'return edits.order.map(k => edits.byId[k]);'],
+  ['typed input: inches read as feet (inch conversion broken)',
+    'const v = Number(m[2] || 0) + inches / 12;', 'const v = Number(m[2] || 0) + inches;'],
+  ['typed input: metric divisor wrong (mm read as cm)',
+    'mm: 304.8, cm: 30.48', 'mm: 30.48, cm: 30.48'],
+  ['typed input: snapped like a drag',
+    "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = value; d.update({ move }); }", "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = snapTo(value, GUMBALL.moveSnap); d.update({ move }); }"],
+  ['view cube: FRONT and BACK swapped (front camera on the north side)',
+    'front: { n: [0, -1, 0],', 'front: { n: [0, 1, 0],'],
+  ['view cube: BOTTOM with north down',
+    "azimuth = d[2] > 0 ? -90 * DEG : 90 * DEG;", "azimuth = -90 * DEG;"],
+  ['walk: mouse look yaw sign flipped (+x turns left)',
+    'w.yaw -= dx * WALK.lookRadPerPx;', 'w.yaw += dx * WALK.lookRadPerPx;'],
+  ['walk: collision stops at the wall face, not 1 ft before',
+    'const allowed = Math.max(0, hit - WALK.stopAt);', 'const allowed = Math.max(0, hit);'],
+  ['walk: eye at the floor, not 5.5 ft above it',
+    'pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f + WALK.eye],', 'pos: [x, y, f === null || f === undefined ? z0 + WALK.eye : f],'],
 ];
-
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs', 'viewcube.test.mjs', 'walk.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;

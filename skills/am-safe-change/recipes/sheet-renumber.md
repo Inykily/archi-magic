@@ -46,7 +46,7 @@ Options: `--step -1` (shift down), `--scope after` or `--scope custom --ids 123,
 How the computation works (`scripts/lib/sheet_shift.py`):
 
 - A number is split into a prefix, digits and a suffix: `A301a` is `A` + `301` + `a`. The new number keeps the zero padding (`A-009` becomes `A-010`) and the suffix.
-- Sheet numbers must be unique in a Revit document. Revit rejects `A302` while another sheet still has `A302`. So the steps are ordered: the highest number moves first (A307 to A308, then A306 to A307, and so on).
+- Sheet numbers must be unique in a Revit document. Revit rejects `A302` while another sheet still has `A302`. So the steps are ordered. For an upward shift, the highest number moves first (A307 to A308, then A306 to A307, and so on). For a downward shift (negative step), the lowest number moves first (A302 to A301, then A303 to A302, and so on). Neither order needs temporary numbers.
 - If that order cannot work (possible when you close gaps), the steps go through temporary numbers `TMP-AMSC-<id>` in the same transaction. Revit does not allow `~` and some other characters in a sheet number, so the temporary prefix does not use them.
 - The compute step replays every step on a copy of the numbers. It stops if any step would reuse a number that is still in use.
 - Blocking warnings (Apply is not allowed):

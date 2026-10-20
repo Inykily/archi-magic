@@ -15,8 +15,51 @@ jobs:
       - name: Skill folders, names and README stay in sync
         shell: pwsh
         run: ./scripts/check-skills.ps1
+      - name: Time-of-day theme logic
+        run: node design/tests/theme.test.js
       - name: Plugin content changes come with a version bump
         shell: pwsh
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: ./scripts/check-version-bump.ps1 -Base "$env:BASE"
+
+  # Users run every script under Windows PowerShell 5.1, not pwsh. 5.1 reads a BOM-less
+  # .ps1 as ANSI, so a non-ASCII character can break a script only there.
+  windows-ps51:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every .ps1 parses under Windows PowerShell 5.1
+        run: |
+          "PowerShell $($PSVersionTable.PSVersion)"
+          $files = @(Get-ChildItem -Recurse -File -Filter *.ps1 | Where-Object { $_.FullName -notmatch '[\\/](\.git|node_modules)[\\/]' })
+          $bad = 0
+          foreach ($f in $files) {
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$errors)
+            foreach ($e in @($errors)) {
+              if ($e) { "PARSE ERROR $($f.FullName):$($e.Extent.StartLineNumber) $($e.Message)"; $bad++ }
+            }
+          }
+          "Parsed $($files.Count) .ps1 file(s), $bad error(s)"
+          if ($files.Count -eq 0) { 'FAIL: no .ps1 files found'; exit 1 }
+          if ($bad -gt 0) { exit 1 }
+      - name: check-skills under Windows PowerShell 5.1
+        run: |
+          .\scripts\check-skills.ps1
+          exit $LASTEXITCODE
+      - name: am-welcome list-skills prints every sibling skill
+        run: |
+          $out = @(& .\skills\am-welcome\scripts\list-skills.ps1)
+          if ($LASTEXITCODE -ne 0) { "FAIL: list-skills.ps1 exited $LASTEXITCODE"; exit 1 }
+          $listed = @($out | ForEach-Object { ($_ -split "`t")[0] })
+          $expected = @(Get-ChildItem .\skills -Directory -Filter 'am-*' | Where-Object { $_.Name -ne 'am-welcome' } | ForEach-Object Name)
+          $missing = @($expected | Where-Object { $listed -notcontains $_ })
+          $extra = @($listed | Where-Object { $expected -notcontains $_ })
+          "Expected $($expected.Count), listed $($listed.Count)"
+          if ($missing.Count -gt 0) { "FAIL: missing: $($missing -join ', ')"; exit 1 }
+          if ($extra.Count -gt 0) { "FAIL: unexpected: $($extra -join ', ')"; exit 1 }
+          if ($expected.Count -eq 0) { 'FAIL: no am-* skills found'; exit 1 }

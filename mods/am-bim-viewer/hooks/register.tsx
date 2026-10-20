@@ -235,7 +235,7 @@ export const register: Register = on => {
       )
     }
     const { Svg } = $.ui.resolve(e)
-    const drawing = renderSvg(visible, state, { width, height, selected: pane.selected, background: '#efece4' })
+    const drawing = renderSvg(visible, state, { width, height, selected: pane.selected, background: '#0a0a0a' })
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>{title}</Text>
@@ -243,7 +243,7 @@ export const register: Register = on => {
         <Svg source={drawing.svg} isInteractive width={width} height={height}
           alt={'BIM view, ' + pane.view + ' view, ' + visible.length + ' elements. Hover an element to see its name and ID.'} />
         {drawing.isCut && <Text dimColor>Inline preview draws the nearest {drawing.drawn} of {drawing.total} triangles. Open the 3D viewer for the full model.</Text>}
-        <Text dimColor>Hover an element for its name and ID. X red = East, Y green = North (Project North), Z blue = Up.</Text>
+        <Text dimColor>Hover an element for its name and ID. Categories are told apart by gray value; the selected element is paper with one ink dot. Axes: X solid = East, Y dashed = North (Project North), Z dotted = Up.</Text>
         {chips}
         {picker}
         {props}

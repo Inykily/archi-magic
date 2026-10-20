@@ -1,6 +1,6 @@
 ---
 name: am-doctor
-description: Find and fix problems with archi-magic, pyRevit 7 and the Claude-to-Revit connection. Checks the live setup (pyRevit 7 install, Revit manifests, Agent Runtime, open model, Claude Code MCP registration) and the last 14 days of archi-magic logs, explains each finding, runs the matching fix after the user approves, and can draft a GitHub issue. Use when something stopped working, "pyrevit tools not working", "Claude can't see my Revit model", "Revit still loads pyRevit 6", "agent not responding", "pyrevit mcp missing", "the install crashed", "run the doctor", "diagnose archi-magic". NOT for first-time setup (use am-pyrevit7-setup).
+description: Find and fix problems with archi-magic, pyRevit 7 and the Claude-to-Revit connection. Checks the live setup (pyRevit 7 install, Revit manifests, Agent Runtime, open model, Claude Code MCP registration, the superpowers and frontend-design plugin dependencies) and the last 14 days of archi-magic logs, explains each finding, runs the matching fix after the user approves, and can draft a GitHub issue. Use when something stopped working, "pyrevit tools not working", "Claude can't see my Revit model", "Revit still loads pyRevit 6", "agent not responding", "pyrevit mcp missing", "the install crashed", "run the doctor", "diagnose archi-magic". NOT for first-time setup (use am-pyrevit7-setup).
 ---
 
 # am-doctor
@@ -24,7 +24,7 @@ Diagnose archi-magic problems with the tested script `scripts/doctor.ps1` in thi
    - Exit 1: problems found (severity `warn` or `error`).
    - Exit 2: no problem found, but some part was not checked. Say which part, and say what the user can do so it can be checked.
 2. Explain each `error`, `warn` and `unchecked` line in plain words. Say what is wrong, why it matters, and what the fix does. Mention `info` lines only when they help.
-3. Ask which fix to run. Use AskUserQuestion. Put the fix for the most basic problem first, with "(Recommended)", in this order: PY7_MISSING, INSTALL_CRASH, REPOINT_NEEDED, AGENT_DISABLED, MCP_MISSING / MCP_WRONG_PATH, POLICY_AUTO. Add a "Not now" option.
+3. Ask which fix to run. Use AskUserQuestion. Put the fix for the most basic problem first, with "(Recommended)", in this order: DEPS_MISSING, PY7_MISSING, INSTALL_CRASH, REPOINT_NEEDED, AGENT_DISABLED, MCP_MISSING / MCP_WRONG_PATH, POLICY_AUTO. Add a "Not now" option.
 4. Run only the fix that the user picked:
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\doctor.ps1" -Fix <CODE>`
    - Exit 4 means there is no automatic fix. Give the user the manual step from the `fix` column.
@@ -48,8 +48,15 @@ Diagnose archi-magic problems with the tested script `scripts/doctor.ps1` in thi
 | MCP_WRONG_PATH | The `pyrevit` MCP command is not the full pyRevit 7 path. | am-pyrevit7-setup `-EnableAgent`, then a new Claude Code session. |
 | POLICY_AUTO | The agent policy is `auto`, so model changes skip the Keep/Discard approval. | `pyrevit configs agent policy ask`. |
 | DOCS_OFFLINE | The pyRevit docs search could not refresh. It uses the cached copy. | None needed. |
+| DEPS_MISSING | archi-magic is installed, but `superpowers@archi-magic` or `frontend-design@archi-magic` is missing, or its install folder or `.claude-plugin\plugin.json` is gone ("failed to load"). This happened after `claude plugin update` from 0.1.0 to 0.4.1. The doctor only reads `%USERPROFILE%\.claude\plugins\installed_plugins.json` (no network). | `claude plugin install <name>@archi-magic` for each missing one. Then the user quits and restarts the Claude app. |
 
 If Revit stays busy (a command or a dialog is open), the agent check shows `AGENT_STATUS | unchecked`. Ask the user to finish the command, then run the doctor again.
+
+## When archi-magic does not load
+
+If a dependency is missing, archi-magic fails to load, so this skill cannot start. Run the script directly in a terminal:
+`powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\.claude\plugins\cache\archi-magic\archi-magic\<version>\skills\am-doctor\scripts\doctor.ps1" -Only deps`
+If it shows DEPS_MISSING, run it again with `-Fix DEPS_MISSING`, then restart the Claude app.
 
 ## Shared log
 

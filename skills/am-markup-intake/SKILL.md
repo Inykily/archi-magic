@@ -62,6 +62,7 @@ Run these scripts. Do not rewrite them.
    - Change the records or the tracker as the user says. Run step 5 again. Never change the verbatim text.
 10. **Hand off.**
     - Rows with the next step "Model change -> am-safe-change" go to `am-safe-change`, one change at a time, with its preview and the Revit Keep/Discard. This skill never changes the model.
+    - Rows with the next step "Check in model (read-only)" are questions that name a room, door, window, grid, detail or sheet. Look up the answer with a read-only `run_query` (never `run_modify`), as in step 6. Then give the user the answer for the reviewer.
     - Other rows stay a checklist: drawing edits, answers to reviewers, RFIs (requests for information) to consultants.
     - Ask with AskUserQuestion: **Save the tracker next to the markups (Recommended)** copies `tracker.csv`, `tracker.json` and `tracker.html` to the markup folder / **Keep it in the work folder only**.
 
@@ -106,7 +107,7 @@ Record file format (`kind: "markup-records"`):
 - **Replies.** A Bluebeam or Acrobat reply attaches to its parent item. It is not a new item.
 - **Conflicts.** Two items on the same sheet and location, from different reviewers, that ask for different values or opposite actions ("widen" and "keep"). A conflict is always high priority, with the next step "Decide between reviewers first".
 - **Priority.** High: a conflict, or life-safety and code words (fire, egress, exit, rated, accessibility, structural). Low: FYI. All others: medium.
-- **Next step.** Question: answer the reviewer, or an RFI to a consultant. FYI: no action. Change: "Model change -> am-safe-change" for model elements, "Drawing edit" for notes, dimensions and details, or the consultant for other disciplines.
+- **Next step.** Question: "Check in model (read-only)" when the question names a room, door, window, grid, detail or sheet ("Verify door swing at Room 205"); else answer the reviewer; an RFI for a consultant discipline. FYI: no action. Change: "Model change -> am-safe-change" for model elements, "Drawing edit" for notes, dimensions and details, or the consultant for other disciplines.
 - The script never changes or "cleans" the verbatim text. Interpretations always show as "[interpretation] ...".
 
 ## No Python

@@ -146,7 +146,10 @@ test('Inline SVG preview: Top view puts the NE column top-right, fits the Svg li
   const out = core.renderSvg(DATA.elements, state, { width: 640, height: 400, selected: byName('NE corner column').id });
   assert.ok(out.svg.length < 131072, 'svg chars ' + out.svg.length);
   assert.equal(out.isCut, false);
-  assert.ok(out.svg.includes('rgb(255,176,0)'), 'selected element drawn in the highlight color');
+  const colGroupOf = svg => svg.split('<g>').find(g => g.includes('NE corner column')).split('</g>')[0];
+  assert.ok(colGroupOf(out.svg).includes('fill="rgb(244,244,241)"'), 'selected element drawn in flat paper (--v7)');
+  assert.ok(!colGroupOf(core.renderSvg(DATA.elements, state, { width: 640, height: 400 }).svg).includes('rgb(244,244,241)'), 'unselected column is not paper');
+  assert.equal(out.svg.split('fill="rgb(10,10,10)"').length - 1, 1, 'exactly one focal ink dot marks the selection');
   const colGroup = out.svg.split('<g>').find(g => g.includes('NE corner column'));
   const xs = [...colGroup.matchAll(/[ML]([\d.]+) ([\d.]+)/g)].map(m => [Number(m[1]), Number(m[2])]);
   const cx = xs.reduce((a, p) => a + p[0], 0) / xs.length, cy = xs.reduce((a, p) => a + p[1], 0) / xs.length;

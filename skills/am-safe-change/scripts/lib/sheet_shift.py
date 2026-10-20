@@ -153,16 +153,18 @@ def compute_targets(moving, step=1, keep_gaps=True):
     return targets
 
 
-def order_changes(changes):
+def order_changes(changes, step=1):
     """Order (id, old, new) changes so no step reuses a number still in use.
 
-    For an upward shift, the sheet with the highest number moves first, so its
+    step > 0 (upward): the sheet with the highest number moves first, so its
     old number is free before the sheet below takes it.
+    step < 0 (downward): the sheet with the lowest number moves first, so its
+    old number is free before the sheet above takes it.
     """
     def sort_key(c):
         p = parse_number(c[1])
         return (int(p[1]) if p else -1, c[1])
-    return sorted(changes, key=sort_key, reverse=True)
+    return sorted(changes, key=sort_key, reverse=(step >= 0))
 
 
 def simulate(sheets, steps):
@@ -191,14 +193,15 @@ def simulate(sheets, steps):
     return errors
 
 
-def build_steps(sheets, changes):
+def build_steps(sheets, changes, step=1):
     """Return (steps, used_temp). Steps are [id, from, to].
 
-    First try the plain order from order_changes. Only when the simulation
-    proves that order fails (possible when gaps are closed) use two passes
-    through unique temporary numbers ("TMP-AMSC-<id>").
+    First try the plain order from order_changes (highest-first for step > 0,
+    lowest-first for step < 0). Only when the simulation proves that order
+    fails (possible when gaps are closed) use two passes through unique
+    temporary numbers ("TMP-AMSC-<id>").
     """
-    ordered = [[c[0], c[1], c[2]] for c in order_changes(changes)]
+    ordered = [[c[0], c[1], c[2]] for c in order_changes(changes, step)]
     if not simulate(sheets, ordered):
         return ordered, False
     steps = []
@@ -260,7 +263,7 @@ def compute_shift(sheets, start, step=1, scope="series", keep_gaps=True,
     changes = [(sid, by_id[sid]["number"], targets[sid]) for sid in targets
                if targets[sid] != by_id[sid]["number"]]
     blocked = any(w["blocking"] for w in warnings)
-    steps, used_temp = ([], False) if blocked else build_steps(sheets, changes)
+    steps, used_temp = ([], False) if blocked else build_steps(sheets, changes, step)
     if steps:
         errs = simulate(sheets, steps)
         if errs:
@@ -287,7 +290,8 @@ def compute_shift(sheets, start, step=1, scope="series", keep_gaps=True,
             "included" if include_placeholders else "excluded"),
         "%d of %d sheets change." % (len(changes), len(sheets)),
         "Order: %s." % ("two passes through temporary numbers" if used_temp
-                         else "highest number first, no temporary numbers"),
+                         else "%s number first, no temporary numbers" % (
+                             "lowest" if step < 0 else "highest")),
     ]
     if blocked:
         notes.append("BLOCKED: resolve the blocking warnings before apply.")

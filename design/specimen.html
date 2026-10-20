@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visual Research Specimen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<script src="theme.js"></script>
+<style>
+  body { margin: 0; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: var(--space-6) var(--space-4); display: grid; gap: var(--space-6); }
+  section { position: relative; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: var(--hair) solid var(--line); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
+
+  /* poster: beam + vignette + construction geometry, all from tokens */
+  .poster { position: relative; height: 560px; overflow: hidden; background: var(--bg); }
+  .poster::before { content: ""; position: absolute; inset: 0; background: var(--vignette), var(--beam-hero); filter: blur(18px); transform: scale(1.08); }
+  .poster .title, .poster .t1, .poster .t2 { color: var(--on-beam); z-index: 1; }
+  .poster .t1 .am-quiet, .poster .t2 .am-quiet { color: var(--v3); }
+  .poster .title .am-micro, .poster .title .am-index, .poster .am-lead { color: var(--on-beam); }
+  .poster svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .poster .title { position: absolute; top: 28px; left: 0; right: 0; text-align: center; }
+  .poster .t1 { position: absolute; top: 34%; left: 0; right: 0; text-align: center; }
+  .poster .t2 { position: absolute; top: 80%; left: 0; right: 0; text-align: center; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .poster { height: 440px; } }
+
+  /* segmented control */
+  /* dividers come from the 1px gap showing the hairline color behind the buttons */
+  .seg { display: inline-flex; justify-self: start; gap: var(--hair); background: var(--line); border: var(--hair) solid var(--line-strong); }
+  .seg button { font: inherit; font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; background: var(--bg); color: var(--ink-2); border: 0; padding: 7px 14px; cursor: pointer; transition: color var(--slow) var(--ease); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  /* chips: hairline pills, value swatch, never color */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .chip { font: inherit; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 8px; border-radius: var(--round); border: var(--hair) solid var(--line); background: none; color: var(--ink-2); cursor: pointer; text-transform: lowercase; }
+  .chip .sw { width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); }
+  .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--line-strong); }
+  .chip[aria-pressed="false"] .sw { background: none !important; }
+  .chip .n { color: var(--ink-3); }
+
+  /* property sheet */
+  dl { display: grid; grid-template-columns: 140px 1fr; margin: 0; }
+  dt, dd { margin: 0; padding: 7px 0; border-bottom: var(--hair) solid var(--line); }
+  dt { color: var(--ink-2); text-transform: lowercase; }
+  dd .u { color: var(--ink-3); }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: var(--w-regular); font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); border-bottom: var(--hair) solid var(--line-strong); padding: 8px 10px 8px 0; }
+  td { border-bottom: var(--hair) solid var(--line); padding: 8px 10px 8px 0; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { border-bottom-color: var(--line-strong); }
+  .old { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .new { color: var(--ink); }
+  .arrow { color: var(--ink-3); padding: 0 6px; }
+
+  .banner { padding: 10px 14px; border: var(--hair) solid var(--line-strong); display: flex; gap: 12px; align-items: center; }
+  .banner.blocked { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .status-row { display: flex; gap: var(--space-5); flex-wrap: wrap; }
+  .status-row span { display: inline-flex; gap: 8px; align-items: center; }
+
+  .empty { height: 300px; position: relative; display: grid; place-items: end center; padding-bottom: 26px; }
+  .empty svg { position: absolute; top: 18px; left: 0; right: 0; margin: 0 auto; width: 220px; height: 200px; }
+  .btn { font: inherit; background: none; color: var(--ink); border: var(--hair) solid var(--line-strong); padding: 8px 16px; cursor: pointer; text-transform: lowercase; }
+  .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .theme { position: fixed; top: 14px; right: 16px; z-index: 60; }
+</style>
+</head>
+<body class="am-surface">
+<div class="theme"><button class="btn" id="theme" title="switch now; returns to automatic at 07:00 or 19:00">night / paper</button></div>
+<div class="wrap">
+
+  <section class="poster am-night" aria-label="poster study">
+    <svg viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid slice" fill="none" stroke="rgba(244,244,241,.8)" stroke-width="1">
+      <circle cx="500" cy="210" r="205"/>
+      <circle cx="500" cy="470" r="130"/>
+      <line x1="80" y1="-20" x2="430" y2="600"/><line x1="920" y1="-20" x2="570" y2="600"/>
+      <line x1="0" y1="250" x2="1000" y2="430"/><line x1="1000" y1="250" x2="0" y2="430"/>
+      <circle cx="500" cy="340" r="8" fill="#0a0a0a" stroke="none"/>
+    </svg>
+    <div class="title"><div class="am-micro">archi-magic</div><div class="am-index">04 / 16</div></div>
+    <div class="t1"><div class="am-lead">model</div><div class="am-quiet">is the drawing</div></div>
+    <div class="t2"><div class="am-lead">data</div><div class="am-quiet">is the ink</div></div>
+  </section>
+
+  <section>
+    <div class="head"><span class="am-micro">viewer controls</span><span class="am-index">01 / 05</span></div>
+    <div class="grid2">
+      <div style="display:grid;gap:20px">
+        <div class="seg" role="group"><button aria-pressed="false">top</button><button aria-pressed="false">front</button><button aria-pressed="false">right</button><button aria-pressed="true">perspective</button></div>
+        <div class="chips">
+          <button class="chip" aria-pressed="true"><span class="sw" style="background:var(--v2)"></span>walls<span class="n">6</span></button>
+          <button class="chip" aria-pressed="true"><span class="sw" style="background:var(--v3)"></span>floors<span class="n">2</span></button>
+          <button class="chip" aria-pressed="true"><span class="sw" style="background:var(--v4)"></span>doors<span class="n">1</span></button>
+          <button class="chip" aria-pressed="false"><span class="sw" style="background:var(--v5)"></span>columns<span class="n">1</span></button>
+          <button class="chip" aria-pressed="true"><span class="sw" style="background:var(--v6)"></span>generic models<span class="n">1</span></button>
+        </div>
+        <div style="display:flex;gap:10px"><button class="btn primary">zoom selected</button><button class="btn">zoom extents</button></div>
+      </div>
+      <div>
+        <div class="head" style="margin-bottom:8px"><span><span class="am-dot"></span>&nbsp; north arrow</span><span class="am-quiet">generic models</span></div>
+        <dl>
+          <dt>element id</dt><dd>310010</dd>
+          <dt>level</dt><dd>level 1</dd>
+          <dt>size x (e-w)</dt><dd>4.00 ft <span class="u">1.219 m</span></dd>
+          <dt>center x, y, z</dt><dd>-10.00, 5.00, 0.10 <span class="u">ft</span></dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><span class="am-micro">change preview / shift sheets a301+ up by one</span><span class="am-index">7 changed &nbsp; 48 unchanged</span></div>
+    <div class="banner" style="margin-bottom:14px"><span class="am-status"></span><span>preview only. nothing in revit has changed yet.</span></div>
+    <table>
+      <thead><tr><th>element id</th><th>sheet number</th><th>sheet name</th></tr></thead>
+      <tbody>
+        <tr><td>1407222</td><td><span class="old">A307</span><span class="arrow">/</span><span class="new">A308</span></td><td>building sections</td></tr>
+        <tr><td>1407219</td><td><span class="old">A306</span><span class="arrow">/</span><span class="new">A307</span></td><td>wall sections</td></tr>
+        <tr><td>1407215</td><td><span class="old">A301</span><span class="arrow">/</span><span class="new">A302</span></td><td>exterior elevations</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="grid2">
+    <div>
+      <div class="head"><span class="am-micro">status</span><span class="am-index">shape, not color</span></div>
+      <div class="status-row"><span><span class="am-status"></span>ok</span><span><span class="am-status warn"></span>warning</span><span><span class="am-status bad"></span>problem</span></div>
+      <div class="banner blocked" style="margin-top:18px"><span class="am-status bad" style="border-color:var(--bg);background:var(--bg)"></span><span>apply is blocked. resolve 2 warnings first.</span></div>
+      <table style="margin-top:18px">
+        <thead><tr><th>metric</th><th class="num">value</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>warnings</td><td class="num">49</td><td><span class="am-status warn"></span></td></tr>
+          <tr><td>unpinned links</td><td class="num">6</td><td><span class="am-status bad"></span></td></tr>
+          <tr><td>in-place families</td><td class="num">2</td><td><span class="am-status"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="head"><span class="am-micro">empty state</span><span class="am-index">--</span></div>
+      <div class="empty am-hair">
+        <svg viewBox="0 0 220 200" fill="none" stroke="var(--line-strong)" stroke-width="1"><circle cx="110" cy="70" r="58"/><circle cx="110" cy="160" r="32"/><line x1="20" y1="20" x2="160" y2="200"/><line x1="200" y1="20" x2="60" y2="200"/><circle cx="110" cy="128" r="4.5" fill="var(--ink)" stroke="none"/></svg>
+        <div style="text-align:center"><div class="am-lead">element</div><div class="am-quiet">click one to see its data</div></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+  document.getElementById('theme').onclick = () => window.amTheme.toggle();
+</script>
+</body>
+</html>

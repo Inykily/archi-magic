@@ -1,6 +1,6 @@
 ---
 name: am-area-report
-description: Make a read-only room and area report from the open Revit model through the pyRevit Agent Runtime MCP tools. It totals room areas by level and by department (or another room parameter), adds gross totals from area plans when they exist, flags unplaced, not enclosed and redundant rooms, compares the result to a program table that you paste as CSV text, and can save the table as a CSV file. Triggers on "room areas", "area report", "area by department", "GIA", "NIA", "program comparison", "unplaced rooms", "unbounded rooms", "export rooms to CSV". NOT for worksets (use am-workset-audit), and NOT for building a Revit schedule inside the model (use pyRevit's scheduling skill).
+description: Make a read-only room and area report from the open Revit model through the pyRevit Agent Runtime MCP tools. It totals room areas by level and by department (or another room parameter), adds gross totals from area plans when they exist, flags unplaced, not enclosed and redundant rooms, compares the result to a program table that you paste as CSV text, and can save the table as a CSV file. Use when the user asks "room areas", "area report", "area by department", "GIA", "NIA", "program comparison", "unplaced rooms", "unbounded rooms", "export rooms to CSV". NOT for showing an existing room or area schedule as Revit displays it (use am-schedule-view), NOT for worksets (use am-workset-audit), and NOT for building a Revit schedule inside the model (use pyRevit's scheduling skill).
 ---
 
 # am-area-report

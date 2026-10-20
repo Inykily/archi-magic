@@ -1,0 +1,4 @@
+{"kind":"element-transforms","source":"am-bim-viewer","units":"ft","items":[
+ {"id":1158107,"name":"Flex","category":"Columns","move":[2,0,0],"rotateZ":15,"pivot":[-2.0916666666708457,-30.9562303974562,0.0]},
+ {"id":738550,"name":"36\" Diameter","category":"Furniture","move":[2,0,0],"rotateZ":15,"pivot":[-79.0,12.541666666667208,-5.916666666666664]}
+]}

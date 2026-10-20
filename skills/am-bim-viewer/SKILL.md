@@ -1,6 +1,6 @@
 ---
 name: am-bim-viewer
-description: Show a Revit model in 3D inside Claude Code. Export visible elements of the active Revit view to JSON with the pyRevit Agent Runtime, build a self-contained interactive viewer page (Rhino-style camera, click an element to see its category, family, type, level, id and parameters, category filters, named views), and open it in the app's Browser pane. Triggers on "show the model in 3D", "3D viewer", "view this Revit model", "bim viewer", "/bim-view", "export geometry to JSON", "orbit the model like Rhino".
+description: Show a Revit model in 3D inside Claude Code. Export the visible elements of a 3D view to JSON (read-only), build a self-contained viewer page (Rhino-style camera, view cube, element data, category filters, first-person walk, gumball move and rotate) and open it in the Browser pane. Use when the user wants to see, orbit or walk through the model in 3D, find where an element is, or move and rotate elements on screen and hand that change to Revit. NOT for tables or schedules (use am-schedule-view) and NOT for applying changes in Revit (use am-safe-change, recipe element-transforms). Triggers on "show the model in 3D", "3D viewer", "view this Revit model", "bim viewer", "/bim-view", "export geometry to JSON", "orbit the model like Rhino", "walk through the model in 3D", "gumball in the viewer".
 ---
 
 # am-bim-viewer
@@ -20,7 +20,12 @@ Show Revit geometry as an interactive 3D page next to the conversation.
    ```
    & "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe" agent run "<this skill dir>\scripts\export_bim_json.py" --mode=query --revit=2026
    ```
-   With `SOURCE = "auto"` it exports the active view when that is a 3D view, else the whole model. Set `CATEGORIES` and `LEVEL` to export a subset. It prints one JSON line with the file path (default `%TEMP%\am-bim-viewer\<model>.json`), the element and triangle counts, and what it skipped. Tell the user about each skip count that is not zero. Change the caps with `MAX_ELEMENTS` and `MAX_TRIANGLES` at the top of the script. Tested live on Revit 2026.3 (Snowdon Towers sample: 1595 elements, 110,015 triangles, 5.7 MB JSON, about 2.5 minutes, no model change).
+   With `SOURCE = "auto"` it exports the active view when that is a 3D view. When the active view is not 3D (for example a sheet), it reads the `{3D}` view (or the first 3D view that is not a template) by id. It does not open or activate that view, so the user's view and selection do not change. With no 3D view, it exports the whole model. Set `CATEGORIES` and `LEVEL` to export a subset. It prints one JSON line with the file path (default `%TEMP%\am-bim-viewer\<model>.json`), the element and triangle counts, and what it skipped. Tell the user about each skip count that is not zero. Change the caps with `MAX_ELEMENTS` and `MAX_TRIANGLES` at the top of the script.
+
+   Measured on Revit 2026.3 with the Snowdon Towers sample (active view: a sheet) in query mode, with no model change:
+   - `{3D}`, all levels: 4,623 elements. It reaches the 1,500,000 triangle cap, so 2,477 elements are skipped. This took 121 s on the CPython engine.
+   - `{3D}` with `LEVEL = "L2"`: 519 elements, 105,330 triangles, 3.0 MB, 5 s, nothing capped.
+   - Through the MCP `run_query` tool, the IronPython engine stopped at the 900 s timeout in `json.dumps`, because the runner's trace hook slows Python loops. Use `engine: "cpython"` there. The `pyrevit agent run` command line was not measured again after this change (unverified).
 2. **Build the page.** Use `/bim-view <path.json>` (the mod), or with node: `node "<this skill dir>\scripts\build-viewer.mjs" <path.json>`. With no path, both build the demo model. The mod cannot read files over 4 MiB (about 80,000 triangles). Use the node script for larger models.
 3. **Open it.** Open the `file:///...viewer.html` URL in the Browser pane (`preview_start` with `url`). If no Browser pane is available, give the user the path, or run `/bim-view <path> --open` to use the default browser.
 
@@ -38,6 +43,8 @@ Show Revit geometry as an interactive 3D page next to the conversation.
 | Double-click | Zoom to the element (target = its center). On empty space: zoom extents | Same |
 | Middle drag | Pan (extra, not a Rhino default) | Pan |
 
+The **view cube** (top right) replaces the named-view buttons. Click a face for that parallel view (fit to the model), an edge for the 45 degree view between two faces, or a corner for the isometric from that corner. Drag the cube to orbit. Drag the compass ring (N = +Y) to turn the view about Z. The house button goes back to the default perspective. The header has a **perspective / parallel** switch, **walk**, and **zoom extents**. The **?** button (bottom right) opens the list of controls when you point at it.
+
 Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/, https://docs.mcneel.com/rhino/8/help/en-us/seealso/sak_navigate.htm, https://docs.mcneel.com/rhino/8/help/en-us/commands/zoom.htm. The rotate direction is not in the docs: the near face of the model follows the cursor.
 
 ## Orientation
@@ -46,8 +53,41 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 - "North" here is **Project North** (Revit internal Y). The exporter does not apply the True North rotation. (The Snowdon sample has True North at 26 degrees.)
 - The ground grid lies in the XY plane at the base of the visible model. It fades out at about 1.75 times the model size.
 - The viewer does not rotate or mirror the data. It builds the camera from azimuth and elevation around world Z (`mods/am-bim-viewer/viewer/viewer-core.mjs`).
-- Top: looks down -Z, North at the top, East to the right. Front: looks from -Y toward +Y. Right: looks from +X toward -X. Perspective: from the south-east, above.
-- The axis gizmo shows X red, Y green, Z blue.
+- View cube faces (Revit conventions): TOP looks down -Z with North at the top and East to the right. FRONT looks from the south toward North (+Y). BACK looks from the north toward South. RIGHT looks from the east toward West. LEFT looks from the west toward East. BOTTOM looks up +Z with North at the top, so East is on the left. The home view is a perspective from the south-east, above.
+- The cube turns with the camera, so it always shows the current direction. The gumball arrows have no color: X is a solid line, Y is dashed, Z is dotted.
+
+## Gumball: move and rotate an element (viewer copy only)
+
+1. Click an element. A gumball shows at its center: three arrows and one ring.
+   - X arrow (solid line) moves the element East. Y arrow (dashed) moves it North. Z arrow (dotted) moves it Up.
+   - The ring turns the element in plan, about the vertical (Z) axis. Counterclockwise is positive, as in Revit.
+2. Drag a handle with the LEFT mouse button. The camera keeps the right button, so the two do not conflict.
+   - A move snaps to 1/2 ft. A rotation snaps to 5 degrees. Hold Alt to drag without snap.
+   - A label next to the cursor shows the value, for example `move x +2.50 ft` or `rotate 15 deg`.
+   - Press Esc during a drag to cancel it.
+3. The side panel lists the **pending changes**: the element, the move (dx, dy, dz in ft), and the rotation with its pivot. Each row has **undo**. **Clear all** removes all rows. A moved element shows a thin outline (a ghost) at its old position.
+4. Click **copy changes for revit**. The page copies this JSON:
+   ```json
+   {"kind":"element-transforms","source":"am-bim-viewer","units":"ft",
+    "items":[{"id":310009,"name":"NE corner column","category":"Columns","move":[2.5,-0.5,0],"rotateZ":15,"pivot":[60,50,12]}]}
+   ```
+   Each item means: first rotate the element by `rotateZ` degrees (counterclockwise in plan) about `pivot`, then move it by `move`. `pivot` is the element's original center, before the move.
+
+The viewer never changes the Revit model. When the user pastes "element-transforms" JSON, send it through the **am-safe-change** skill (recipe "element-transforms"): preview, then the user approves in Revit. Never apply it directly.
+
+## Walk through the model
+
+1. Click **walk** in the header, or press G. The view goes to a perspective at eye height: 5.5 ft above the floor, stair, ramp or roof under the view center. It looks in the same plan direction as before.
+2. Click the 3D view to look with the mouse (the pointer is hidden). If the browser does not allow this, right drag to look.
+3. Move with W, A, S, D (in plan only, so looking up does not lift you). Q and E lower and raise the eye. Hold Shift to run (3 times 4.5 ft/s). C turns collision on or off. With collision on, you stop 1 ft before walls, columns and doors.
+4. Press Esc to go back to the view from before the walk. In Chrome the first Esc only frees the mouse; press Esc again to leave the walk.
+
+The gumball, selection and view cube are off during a walk. A small label shows the eye height, the speed and the collision state.
+
+## Theme and help
+
+- The page follows the time of day: paper (light) from 07:00 to 19:00, night (dark) at other hours. The "paper / night" link switches until the next 07:00 or 19:00.
+- The "?" button at the bottom right of the 3D view opens the list of mouse and key controls when you point at it, or when it has keyboard focus.
 
 ## JSON schema (`am-bim-viewer/1`)
 
@@ -69,7 +109,7 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 
 ## Tests
 
-From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 16 known ways; every break must make a test fail). In the browser, run `tests/browser-check.js` in the built demo page. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
+From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 29 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) the gumball (axis mapping, snap, Esc, undo, the JSON contract), typed values (the unit parser), the view cube and the walk. In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel, a gumball drag, typed values, the view cube and the walk. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
 
 ## House rules (all am-* skills)
 

@@ -1,0 +1,95 @@
+/* am-tokens:start
+   archi-magic design tokens: "Visual Research" (see design/DESIGN-SYSTEM.md).
+   Single source. Copied between the am-tokens markers into every page template by
+   scripts/sync-design-tokens.ps1; check-skills fails if a copy drifts. Edit only here. */
+:root {
+  /* value scale: black to paper, no hue */
+  --v0: #0a0a0a;  /* ink, the dot */
+  --v1: #1c1c1b;
+  --v2: #3a3a38;
+  --v3: #6b6b68;  /* secondary text (the "is the clay" gray) */
+  --v4: #9a9a96;
+  --v5: #c9c9c4;
+  --v6: #e7e7e3;
+  --v7: #f4f4f1;  /* paper */
+
+  /* paper theme (tables, dashboards) */
+  --bg: var(--v7);
+  --surface: #fbfbf9;
+  --ink: var(--v0);
+  --ink-2: var(--v3);
+  --ink-3: var(--v4);
+  --line: rgba(10, 10, 10, .14);      /* hairline */
+  --line-strong: rgba(10, 10, 10, .42);
+  --beam: radial-gradient(ellipse 22% 70% at 50% 45%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+  --vignette: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.10) 100%);
+  /* strong beam (hero, empty states, viewport backdrop): a bright column, soft edges, haze at the top */
+  --beam-hero: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.55) 22%, rgba(244,244,241,.0) 34%, rgba(244,244,241,0) 66%, rgba(10,10,10,.55) 78%, rgba(10,10,10,.9) 100%),
+               radial-gradient(ellipse 60% 30% at 50% 0%, rgba(244,244,241,.95), rgba(244,244,241,0) 70%),
+               linear-gradient(var(--v7), var(--v6));
+  --on-beam: var(--v0);   /* text and the dot that sit on the bright beam */
+
+  /* type: one monospace family; hierarchy by tone, not size */
+  --font: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-micro: 10.5px;  /* uppercase tracked labels, the "VISUAL RESEARCH 13 / 30" header */
+  --fs-body: 12.5px;
+  --fs-lead: 14px;     /* the one emphasized line ("future") */
+  --track-micro: .18em;
+  --w-light: 300; --w-regular: 400; --w-medium: 500;
+
+  /* geometry */
+  --hair: 1px;
+  --radius: 0px;       /* rectangles stay square ... */
+  --round: 999px;      /* ... round things are fully round (dots, rings, pills) */
+  --dot: 9px;          /* the focal dot */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 20px; --space-5: 32px; --space-6: 56px;
+
+  /* grain: fixed SVG luminance noise (gray = the noise's red channel, alpha 1), tiled; opacity per theme.
+     It must vary in brightness: flat 50% gray is neutral under mix-blend-mode overlay and shows nothing. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-opacity: .16;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --slow: 420ms;
+}
+
+/* night theme (3D viewport, and every page when the OS is dark) */
+.am-night, :root.am-night {
+  --bg: var(--v0);
+  --surface: #121211;
+  --ink: var(--v7);
+  --ink-2: var(--v4);
+  --ink-3: var(--v3);
+  --line: rgba(244, 244, 241, .22);
+  --line-strong: rgba(244, 244, 241, .7);
+  --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+  --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+  --grain-opacity: .22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.am-paper) {
+    --bg: var(--v0); --surface: #121211; --ink: var(--v7); --ink-2: var(--v4); --ink-3: var(--v3);
+    --line: rgba(244, 244, 241, .22); --line-strong: rgba(244, 244, 241, .7);
+    --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+    --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+    --grain-opacity: .22;
+  }
+}
+
+/* shared primitives */
+.am-surface { background: var(--bg); color: var(--ink); font: var(--w-regular) var(--fs-body)/1.6 var(--font); position: relative; }
+.am-surface::after { /* grain over everything, never blocks input */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background-image: var(--grain); opacity: var(--grain-opacity); mix-blend-mode: overlay;
+}
+.am-micro { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink); }
+.am-index { font-size: var(--fs-micro); letter-spacing: var(--track-micro); color: var(--ink); word-spacing: .6em; } /* "13 / 30" */
+.am-lead  { font-size: var(--fs-lead); color: var(--ink); text-transform: lowercase; }
+.am-quiet { color: var(--ink-2); }
+.am-hair  { border: var(--hair) solid var(--line); border-radius: var(--radius); }
+.am-dot   { display: inline-block; width: var(--dot); height: var(--dot); border-radius: var(--round); background: var(--ink); }
+/* status by shape, not color: ok = ring, warn = half, bad = solid dot */
+.am-status { display: inline-block; width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--ink); vertical-align: -1px; }
+.am-status.warn { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.am-status.bad  { background: var(--ink); }
+/* am-tokens:end */

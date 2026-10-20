@@ -1,268 +1,356 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="am-surface">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Model Health Report</title>
 <!-- archi-magic am-model-health dashboard template.
      scripts/render-report.ps1 replaces the REPORT_DATA token below with the run JSON and history.
-     No script libraries: charts are inline SVG, so the page works offline. Fonts fall back to local fonts. -->
+     No script libraries: charts are inline SVG and CSS, so the page works offline. The font falls back to a local monospace.
+     Design system: "Visual Research" (design/DESIGN-SYSTEM.md). The block between the am-tokens markers is a verbatim copy
+     of design/tokens.css; edit it there, not here. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2248%22%20r%3D%2230%22%20fill%3D%22none%22%20stroke%3D%22%230a0a0a%22%20stroke-width%3D%229%22%2F%3E%3Ccircle%20cx%3D%2284%22%20cy%3D%2282%22%20r%3D%2211%22%20fill%3D%22%230a0a0a%22%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo+Narrow:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap">
 <style>
+/* am-tokens:start
+   archi-magic design tokens: "Visual Research" (see design/DESIGN-SYSTEM.md).
+   Single source. Copied between the am-tokens markers into every page template by
+   scripts/sync-design-tokens.ps1; check-skills fails if a copy drifts. Edit only here. */
 :root {
-  --paper: #f3f0e8;
-  --sheet: #fbfaf6;
-  --ink: #1d1c1a;
-  --ink-2: #57544d;
-  --ink-3: #8c887e;
-  --rule: #d8d3c6;
-  --grid: rgba(29, 28, 26, 0.045);
-  --accent: #c8401f;
-  --ok: #2f6f4f;
-  --warn: #b7791f;
-  --bad: #c8401f;
-  --info: #4a5a78;
-  --chip-ok: #dcebe2;
-  --chip-warn: #f5e6c8;
-  --chip-bad: #f6d9cf;
-  --chip-info: #dfe3ec;
-  --bar: #1d1c1a;
-  --focus: #c8401f;
-  --shadow: 0 1px 0 rgba(29, 28, 26, 0.06), 0 8px 24px -16px rgba(29, 28, 26, 0.25);
+  /* value scale: black to paper, no hue */
+  --v0: #0a0a0a;  /* ink, the dot */
+  --v1: #1c1c1b;
+  --v2: #3a3a38;
+  --v3: #6b6b68;  /* secondary text (the "is the clay" gray) */
+  --v4: #9a9a96;
+  --v5: #c9c9c4;
+  --v6: #e7e7e3;
+  --v7: #f4f4f1;  /* paper */
+
+  /* paper theme (tables, dashboards) */
+  --bg: var(--v7);
+  --surface: #fbfbf9;
+  --ink: var(--v0);
+  --ink-2: var(--v3);
+  --ink-3: var(--v4);
+  --line: rgba(10, 10, 10, .14);      /* hairline */
+  --line-strong: rgba(10, 10, 10, .42);
+  --beam: radial-gradient(ellipse 22% 70% at 50% 45%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+  --vignette: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.10) 100%);
+  /* strong beam (hero, empty states, viewport backdrop): a bright column, soft edges, haze at the top */
+  --beam-hero: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.55) 22%, rgba(244,244,241,.0) 34%, rgba(244,244,241,0) 66%, rgba(10,10,10,.55) 78%, rgba(10,10,10,.9) 100%),
+               radial-gradient(ellipse 60% 30% at 50% 0%, rgba(244,244,241,.95), rgba(244,244,241,0) 70%),
+               linear-gradient(var(--v7), var(--v6));
+  --on-beam: var(--v0);   /* text and the dot that sit on the bright beam */
+
+  /* type: one monospace family; hierarchy by tone, not size */
+  --font: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-micro: 10.5px;  /* uppercase tracked labels, the "VISUAL RESEARCH 13 / 30" header */
+  --fs-body: 12.5px;
+  --fs-lead: 14px;     /* the one emphasized line ("future") */
+  --track-micro: .18em;
+  --w-light: 300; --w-regular: 400; --w-medium: 500;
+
+  /* geometry */
+  --hair: 1px;
+  --radius: 0px;       /* rectangles stay square ... */
+  --round: 999px;      /* ... round things are fully round (dots, rings, pills) */
+  --dot: 9px;          /* the focal dot */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 20px; --space-5: 32px; --space-6: 56px;
+
+  /* grain: fixed SVG luminance noise (gray = the noise's red channel, alpha 1), tiled; opacity per theme.
+     It must vary in brightness: flat 50% gray is neutral under mix-blend-mode overlay and shows nothing. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-opacity: .16;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --slow: 420ms;
+}
+
+/* night theme (3D viewport, and every page when the OS is dark) */
+.am-night, :root.am-night {
+  --bg: var(--v0);
+  --surface: #121211;
+  --ink: var(--v7);
+  --ink-2: var(--v4);
+  --ink-3: var(--v3);
+  --line: rgba(244, 244, 241, .22);
+  --line-strong: rgba(244, 244, 241, .7);
+  --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+  --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+  --grain-opacity: .22;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #12161b;
-    --sheet: #181d23;
-    --ink: #e9e5da;
-    --ink-2: #b4afa3;
-    --ink-3: #7f7b72;
-    --rule: #2c333c;
-    --grid: rgba(233, 229, 218, 0.04);
-    --accent: #ff7a52;
-    --ok: #6fc49a;
-    --warn: #e7b357;
-    --bad: #ff7a52;
-    --info: #9fb2d6;
-    --chip-ok: #1d3a2d;
-    --chip-warn: #3d3018;
-    --chip-bad: #45231a;
-    --chip-info: #232c3d;
-    --bar: #e9e5da;
-    --focus: #ff7a52;
-    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+  :root:not(.am-paper) {
+    --bg: var(--v0); --surface: #121211; --ink: var(--v7); --ink-2: var(--v4); --ink-3: var(--v3);
+    --line: rgba(244, 244, 241, .22); --line-strong: rgba(244, 244, 241, .7);
+    --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+    --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+    --grain-opacity: .22;
   }
 }
-:root[data-theme="dark"] {
-  --paper: #12161b;
-  --sheet: #181d23;
-  --ink: #e9e5da;
-  --ink-2: #b4afa3;
-  --ink-3: #7f7b72;
-  --rule: #2c333c;
-  --grid: rgba(233, 229, 218, 0.04);
-  --accent: #ff7a52;
-  --ok: #6fc49a;
-  --warn: #e7b357;
-  --bad: #ff7a52;
-  --info: #9fb2d6;
-  --chip-ok: #1d3a2d;
-  --chip-warn: #3d3018;
-  --chip-bad: #45231a;
-  --chip-info: #232c3d;
-  --bar: #e9e5da;
-  --focus: #ff7a52;
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+
+/* shared primitives */
+.am-surface { background: var(--bg); color: var(--ink); font: var(--w-regular) var(--fs-body)/1.6 var(--font); position: relative; }
+.am-surface::after { /* grain over everything, never blocks input */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background-image: var(--grain); opacity: var(--grain-opacity); mix-blend-mode: overlay;
 }
+.am-micro { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink); }
+.am-index { font-size: var(--fs-micro); letter-spacing: var(--track-micro); color: var(--ink); word-spacing: .6em; } /* "13 / 30" */
+.am-lead  { font-size: var(--fs-lead); color: var(--ink); text-transform: lowercase; }
+.am-quiet { color: var(--ink-2); }
+.am-hair  { border: var(--hair) solid var(--line); border-radius: var(--radius); }
+.am-dot   { display: inline-block; width: var(--dot); height: var(--dot); border-radius: var(--round); background: var(--ink); }
+/* status by shape, not color: ok = ring, warn = half, bad = solid dot */
+.am-status { display: inline-block; width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--ink); vertical-align: -1px; }
+.am-status.warn { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.am-status.bad  { background: var(--ink); }
+/* am-tokens:end */
+
+/* page: only design tokens below this line */
 * { box-sizing: border-box; }
-html, body { margin: 0; }
-body {
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px;
-  color: var(--ink);
-  font-family: "Archivo Narrow", "Arial Narrow", "Segoe UI", sans-serif;
-  font-size: 15px;
-  line-height: 1.45;
-}
-.mono { font-family: "JetBrains Mono", Consolas, monospace; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+html { min-height: 100%; }
+body { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, .bar:focus-visible { outline: var(--hair) solid var(--ink); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--space-4) var(--space-6); }
+.num, .tab { font-variant-numeric: tabular-nums; }
 
-/* Title block, like the corner of a drawing sheet */
-.titleblock {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5px; /* the gap shows the ink background as the divider line */
-  background: var(--ink);
-  border: 1.5px solid var(--ink);
-  box-shadow: var(--shadow);
-  animation: rise .5s ease both;
-}
-.tb-main { padding: 22px 24px 18px; background: var(--sheet); }
-.tb-kicker { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
-.tb-title { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: clamp(30px, 5vw, 48px); line-height: 1.02; margin: 6px 0 12px; overflow-wrap: anywhere; }
-.tb-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); font-size: 13px; }
-.tb-meta b { color: var(--ink); font-weight: 600; }
-.tb-score { background: var(--sheet); padding: 18px 26px; min-width: 210px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
-.tb-score .num { font-family: "Instrument Serif", Georgia, serif; font-size: 76px; line-height: .9; }
-.tb-score .num small { font-size: 24px; color: var(--ink-3); }
-.tb-score .lbl { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
-.tb-tally { display: flex; gap: 10px; margin-top: 10px; }
-.toolbar { display: flex; justify-content: flex-end; gap: 8px; margin: 14px 0 0; }
-button, .btn {
-  font: inherit; font-size: 13px; font-weight: 600; letter-spacing: .02em;
-  color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink);
-  padding: 7px 12px; cursor: pointer; border-radius: 0;
-}
-button:hover { background: var(--ink); color: var(--sheet); }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.primary:hover { filter: brightness(.92); background: var(--accent); color: #fff; }
+/* hero: poster idiom, night band with the blurred beam, the logo construction, one focal dot */
+.hero { position: relative; height: 460px; overflow: hidden; background: var(--bg); }
+.hero::before { content: ""; position: absolute; inset: 0; background: var(--vignette), var(--beam-hero); filter: blur(18px); transform: scale(1.08); }
+.hero svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero .geo { fill: none; stroke: var(--v3); stroke-width: var(--hair); }
+.hero .focal { fill: var(--on-beam); stroke: none; }
+.hero .t0, .hero .t1, .hero .t2 { position: absolute; left: 0; right: 0; text-align: center; z-index: 1; padding: 0 var(--space-4); }
+.hero .t0 { top: 18px; }
+.hero .t1 { top: 33%; }
+.hero .t2 { top: 75%; }
+.hero .am-micro, .hero .am-index, .hero .am-lead { color: var(--on-beam); }
+.hero .am-quiet { color: var(--v3); }
+.hero .am-lead { overflow-wrap: anywhere; max-width: 30ch; margin: 0 auto; font-weight: inherit; }
 
-h2 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 30px; margin: 44px 0 4px; display: flex; align-items: baseline; gap: 12px; }
-h2 .idx { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--accent); letter-spacing: .1em; }
-.sub { color: var(--ink-2); margin: 0 0 16px; font-size: 14px; }
+/* meta strip under the hero */
+.meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding: var(--space-3) 0; border-bottom: var(--hair) solid var(--line); }
+.meta dl { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; min-width: 0; }
+.meta dl div { display: flex; gap: var(--space-2); min-width: 0; }
+.meta dt { color: var(--ink-2); text-transform: lowercase; }
+.meta dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 
-.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; }
-.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.chip.ok { background: var(--chip-ok); color: var(--ok); }
-.chip.warn { background: var(--chip-warn); color: var(--warn); }
-.chip.bad { background: var(--chip-bad); color: var(--bad); }
-.chip.info { background: var(--chip-info); color: var(--info); }
+.btn { background: none; color: var(--ink); border: var(--hair) solid var(--line-strong); border-radius: var(--radius); padding: 7px 14px; cursor: pointer; text-transform: lowercase; transition: border-color var(--slow) var(--ease), background var(--slow) var(--ease), color var(--slow) var(--ease); }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.small { padding: 2px 10px; }
 
-/* Metric cards */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-.card {
-  background: var(--sheet); border: 1px solid var(--rule); padding: 14px 16px 12px; cursor: pointer;
-  display: flex; flex-direction: column; gap: 8px; text-align: left; color: var(--ink);
-  font-weight: 400; letter-spacing: 0; transition: transform .15s ease, border-color .15s ease;
-  animation: rise .5s ease both;
-}
-.card:hover { transform: translateY(-2px); border-color: var(--ink); background: var(--sheet); color: var(--ink); }
-.card.active { border: 1.5px solid var(--accent); }
-.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.card .score { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--ink-3); }
-.card .label { font-size: 15px; font-weight: 600; line-height: 1.25; }
-.card .value { font-family: "Instrument Serif", Georgia, serif; font-size: 42px; line-height: 1; }
-.card .value small { font-family: "Archivo Narrow", sans-serif; font-size: 14px; color: var(--ink-3); margin-left: 4px; }
-.card .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
-.card .thr { font-size: 12px; color: var(--ink-3); }
-.card .hint { font-size: 13px; color: var(--ink-2); }
-.spark { width: 96px; height: 30px; }
+/* section heads: micro uppercase title + index */
+section { margin-top: var(--space-6); }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); border-bottom: var(--hair) solid var(--line); padding-bottom: var(--space-2); margin-bottom: var(--space-2); }
+.sub { margin: 0 0 var(--space-4); color: var(--ink-2); }
 
-/* Charts */
-.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
-.panel { background: var(--sheet); border: 1px solid var(--rule); padding: 16px; min-width: 0; }
-.panel h3 { margin: 0 0 12px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); font-weight: 700; }
-.bars { display: flex; flex-direction: column; gap: 7px; }
-.bar { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 10px; align-items: center; cursor: pointer; }
-.bar .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar .track { grid-column: 1 / 2; height: 8px; background: var(--grid); position: relative; }
-.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar); transform-origin: left; animation: grow .7s cubic-bezier(.2, .7, .2, 1) both; }
-.bar .fill.bad { background: var(--bad); }
-.bar .fill.warn { background: var(--warn); }
-.bar .n { grid-row: 1 / 3; grid-column: 2; text-align: right; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
-.bar:hover .name { color: var(--accent); }
-.empty { color: var(--ink-3); font-size: 13px; font-style: italic; }
+/* status by shape + text */
+.st { display: inline-flex; align-items: center; gap: var(--space-2); text-transform: lowercase; white-space: nowrap; }
+.mk-info { display: inline-block; width: 9px; height: 0; border-top: var(--hair) solid var(--ink); vertical-align: 3px; }
 
-/* Trend */
-.trend-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
-.trend-svg { width: 100%; height: 220px; display: block; }
-select { font: inherit; font-size: 13px; color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink); padding: 6px 8px; border-radius: 0; max-width: 100%; }
+/* metric cells: square hairline grid, ranking order kept */
+.cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); border: 0 solid var(--line); border-width: var(--hair) 0 0 var(--hair); }
+.cell { display: flex; flex-direction: column; gap: var(--space-2); text-align: left; background: none; border: 0; border-right: var(--hair) solid var(--line); border-bottom: var(--hair) solid var(--line); border-radius: var(--radius); padding: var(--space-3) var(--space-3) var(--space-4); cursor: pointer; color: var(--ink); outline-offset: -1px; animation: fade var(--slow) var(--ease) both; transition: outline-color var(--slow) var(--ease); }
+.cell:hover { outline: var(--hair) solid var(--line-strong); }
+.cell.active { outline: var(--hair) solid var(--ink); }
+.cell .top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.cell .score { color: var(--ink-2); }
+.cell .label { text-transform: lowercase; }
+.cell .row { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-2); }
+.cell .value { font-size: 26px; font-weight: var(--w-light); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cell .value small { font-size: var(--fs-body); color: var(--ink-3); margin-left: var(--space-1); font-weight: var(--w-regular); }
+.cell .thr, .cell .hint { color: var(--ink-2); }
+.cell .thr { font-size: var(--fs-micro); }
+.spark { width: 96px; height: 28px; flex: none; }
+.spark path { fill: none; stroke: var(--ink-2); stroke-width: var(--hair); }
 
-/* Table */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-.filters input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--ink); background: var(--sheet); border: 1.5px solid var(--ink); padding: 7px 10px; border-radius: 0; }
-.pill { font-size: 12px; padding: 5px 10px; border: 1px solid var(--rule); background: var(--sheet); font-weight: 600; }
-.pill.on { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
-.tablewrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--rule); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; position: sticky; top: 0; background: var(--sheet); }
-td.ids { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; color: var(--ink-2); min-width: 200px; max-width: 360px; overflow-wrap: break-word; }
-td.num { font-family: "JetBrains Mono", Consolas, monospace; text-align: right; }
-tr:hover td { background: var(--grid); }
-.copybar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
-.note { font-size: 13px; color: var(--ink-2); }
-.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--sheet); padding: 10px 16px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100% - 32px); }
+/* breakdown charts: monochrome bars, status by fill pattern + shape */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); border: 0 solid var(--line); border-width: var(--hair) 0 0 var(--hair); }
+.panel { border-right: var(--hair) solid var(--line); border-bottom: var(--hair) solid var(--line); padding: var(--space-3) var(--space-3) var(--space-4); min-width: 0; }
+.panel h3 { margin: 0 0 var(--space-3); font-weight: var(--w-regular); }
+.bars { display: flex; flex-direction: column; gap: var(--space-2); }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: center; cursor: pointer; padding: 2px 0; }
+.bar .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); transition: color var(--slow) var(--ease); }
+.bar:hover .name { color: var(--ink); }
+.bar .n { grid-row: 1 / 3; grid-column: 2; display: inline-flex; align-items: center; gap: var(--space-2); font-variant-numeric: tabular-nums; }
+.bar .track { grid-column: 1 / 2; height: 7px; position: relative; border-bottom: var(--hair) solid var(--line); }
+.bar .fill { position: absolute; top: 0; bottom: -1px; left: 0; background: var(--ink-2); transform-origin: left; animation: grow var(--slow) var(--ease) both; }
+.bar .fill.bad { background: var(--ink); }
+.bar .fill.warn { background: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 4px); border: var(--hair) solid var(--ink); }
+.bar .fill.ok { background: none; border: var(--hair) solid var(--ink-2); }
+.empty { color: var(--ink-2); margin: 0; }
+
+/* trend */
+.trend-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); }
+.trend-svg { width: 100%; height: 220px; display: block; overflow: visible; }
+.trend-svg .grid { stroke: var(--line); stroke-width: var(--hair); }
+.trend-svg .axis { stroke: var(--line-strong); stroke-width: var(--hair); }
+.trend-svg .lbl { fill: var(--ink-2); font-family: var(--font); font-size: var(--fs-micro); }
+.trend-svg .line { fill: none; stroke: var(--ink); stroke-width: var(--hair); }
+.trend-svg .tick { fill: var(--bg); stroke: var(--ink); stroke-width: var(--hair); }
+.trend-svg .hit { fill: transparent; stroke: none; }
+.trend-svg .focal { fill: var(--ink); stroke: none; }
+.trend-svg .hit:hover + .tick { fill: var(--ink); }
+select { color: var(--ink); background: var(--bg); border: var(--hair) solid var(--line-strong); border-radius: var(--radius); padding: 6px 8px; max-width: 100%; text-transform: lowercase; }
+
+/* elements table */
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); }
+.filters input { flex: 1 1 220px; min-width: 0; color: var(--ink); background: none; border: 0; border-bottom: var(--hair) solid var(--line-strong); border-radius: var(--radius); padding: 7px 0; }
+.filters input::placeholder { color: var(--ink-2); }
+.pills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pill { padding: 3px 12px; border-radius: var(--round); border: var(--hair) solid var(--line); background: none; color: var(--ink-2); cursor: pointer; text-transform: lowercase; transition: color var(--slow) var(--ease), border-color var(--slow) var(--ease); }
+.pill:hover { border-color: var(--line-strong); }
+.pill[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: var(--w-regular); font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); border-bottom: var(--hair) solid var(--line-strong); padding: 8px 12px 8px 0; position: sticky; top: 0; background: var(--bg); }
+td { border-bottom: var(--hair) solid var(--line); padding: 8px 12px 8px 0; vertical-align: top; transition: border-color var(--slow) var(--ease); }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:hover td { border-bottom-color: var(--line-strong); }
+td .st { margin-right: var(--space-2); }
+td.ids { font-variant-numeric: tabular-nums; color: var(--ink-2); min-width: 200px; max-width: 360px; overflow-wrap: break-word; }
+.copybar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; margin-top: var(--space-3); }
+.note { color: var(--ink-2); }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 60; background: var(--ink); color: var(--bg); padding: 10px 16px; opacity: 0; pointer-events: none; transition: opacity var(--slow) var(--ease); max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
-footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+footer { margin-top: var(--space-6); padding-top: var(--space-3); border-top: var(--hair) solid var(--line); color: var(--ink-2); display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); }
 
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 @media (max-width: 640px) {
-  .titleblock { grid-template-columns: 1fr; }
-  .tb-score { min-width: 0; }
-  .tb-score .num { font-size: 60px; }
-  h2 { font-size: 26px; }
+  .hero { height: 400px; }
+  .hero::before { transform: scale(2.4, 1.08); } /* widen the bright column so the text stays on the beam */
+  .cell .value { font-size: 22px; }
 }
 </style>
+<script>
+// am-theme:start
+// archi-magic time-of-day theme (see design/DESIGN-SYSTEM.md). Single source: copied between the
+// am-theme markers into every page template by scripts/sync-design-tokens.ps1. Edit only here.
+// Day (paper) 07:00-19:00 local time, night otherwise; re-checked every minute. A manual choice
+// (window.amTheme.set('night'|'paper'|'auto')) holds until the next day/night boundary.
+// Without JavaScript the page follows the OS light/dark setting through the CSS tokens.
+(function () {
+  var DAY_START = 7, NIGHT_START = 19, KEY = 'am-theme-override';
+  var root = document.documentElement, current = null;
+  function timeTheme(d) { var h = d.getHours(); return (h >= DAY_START && h < NIGHT_START) ? 'paper' : 'night'; }
+  function nextBoundary(d) {
+    var b = new Date(d); var h = d.getHours();
+    if (h < DAY_START) b.setHours(DAY_START, 0, 0, 0);
+    else if (h < NIGHT_START) b.setHours(NIGHT_START, 0, 0, 0);
+    else { b.setDate(b.getDate() + 1); b.setHours(DAY_START, 0, 0, 0); }
+    return b.getTime();
+  }
+  function readOverride() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && (o.theme === 'night' || o.theme === 'paper') && Date.now() < o.until) return o.theme;
+      if (o) localStorage.removeItem(KEY);
+    } catch (e) { /* storage blocked: time of day only */ }
+    return null;
+  }
+  function show(theme) {   // the one place that changes the page theme, so every path sends the event
+    if (theme === current) return;
+    current = theme;
+    root.classList.toggle('am-night', theme === 'night');
+    root.classList.toggle('am-paper', theme === 'paper');
+    root.setAttribute('data-am-theme', theme);
+    try { document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: theme } })); } catch (e) { /* old browsers */ }
+  }
+  var pinned = null;   // manual choice kept in memory when storage is blocked
+  function apply() {
+    var now = new Date();
+    if (pinned && Date.now() >= pinned.until) pinned = null;
+    show((pinned && pinned.theme) || readOverride() || timeTheme(now));
+  }
+  window.amTheme = {
+    get: function () { return current; },
+    set: function (t) {
+      try {
+        if (t === 'auto') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, JSON.stringify({ theme: t, until: nextBoundary(new Date()) }));
+      } catch (e) { /* storage blocked: keep the choice in memory for this page view */ }
+      pinned = (t === 'auto') ? null : { theme: t, until: nextBoundary(new Date()) };
+      apply();
+    },
+    toggle: function () { this.set(current === 'night' ? 'paper' : 'night'); },
+    _timeTheme: timeTheme, _nextBoundary: nextBoundary
+  };
+  apply();
+  setInterval(apply, 60000);
+})();
+// am-theme:end
+</script>
 </head>
 <body>
+<header class="hero am-night" aria-label="model health summary">
+  <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <circle class="geo" cx="50" cy="38" r="26" vector-effect="non-scaling-stroke"/>
+    <circle class="geo" cx="50" cy="80" r="16" vector-effect="non-scaling-stroke"/>
+    <circle class="focal" cx="50" cy="64" r="4.2"/>
+  </svg>
+  <div class="t0"><div class="am-micro">model health</div><div class="am-index" id="tally">-</div></div>
+  <div class="t1"><h1 class="am-lead" id="model">model</h1><div class="am-quiet" id="when">-</div></div>
+  <div class="t2"><div class="am-micro">health score</div><div class="am-index" id="score">- / 100</div></div>
+</header>
 <div class="wrap">
-  <header class="titleblock">
-    <div class="tb-main">
-      <div class="tb-kicker">archi-magic &middot; Model health report</div>
-      <h1 class="tb-title" id="model">Model</h1>
-      <div class="tb-meta">
-        <span>Revit <b id="year">-</b></span>
-        <span>Run <b id="when" class="mono">-</b></span>
-        <span>Snapshots <b id="runs" class="mono">-</b></span>
-        <span id="pathwrap">File <b id="path" class="mono">-</b></span>
-      </div>
-    </div>
-    <div class="tb-score">
-      <div class="num"><span id="score">-</span><small>/100</small></div>
-      <div class="lbl">Health score</div>
-      <div class="tb-tally" id="tally"></div>
-    </div>
-  </header>
-  <div class="toolbar">
-    <button type="button" id="theme">Dark / light</button>
+  <div class="meta">
+    <dl>
+      <div><dt>snapshots</dt><dd id="runs" class="tab">-</dd></div>
+      <div id="pathwrap"><dt>file</dt><dd id="path">-</dd></div>
+    </dl>
+    <button type="button" class="btn" id="theme">night / paper</button>
   </div>
 
-  <h2><span class="idx">01</span>Checks</h2>
-  <p class="sub">Each check gets a score: OK is 100, WARN is 60, BAD is 20. Information checks have no score. Click a check to filter the table.</p>
-  <div class="cards" id="cards"></div>
+  <section>
+    <div class="head"><span class="am-micro">checks</span><span class="am-index">01 / 04</span></div>
+    <p class="sub">each check gets a score: ok is 100, warn is 60, bad is 20. information checks have no score. click a check to filter the table.</p>
+    <div class="cells" id="cards"></div>
+  </section>
 
-  <h2><span class="idx">02</span>Breakdown</h2>
-  <p class="sub">Click a bar to filter the table to that row.</p>
-  <div class="charts" id="charts"></div>
+  <section>
+    <div class="head"><span class="am-micro">breakdown</span><span class="am-index">02 / 04</span></div>
+    <p class="sub">click a bar to filter the table to that row. solid is bad, hatched is warn, hollow is ok.</p>
+    <div class="charts" id="charts"></div>
+  </section>
 
-  <h2><span class="idx">03</span>Trend</h2>
-  <p class="sub">Each point is one saved snapshot of this model.</p>
-  <div class="panel">
+  <section>
+    <div class="head"><span class="am-micro">trend</span><span class="am-index">03 / 04</span></div>
     <div class="trend-head">
-      <h3 style="margin:0">Across runs</h3>
+      <p class="sub" style="margin:0">each point is one saved snapshot of this model. the dot is the latest.</p>
       <select id="trendpick" aria-label="Trend series"></select>
     </div>
     <svg class="trend-svg" id="trend" role="img" aria-label="Trend chart"></svg>
-  </div>
+  </section>
 
-  <h2><span class="idx">04</span>Elements</h2>
-  <p class="sub">This page cannot talk to Revit. Copy the element IDs and paste them to Claude. Claude then selects them in Revit for you.</p>
-  <div class="filters">
-    <input id="q" type="search" placeholder="Filter by text, for example a warning or family name" aria-label="Filter rows">
-    <div id="pills" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-  </div>
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Check</th><th>Item</th><th style="text-align:right">Count</th><th>Element IDs</th><th></th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
-  <div class="copybar">
-    <span class="note" id="rowcount"></span>
-    <button type="button" class="primary" id="copyall">Copy element IDs (shown rows)</button>
-  </div>
+  <section>
+    <div class="head"><span class="am-micro">elements</span><span class="am-index">04 / 04</span></div>
+    <p class="sub">this page cannot talk to revit. copy the element ids and paste them to claude. claude then selects them in revit for you.</p>
+    <div class="filters">
+      <input id="q" type="search" placeholder="filter by text, for example a warning or family name" aria-label="Filter rows">
+      <div class="pills" id="pills"></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>check</th><th>item</th><th class="num">count</th><th>element ids</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="copybar">
+      <span class="note" id="rowcount"></span>
+      <button type="button" class="btn primary" id="copyall">copy element ids (shown rows)</button>
+    </div>
+  </section>
 
   <footer>
-    <span>Generated by archi-magic am-model-health. Read-only: nothing in the model changed.</span>
-    <span class="mono" id="gen"></span>
+    <span>generated by archi-magic am-model-health. read-only: nothing in the model changed.</span>
+    <span class="tab" id="gen"></span>
   </footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -275,12 +363,13 @@ var DATA = /*__REPORT_DATA__*/null;
   "use strict";
   var SCORE = { ok: 100, warn: 60, bad: 20 };
   var CHARTS = [
-    { title: "Warnings by type", metric: "warnings" },
-    { title: "In-place families", metric: "in_place_families" },
-    { title: "Revit links", ids: ["links_total", "links_unloaded", "links_unpinned", "links_not_shared", "links_far"] },
-    { title: "Rooms", ids: ["rooms_unplaced", "rooms_not_enclosed", "rooms_redundant"] }
+    { title: "warnings by type", metric: "warnings" },
+    { title: "in-place families", metric: "in_place_families" },
+    { title: "revit links", ids: ["links_total", "links_unloaded", "links_unpinned", "links_not_shared", "links_far"] },
+    { title: "rooms", ids: ["rooms_unplaced", "rooms_not_enclosed", "rooms_redundant"] }
   ];
   var state = { metric: null, label: null, q: "" };
+  var root = document.documentElement;
 
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -291,20 +380,27 @@ var DATA = /*__REPORT_DATA__*/null;
     metrics.forEach(function (m) { if (SCORE[m.status] != null) { s += SCORE[m.status]; n++; } });
     return n ? Math.round(s / n) : null;
   }
+  // Status is shown by shape and a text label, never by tone: ok ring, warn half, bad dot, info dash.
+  function mark(s) {
+    if (s === "ok" || s === "warn" || s === "bad") return '<span class="am-status' + (s === "ok" ? "" : " " + s) + '" aria-hidden="true"></span>';
+    return '<span class="mk-info" aria-hidden="true"></span>';
+  }
+  function statusTag(s) { return '<span class="st">' + mark(s) + "<span>" + esc(s) + "</span></span>"; }
 
-  // Theme toggle (remembered per viewer; storage can fail, so wrap it).
-  try { var saved = localStorage.getItem("am-health-theme"); if (saved) document.documentElement.setAttribute("data-theme", saved); } catch (e) {}
+  // Theme: the am-theme block in <head> picks paper (07:00-19:00) or night by time of day.
+  // The button is a manual override that holds until the next day/night boundary.
+  // Without that block (no JS support), the CSS tokens follow the OS light/dark setting.
   $("theme").addEventListener("click", function () {
-    var cur = document.documentElement.getAttribute("data-theme");
-    if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    var next = cur === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try { localStorage.setItem("am-health-theme", next); } catch (e) {}
+    if (window.amTheme) { window.amTheme.toggle(); return; }
+    var osDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var isNight = root.classList.contains("am-night") || (osDark && !root.classList.contains("am-paper"));
+    root.classList.toggle("am-night", !isNight);
+    root.classList.toggle("am-paper", isNight);
   });
 
   if (!DATA || !DATA.current || !DATA.current.metrics) {
-    $("model").textContent = "No report data";
-    $("cards").innerHTML = '<p class="empty">Run scripts/render-report.ps1 to fill this page.</p>';
+    $("model").textContent = "no report data";
+    $("cards").innerHTML = '<p class="empty" style="padding:12px">run scripts/render-report.ps1 to fill this page.</p>';
     return;
   }
   var cur = DATA.current;
@@ -320,55 +416,53 @@ var DATA = /*__REPORT_DATA__*/null;
   });
   hist.sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : 1; });
 
-  // Title block
-  $("model").textContent = cur.model || "Model";
-  $("year").textContent = cur.revit_year || "-";
-  $("when").textContent = (cur.timestamp || "").replace("T", " ");
-  $("runs").textContent = String(hist.length);
-  if (cur.path) $("path").textContent = cur.path; else $("pathwrap").style.display = "none";
-  var sc = scoreOf(metrics);
-  $("score").textContent = sc == null ? "-" : sc;
+  // Hero
   var tally = { bad: 0, warn: 0, ok: 0 };
   metrics.forEach(function (m) { if (tally[m.status] != null) tally[m.status]++; });
-  $("tally").innerHTML = ["bad", "warn", "ok"].map(function (k) { return '<span class="chip ' + k + '">' + tally[k] + " " + k + "</span>"; }).join("");
-  $("gen").textContent = "Rendered " + (DATA.rendered || "");
+  $("tally").textContent = metrics.length + " metrics " + tally.bad + " bad " + tally.warn + " warn";
+  $("model").textContent = String(cur.model || "model").toLowerCase();
+  document.title = (cur.model || "Model") + " - Model Health";
+  $("when").textContent = (cur.timestamp || "").replace("T", " ") + (cur.revit_year ? "  /  revit " + cur.revit_year : "");
+  var sc = scoreOf(metrics);
+  $("score").textContent = (sc == null ? "-" : sc) + " / 100";
+  $("runs").textContent = String(hist.length);
+  if (cur.path) $("path").textContent = cur.path; else $("pathwrap").style.display = "none";
+  $("gen").textContent = "rendered " + (DATA.rendered || "");
 
-  // Sparkline for one metric across history
+  // Sparkline for one metric across history: a 1px line in secondary ink, no dot (the dot is reserved).
   function spark(id) {
     var pts = hist.map(function (h) { var m = (h.metrics || []).filter(function (x) { return x.id === id; })[0]; return m ? Number(m.value) : null; }).filter(function (v) { return v != null && !isNaN(v); });
     if (pts.length < 2) return "";
-    var w = 96, hgt = 30, mx = Math.max.apply(null, pts), mn = Math.min.apply(null, pts), rng = (mx - mn) || 1;
+    var w = 96, hgt = 28, mx = Math.max.apply(null, pts), mn = Math.min.apply(null, pts), rng = (mx - mn) || 1;
     var d = pts.map(function (v, i) { return (i ? "L" : "M") + (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + " " + (hgt - 3 - (v - mn) / rng * (hgt - 6)).toFixed(1); }).join(" ");
-    var last = pts[pts.length - 1], prev = pts[pts.length - 2];
-    var col = last > prev ? "var(--bad)" : last < prev ? "var(--ok)" : "var(--ink-3)";
-    return '<svg class="spark" viewBox="0 0 ' + w + " " + hgt + '" aria-hidden="true"><path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6"/></svg>';
+    return '<svg class="spark" viewBox="0 0 ' + w + " " + hgt + '" aria-hidden="true"><path d="' + d + '" vector-effect="non-scaling-stroke"/></svg>';
   }
 
-  // Cards: bad first, then warn, ok, info
+  // Cells: bad first, then warn, ok, info; larger value first within a status.
   var order = { bad: 0, warn: 1, ok: 2, info: 3 };
   var sorted = metrics.slice().sort(function (a, b) { return (order[a.status] - order[b.status]) || (Number(b.value) - Number(a.value)); });
   $("cards").innerHTML = sorted.map(function (m, i) {
     var t = m.threshold || {};
-    var thr = (t.warn == null && t.bad == null) ? "Information only" : "WARN above " + fmt(t.warn) + (t.bad != null ? " &middot; BAD above " + fmt(t.bad) : "");
+    var thr = (t.warn == null && t.bad == null) ? "information only" : "warn above " + fmt(t.warn) + (t.bad != null ? " / bad above " + fmt(t.bad) : "");
     var s = SCORE[m.status];
-    return '<button type="button" class="card" data-metric="' + esc(m.id) + '" style="animation-delay:' + (i * 35) + 'ms">' +
-      '<div class="top"><span class="chip ' + esc(m.status) + '">' + esc(m.status) + '</span><span class="score">' + (s == null ? "" : s + "/100") + "</span></div>" +
-      '<div class="label">' + esc(m.label) + "</div>" +
-      '<div class="row"><div class="value">' + esc(fmt(m.value)) + (m.unit ? "<small>" + esc(m.unit) + "</small>" : "") + "</div>" + spark(m.id) + "</div>" +
-      '<div class="thr">' + thr + "</div>" +
-      '<div class="hint">' + esc(m.hint) + "</div></button>";
+    return '<button type="button" class="cell" data-metric="' + esc(m.id) + '" style="animation-delay:' + (i * 35) + 'ms">' +
+      '<span class="top">' + statusTag(m.status) + '<span class="score tab">' + (s == null ? "" : s + " / 100") + "</span></span>" +
+      '<span class="row"><span class="value">' + esc(fmt(m.value)) + (m.unit ? "<small>" + esc(m.unit) + "</small>" : "") + "</span>" + spark(m.id) + "</span>" +
+      '<span class="label">' + esc(m.label) + "</span>" +
+      '<span class="thr">' + thr + "</span>" +
+      '<span class="hint">' + esc(m.hint) + "</span></button>";
   }).join("");
-  Array.prototype.forEach.call(document.querySelectorAll(".card"), function (c) {
+  Array.prototype.forEach.call(document.querySelectorAll(".cell"), function (c) {
     c.addEventListener("click", function () { setMetric(state.metric === c.getAttribute("data-metric") ? null : c.getAttribute("data-metric")); });
   });
 
-  // Charts
+  // Breakdown bars
   function barsHtml(items, metricId) {
-    if (!items.length) return '<p class="empty">Nothing to show. Good.</p>';
+    if (!items.length) return '<p class="empty">nothing to show. good.</p>';
     var mx = Math.max.apply(null, items.map(function (x) { return x.count; })) || 1;
     return '<div class="bars">' + items.map(function (x, i) {
-      return '<div class="bar" role="button" tabindex="0" data-metric="' + esc(x.metric || metricId) + '" data-label="' + esc(x.rowLabel || "") + '" title="' + esc(x.label) + '">' +
-        '<span class="name">' + esc(x.label) + '</span><span class="n">' + esc(fmt(x.count)) + "</span>" +
+      return '<div class="bar" role="button" tabindex="0" data-metric="' + esc(x.metric || metricId) + '" data-label="' + esc(x.rowLabel || "") + '" title="' + esc(x.label + ": " + fmt(x.count)) + '">' +
+        '<span class="name">' + esc(x.label) + '</span><span class="n">' + (x.status ? mark(x.status) : "") + esc(fmt(x.count)) + "</span>" +
         '<span class="track"><span class="fill ' + esc(x.status || "") + '" style="width:' + (x.count / mx * 100).toFixed(1) + "%;animation-delay:" + (i * 40) + 'ms"></span></span></div>';
     }).join("") + "</div>";
   }
@@ -380,7 +474,7 @@ var DATA = /*__REPORT_DATA__*/null;
     } else {
       items = c.ids.filter(function (id) { return byId[id]; }).map(function (id) { var m = byId[id]; return { label: m.label, count: Number(m.value) || 0, metric: id, status: m.status === "info" ? "" : m.status }; });
     }
-    return '<div class="panel"><h3>' + esc(c.title) + "</h3>" + barsHtml(items, c.metric) + "</div>";
+    return '<div class="panel"><h3 class="am-micro">' + esc(c.title) + "</h3>" + barsHtml(items, c.metric) + "</div>";
   }).join("");
   Array.prototype.forEach.call(document.querySelectorAll(".bar"), function (b) {
     function go() { state.label = b.getAttribute("data-label") || null; setMetric(b.getAttribute("data-metric"), true); $("rows").scrollIntoView({ behavior: "smooth", block: "start" }); }
@@ -388,35 +482,49 @@ var DATA = /*__REPORT_DATA__*/null;
     b.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
   });
 
-  // Trend
+  // Trend: 1px ink line, hairline grid, hollow ticks, and the focal dot on the latest point.
   var pick = $("trendpick");
-  pick.innerHTML = '<option value="__score">Health score</option>' + metrics.map(function (m) { return '<option value="' + esc(m.id) + '">' + esc(m.label) + "</option>"; }).join("");
+  pick.innerHTML = '<option value="__score">health score</option>' + metrics.map(function (m) { return '<option value="' + esc(m.id) + '">' + esc(m.label) + "</option>"; }).join("");
   function drawTrend() {
     var key = pick.value, svg = $("trend");
     var pts = hist.map(function (h) {
       var v = key === "__score" ? scoreOf(h.metrics) : (function () { var m = h.metrics.filter(function (x) { return x.id === key; })[0]; return m ? Number(m.value) : null; })();
       return { t: h.timestamp, v: v };
     }).filter(function (p) { return p.v != null && !isNaN(p.v); });
-    var W = Math.max(320, svg.clientWidth || 600), H = 220, L = 44, R = 14, T = 14, B = 34;
+    var W = Math.max(280, svg.clientWidth || 600), H = 220, L = 40, R = 16, T = 14, B = 30;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    if (!pts.length) { svg.innerHTML = '<text x="' + L + '" y="' + H / 2 + '" fill="var(--ink-3)" font-size="13">No history yet. Save more snapshots to see a trend.</text>'; return; }
+    if (!pts.length) { svg.innerHTML = '<text class="lbl" x="' + L + '" y="' + H / 2 + '">no history yet. save more snapshots to see a trend.</text>'; return; }
     var vals = pts.map(function (p) { return p.v; });
     var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
     if (key === "__score") { mn = 0; mx = 100; } else { mn = Math.min(0, mn); if (mx === mn) mx = mn + 1; }
     function x(i) { return pts.length === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (pts.length - 1); }
     function y(v) { return T + (1 - (v - mn) / (mx - mn)) * (H - T - B); }
     var g = "";
-    [0, 0.5, 1].forEach(function (f) { var v = mn + f * (mx - mn); g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--rule)"/><text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace">' + fmt(Math.round(v * 10) / 10) + "</text>"; });
+    [0.5, 1].forEach(function (f) { var v = mn + f * (mx - mn); g += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>'; });
+    g += '<line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(mn) + '" y2="' + y(mn) + '"/>';
+    [0, 0.5, 1].forEach(function (f) { var v = mn + f * (mx - mn); g += '<text class="lbl" x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(Math.round(v * 10) / 10) + "</text>"; });
     var d = pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1); }).join(" ");
-    g += '<path d="' + d + '" fill="none" stroke="var(--accent)" stroke-width="2"/>';
-    var step = Math.ceil(pts.length / 6);
+    g += '<path class="line" d="' + d + '"/>';
+    var step = Math.ceil(pts.length / Math.max(2, Math.floor((W - L - R) / 90)));
+    var last = pts.length - 1;
     pts.forEach(function (p, i) {
-      g += '<circle cx="' + x(i) + '" cy="' + y(p.v) + '" r="4" fill="var(--sheet)" stroke="var(--accent)" stroke-width="2"><title>' + esc(p.t.replace("T", " ") + ": " + fmt(p.v)) + "</title></circle>";
-      if (i % step === 0 || i === pts.length - 1) g += '<text x="' + x(i) + '" y="' + (H - 10) + '" text-anchor="middle" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace">' + esc(p.t.slice(0, 10)) + "</text>";
+      var tip = "<title>" + esc(p.t.replace("T", " ") + ": " + fmt(p.v)) + "</title>";
+      if (i === last) {
+        g += '<circle class="hit" cx="' + x(i) + '" cy="' + y(p.v) + '" r="10">' + tip + '</circle><circle class="focal" cx="' + x(i) + '" cy="' + y(p.v) + '" r="4.5">' + tip + "</circle>";
+        g += '<text class="lbl" x="' + x(i) + '" y="' + (y(p.v) - 10) + '" text-anchor="' + (pts.length === 1 ? "middle" : "end") + '">' + esc(fmt(p.v)) + "</text>";
+      } else {
+        g += '<circle class="hit" cx="' + x(i) + '" cy="' + y(p.v) + '" r="10">' + tip + '</circle><circle class="tick" cx="' + x(i) + '" cy="' + y(p.v) + '" r="2.5">' + tip + "</circle>";
+      }
+      if (i % step === 0 || i === last) {
+        var anchor = pts.length === 1 ? "middle" : i === 0 ? "start" : i === last ? "end" : "middle";
+        g += '<text class="lbl" x="' + x(i) + '" y="' + (H - 8) + '" text-anchor="' + anchor + '">' + esc(p.t.slice(0, 10)) + "</text>";
+      }
     });
     svg.innerHTML = g;
   }
   pick.addEventListener("change", drawTrend);
+  // Chart marks take their colors from CSS classes; redraw on a theme switch so nothing keeps a stale value.
+  document.addEventListener("am-theme-change", drawTrend);
   window.addEventListener("resize", function () { clearTimeout(drawTrend.h); drawTrend.h = setTimeout(drawTrend, 120); });
 
   // Table
@@ -425,7 +533,7 @@ var DATA = /*__REPORT_DATA__*/null;
     (m.details || []).forEach(function (d) { allRows.push({ metric: m.id, mlabel: m.label, status: m.status, label: d.label, count: d.count, ids: d.ids || [] }); });
   });
   var withRows = metrics.filter(function (m) { return (m.details || []).length; });
-  $("pills").innerHTML = '<button type="button" class="pill" data-metric="">All</button>' + withRows.map(function (m) { return '<button type="button" class="pill" data-metric="' + esc(m.id) + '">' + esc(m.label) + "</button>"; }).join("");
+  $("pills").innerHTML = '<button type="button" class="pill" data-metric="" aria-pressed="false">all</button>' + withRows.map(function (m) { return '<button type="button" class="pill" data-metric="' + esc(m.id) + '" aria-pressed="false">' + esc(m.label) + "</button>"; }).join("");
   Array.prototype.forEach.call(document.querySelectorAll(".pill"), function (p) {
     p.addEventListener("click", function () { setMetric(p.getAttribute("data-metric") || null); });
   });
@@ -443,16 +551,16 @@ var DATA = /*__REPORT_DATA__*/null;
     var rows = shown();
     $("rows").innerHTML = rows.length ? rows.map(function (r, i) {
       var ids = r.ids.slice(0, 40).join(", ") + (r.ids.length > 40 ? " ... (+" + (r.ids.length - 40) + ")" : "");
-      return "<tr><td><span class=\"chip " + esc(r.status) + "\">" + esc(r.status) + "</span> " + esc(r.mlabel) + "</td><td>" + esc(r.label) + '</td><td class="num">' + esc(r.count) + '</td><td class="ids">' + esc(ids || "-") + "</td><td>" +
-        (r.ids.length ? '<button type="button" data-row="' + i + '">Copy</button>' : "") + "</td></tr>";
-    }).join("") : '<tr><td colspan="5" class="empty">No rows match.</td></tr>';
+      return "<tr><td>" + statusTag(r.status) + esc(r.mlabel) + "</td><td>" + esc(r.label) + '</td><td class="num">' + esc(r.count) + '</td><td class="ids">' + esc(ids || "-") + "</td><td>" +
+        (r.ids.length ? '<button type="button" class="btn small" data-row="' + i + '">copy</button>' : "") + "</td></tr>";
+    }).join("") : '<tr><td colspan="5" class="empty">no rows match.</td></tr>';
     Array.prototype.forEach.call($("rows").querySelectorAll("button[data-row]"), function (b) {
       b.addEventListener("click", function () { copyIds(rows[Number(b.getAttribute("data-row"))].ids); });
     });
     var n = 0; rows.forEach(function (r) { n += r.ids.length; });
-    $("rowcount").textContent = rows.length + " rows, " + n + " element IDs shown.";
-    Array.prototype.forEach.call(document.querySelectorAll(".card"), function (c) { c.classList.toggle("active", c.getAttribute("data-metric") === state.metric); });
-    Array.prototype.forEach.call(document.querySelectorAll(".pill"), function (p) { p.classList.toggle("on", (p.getAttribute("data-metric") || null) === state.metric); });
+    $("rowcount").textContent = rows.length + " rows, " + n + " element ids shown.";
+    Array.prototype.forEach.call(document.querySelectorAll(".cell"), function (c) { c.classList.toggle("active", c.getAttribute("data-metric") === state.metric); });
+    Array.prototype.forEach.call(document.querySelectorAll(".pill"), function (p) { p.setAttribute("aria-pressed", String((p.getAttribute("data-metric") || null) === state.metric)); });
   }
   function setMetric(id, keepLabel) { state.metric = id; if (!keepLabel) state.label = null; renderRows(); }
 
