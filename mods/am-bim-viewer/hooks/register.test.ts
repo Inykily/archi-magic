@@ -76,6 +76,11 @@ test('/bim-view opens the inline pane: an SVG drawing on desktop, text on the te
   const desk = await $.ui.mount({ plugin: 'am-bim-viewer', surface: 'desktop', component: 'Pane', requestId: 'am-bim-view', props: PANE_PROPS as never })
   const svg = await desk.find({ type: 'Svg' })
   expect(svg).toBeDefined()
+  // Value, not hue: every fill in the drawing is a gray of the token scale.
+  const fills = [...JSON.stringify(svg).matchAll(/rgb\((\d+),(\d+),(\d+)\)/g)].map(m => [Number(m[1]), Number(m[2]), Number(m[3])])
+  expect(fills.length).toBeGreaterThan(0)
+  expect(fills.filter(c => Math.max(...c) - Math.min(...c) > 6)).toEqual([])
+  expect(JSON.stringify(svg)).toContain('#0a0a0a')
   await desk.press({ key: 'v-top' })
   const topBtn = await desk.find({ key: 'v-top' })
   expect(JSON.stringify(topBtn)).toContain('primary')

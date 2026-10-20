@@ -4,175 +4,390 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2248%22%20r%3D%2230%22%20fill%3D%22none%22%20stroke%3D%22%230a0a0a%22%20stroke-width%3D%229%22%2F%3E%3Ccircle%20cx%3D%2284%22%20cy%3D%2282%22%20r%3D%2211%22%20fill%3D%22%230a0a0a%22%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script>
+// am-theme:start
+// archi-magic time-of-day theme (see design/DESIGN-SYSTEM.md). Single source: copied between the
+// am-theme markers into every page template by scripts/sync-design-tokens.ps1. Edit only here.
+// Day (paper) 07:00-19:00 local time, night otherwise; re-checked every minute. A manual choice
+// (window.amTheme.set('night'|'paper'|'auto')) holds until the next day/night boundary.
+// Without JavaScript the page follows the OS light/dark setting through the CSS tokens.
+(function () {
+  var DAY_START = 7, NIGHT_START = 19, KEY = 'am-theme-override';
+  var root = document.documentElement, current = null;
+  function timeTheme(d) { var h = d.getHours(); return (h >= DAY_START && h < NIGHT_START) ? 'paper' : 'night'; }
+  function nextBoundary(d) {
+    var b = new Date(d); var h = d.getHours();
+    if (h < DAY_START) b.setHours(DAY_START, 0, 0, 0);
+    else if (h < NIGHT_START) b.setHours(NIGHT_START, 0, 0, 0);
+    else { b.setDate(b.getDate() + 1); b.setHours(DAY_START, 0, 0, 0); }
+    return b.getTime();
+  }
+  function readOverride() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && (o.theme === 'night' || o.theme === 'paper') && Date.now() < o.until) return o.theme;
+      if (o) localStorage.removeItem(KEY);
+    } catch (e) { /* storage blocked: time of day only */ }
+    return null;
+  }
+  function apply() {
+    var now = new Date(), theme = readOverride() || timeTheme(now);
+    if (theme === current) return;
+    current = theme;
+    root.classList.toggle('am-night', theme === 'night');
+    root.classList.toggle('am-paper', theme === 'paper');
+    root.setAttribute('data-am-theme', theme);
+    try { document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: theme } })); } catch (e) { /* old browsers */ }
+  }
+  window.amTheme = {
+    get: function () { return current; },
+    set: function (t) {
+      try {
+        if (t === 'auto') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, JSON.stringify({ theme: t, until: nextBoundary(new Date()) }));
+      } catch (e) { /* storage blocked: apply for this page view only */ if (t !== 'auto') { current = null; root.classList.toggle('am-night', t === 'night'); root.classList.toggle('am-paper', t === 'paper'); root.setAttribute('data-am-theme', t); return; } }
+      current = null; apply();
+    },
+    toggle: function () { this.set(current === 'night' ? 'paper' : 'night'); },
+    _timeTheme: timeTheme, _nextBoundary: nextBoundary
+  };
+  apply();
+  setInterval(apply, 60000);
+})();
+// am-theme:end
+</script>
 <style>
-  /* Drawing-set look: vellum and graphite by day, blueprint by night.
-     One sharp accent (redline orange) marks what you selected. */
-  :root {
-    --paper: #f1ede3;
-    --sheet: #f8f6f0;
-    --ink: #22221f;
-    --ink-2: #5d5a52;
-    --ink-3: #8c887d;
-    --rule: #d8d2c3;
-    --view: #e9e5da;
-    --chip: #ebe6da;
-    --chip-on: #22221f;
-    --chip-on-ink: #f8f6f0;
-    --accent: #e2541b;
-    --accent-soft: rgba(226, 84, 27, .12);
-    --hover: #3c7dd9;
-    --edge: #3a3833;
-    --shadow: 0 1px 0 rgba(0, 0, 0, .04), 0 8px 24px rgba(40, 32, 16, .08);
-    --ui: 'Archivo', 'Segoe UI', sans-serif;
-    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+/* am-tokens:start
+   archi-magic design tokens: "Visual Research" (see design/DESIGN-SYSTEM.md).
+   Single source. Copied between the am-tokens markers into every page template by
+   scripts/sync-design-tokens.ps1; check-skills fails if a copy drifts. Edit only here. */
+:root {
+  /* value scale: black to paper, no hue */
+  --v0: #0a0a0a;  /* ink, the dot */
+  --v1: #1c1c1b;
+  --v2: #3a3a38;
+  --v3: #6b6b68;  /* secondary text (the "is the clay" gray) */
+  --v4: #9a9a96;
+  --v5: #c9c9c4;
+  --v6: #e7e7e3;
+  --v7: #f4f4f1;  /* paper */
+
+  /* paper theme (tables, dashboards) */
+  --bg: var(--v7);
+  --surface: #fbfbf9;
+  --ink: var(--v0);
+  --ink-2: var(--v3);
+  --ink-3: var(--v4);
+  --line: rgba(10, 10, 10, .14);      /* hairline */
+  --line-strong: rgba(10, 10, 10, .42);
+  --beam: radial-gradient(ellipse 22% 70% at 50% 45%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+  --vignette: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.10) 100%);
+  /* strong beam (hero, empty states, viewport backdrop): a bright column, soft edges, haze at the top */
+  --beam-hero: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.55) 22%, rgba(244,244,241,.0) 34%, rgba(244,244,241,0) 66%, rgba(10,10,10,.55) 78%, rgba(10,10,10,.9) 100%),
+               radial-gradient(ellipse 60% 30% at 50% 0%, rgba(244,244,241,.95), rgba(244,244,241,0) 70%),
+               linear-gradient(var(--v7), var(--v6));
+  --on-beam: var(--v0);   /* text and the dot that sit on the bright beam */
+
+  /* type: one monospace family; hierarchy by tone, not size */
+  --font: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-micro: 10.5px;  /* uppercase tracked labels, the "VISUAL RESEARCH 13 / 30" header */
+  --fs-body: 12.5px;
+  --fs-lead: 14px;     /* the one emphasized line ("future") */
+  --track-micro: .18em;
+  --w-light: 300; --w-regular: 400; --w-medium: 500;
+
+  /* geometry */
+  --hair: 1px;
+  --radius: 0px;       /* rectangles stay square ... */
+  --round: 999px;      /* ... round things are fully round (dots, rings, pills) */
+  --dot: 9px;          /* the focal dot */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 20px; --space-5: 32px; --space-6: 56px;
+
+  /* grain: fixed SVG luminance noise (gray = the noise's red channel, alpha 1), tiled; opacity per theme.
+     It must vary in brightness: flat 50% gray is neutral under mix-blend-mode overlay and shows nothing. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-opacity: .16;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --slow: 420ms;
+}
+
+/* night theme (3D viewport, and every page when the OS is dark) */
+.am-night, :root.am-night {
+  --bg: var(--v0);
+  --surface: #121211;
+  --ink: var(--v7);
+  --ink-2: var(--v4);
+  --ink-3: var(--v3);
+  --line: rgba(244, 244, 241, .22);
+  --line-strong: rgba(244, 244, 241, .7);
+  --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+  --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+  --grain-opacity: .22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.am-paper) {
+    --bg: var(--v0); --surface: #121211; --ink: var(--v7); --ink-2: var(--v4); --ink-3: var(--v3);
+    --line: rgba(244, 244, 241, .22); --line-strong: rgba(244, 244, 241, .7);
+    --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+    --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+    --grain-opacity: .22;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
-      --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
-      --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
-      --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
-    }
-  }
-  :root[data-theme="dark"] {
-    --paper: #0e1c31; --sheet: #13253f; --ink: #e6eef8; --ink-2: #a8bbd3; --ink-3: #6f86a5;
-    --rule: #24405f; --view: #0b1729; --chip: #1a2f4d;
-    --chip-on: #e6eef8; --chip-on-ink: #0e1c31; --accent: #ff7a3d; --accent-soft: rgba(255, 122, 61, .16);
-    --hover: #7fb2ff; --edge: #9fb6d4; --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35);
-  }
+}
+
+/* shared primitives */
+.am-surface { background: var(--bg); color: var(--ink); font: var(--w-regular) var(--fs-body)/1.6 var(--font); position: relative; }
+.am-surface::after { /* grain over everything, never blocks input */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background-image: var(--grain); opacity: var(--grain-opacity); mix-blend-mode: overlay;
+}
+.am-micro { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink); }
+.am-index { font-size: var(--fs-micro); letter-spacing: var(--track-micro); color: var(--ink); word-spacing: .6em; } /* "13 / 30" */
+.am-lead  { font-size: var(--fs-lead); color: var(--ink); text-transform: lowercase; }
+.am-quiet { color: var(--ink-2); }
+.am-hair  { border: var(--hair) solid var(--line); border-radius: var(--radius); }
+.am-dot   { display: inline-block; width: var(--dot); height: var(--dot); border-radius: var(--round); background: var(--ink); }
+/* status by shape, not color: ok = ring, warn = half, bad = solid dot */
+.am-status { display: inline-block; width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--ink); vertical-align: -1px; }
+.am-status.warn { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.am-status.bad  { background: var(--ink); }
+/* am-tokens:end */
+
+  /* Page CSS: "Visual Research" (design/DESIGN-SYSTEM.md). Only the tokens above; no other colors.
+     The whole page, viewport included, follows the time-of-day theme set on <html> by am-theme. */
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
-    font: 13px/1.45 var(--ui); font-stretch: 100%; -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; height: 100%; }
+  body { -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; }
-  #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  :focus-visible { outline: var(--hair) solid var(--ink); outline-offset: 2px; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
 
-  /* Title block */
-  header { grid-column: 1 / 3; display: flex; align-items: stretch; gap: 0; background: var(--sheet);
-    box-shadow: inset 0 -1px 0 var(--rule); min-height: 56px; flex-wrap: wrap; }
-  .tb { display: flex; flex-direction: column; justify-content: center; padding: 8px 16px; box-shadow: inset -1px 0 0 var(--rule); }
-  .tb small { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-stretch: 80%; font-weight: 600; }
-  .tb strong { font-size: 15px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
-  .tb.meta strong { font: 500 12px var(--mono); }
-  .tools { display: flex; align-items: center; gap: 10px; padding: 8px 16px; margin-left: auto; flex-wrap: wrap; }
-  .seg { display: inline-flex; background: var(--chip); border-radius: 9px; padding: 3px; gap: 2px; }
-  .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer;
-    font-weight: 600; font-size: 12px; letter-spacing: .02em; color: var(--ink-2); transition: background .15s, color .15s; }
+  /* Header: micro uppercase title with an index, the views, one action */
+  header { grid-column: 1 / 3; display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4); border-bottom: var(--hair) solid var(--line); }
+  .brand { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
+  .brand .mark { width: 16px; height: 16px; flex: none; align-self: center; color: var(--ink); }
+  .brand .am-micro { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
+  .meta { display: flex; gap: var(--space-4); text-transform: lowercase; white-space: nowrap; }
+  .meta b { font-weight: var(--w-regular); color: var(--ink); }
+  .tools { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; flex-wrap: wrap; }
+
+  /* segmented control: dividers are the 1px gap showing the hairline color behind the buttons */
+  .seg { display: inline-flex; gap: var(--hair); background: var(--line); border: var(--hair) solid var(--line-strong); }
+  .seg button { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; background: var(--bg);
+    color: var(--ink-2); border: 0; padding: 6px 12px; cursor: pointer; transition: color var(--slow) var(--ease); }
   .seg button:hover { color: var(--ink); }
-  .seg button[aria-pressed="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
-  .act { border: 0; background: var(--chip-on); color: var(--chip-on-ink); padding: 7px 12px; border-radius: 8px;
-    font-weight: 600; font-size: 12px; cursor: pointer; }
-  .act.ghost { background: var(--chip); color: var(--ink); }
-  .act:disabled { opacity: .4; cursor: default; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 
-  /* Viewport. The grid is a world-space ground plane in the 3D scene. */
-  #viewport { position: relative; overflow: hidden; background: var(--view); min-height: 260px; }
+  .btn { background: none; color: var(--ink); border: var(--hair) solid var(--line-strong); border-radius: var(--radius);
+    padding: 6px 14px; cursor: pointer; text-transform: lowercase; transition: border-color var(--slow) var(--ease); }
+  .btn:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn.sm { padding: 0 8px; font-size: var(--fs-micro); }
+  .btn:disabled { color: var(--ink-2); cursor: default; }
+  .link { border: 0; background: none; padding: 0 0 0 var(--space-3); color: var(--ink-2); cursor: pointer;
+    font-size: var(--fs-micro); text-transform: lowercase; transition: color var(--slow) var(--ease); }
+  .link:hover { color: var(--ink); }
+
+  /* Viewport: a flat, clean field (--bg) so the model is the only bright or dark thing in it.
+     No beam, no vignette, and it sits above the page grain (z-index over .am-surface::after's 50).
+     The grid is a world-space ground plane in the 3D scene. */
+  #viewport { position: relative; z-index: 60; overflow: hidden; min-height: 260px; background: var(--bg); }
   #viewport canvas { position: relative; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   #labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-  .tag { position: absolute; transform: translate(-50%, -50%); padding: 2px 7px; border-radius: 4px;
-    background: var(--ink); color: var(--sheet); font: 500 10.5px var(--mono); white-space: nowrap; letter-spacing: .02em; }
-  #viewname { position: absolute; left: 12px; top: 12px; z-index: 2; pointer-events: none; padding: 3px 9px; border-radius: 6px;
-    background: var(--ink); color: var(--sheet); font: 600 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; font-stretch: 85%; }
-  #gizmo { position: absolute; left: 12px; bottom: 12px; width: 92px; height: 92px; pointer-events: none; z-index: 2; }
+  .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; background: var(--bg); color: var(--ink);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; }
+  #viewname { position: absolute; left: var(--space-4); top: var(--space-3); z-index: 2; pointer-events: none; }
+  /* Walk readout (bottom left) */
+  #walkinfo { position: absolute; left: 14px; bottom: 14px; z-index: 4; display: none; padding: 4px 8px; background: var(--bg);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); color: var(--ink-2); pointer-events: none; }
+  #walkinfo.on { display: grid; gap: 2px; }
+  #walkread { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .walking #cubewrap { opacity: .45; pointer-events: none; }
+  /* View cube (top right): hairline wireframe, no fill until hover, compass ring with N/E/S/W. */
+  #cubewrap { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; align-items: flex-start; gap: 2px; }
+  #viewcube { width: 84px; height: 84px; overflow: visible; touch-action: none; }
+  #viewcube .cell { fill: transparent; stroke: none; cursor: pointer; transition: fill var(--slow) var(--ease); }
+  #viewcube .cell:hover { fill: var(--line); }
+  #viewcube .edge { fill: none; stroke: var(--ink-2); stroke-width: 1; pointer-events: none; }
+  #viewcube .ring { fill: none; stroke: var(--ink-2); stroke-width: 1; pointer-events: none; }
+  #viewcube .ringhit { fill: none; stroke: transparent; stroke-width: 9; pointer-events: visibleStroke; cursor: ew-resize; }
+  #viewcube text { fill: var(--ink-2); font-family: var(--font); font-size: var(--fs-micro); text-anchor: middle; pointer-events: none; }
+  #viewcube text.face { fill: var(--ink); }
+  #cubehome { width: 20px; height: 20px; padding: 2px; border: 0; background: none; color: var(--ink-2); cursor: pointer; transition: color var(--slow) var(--ease); }
+  #cubehome:hover { color: var(--ink); }
+  #cubehome svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
 
-  /* Property sheet */
-  aside { grid-row: 2 / 4; grid-column: 2; background: var(--sheet); box-shadow: inset 1px 0 0 var(--rule); overflow: auto; }
-  .sec { padding: 14px 16px 16px; box-shadow: inset 0 -1px 0 var(--rule); animation: rise .5s both; }
-  .sec:nth-child(2) { animation-delay: .08s; }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-  .h b { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; font-stretch: 80%; color: var(--ink-2); }
-  .h button { border: 0; background: none; color: var(--ink-3); cursor: pointer; font-size: 11px; padding: 0 0 0 10px; }
-  .h button:hover { color: var(--ink); }
-  .empty { color: var(--ink-3); font-size: 12.5px; padding: 6px 0 2px; }
-  .empty kbd { font-size: 10.5px; }
-  .sel-name { font-size: 17px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; margin: 2px 0 4px; }
-  .sel-cat { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); margin-bottom: 10px; }
-  .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 45%, transparent); }
-  .grp { margin-top: 12px; }
-  .grp > div:first-child { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
-    font-stretch: 80%; font-weight: 600; padding-bottom: 4px; box-shadow: inset 0 -1px 0 var(--rule); }
+  /* Side panel: property sheet and category chips */
+  aside { grid-row: 2; grid-column: 2; overflow: auto; background: var(--bg); position: relative; }
+  aside::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: var(--hair); background: var(--line); }
+  .sec { padding: var(--space-4); border-bottom: var(--hair) solid var(--line); animation: fade var(--slow) var(--ease) both; }
+  .sec:nth-child(2) { animation-delay: 80ms; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2);
+    padding-bottom: var(--space-2); margin-bottom: var(--space-3); border-bottom: var(--hair) solid var(--line); }
+  .head .r { display: inline-flex; align-items: baseline; }
+
+  .empty { display: grid; justify-items: center; text-align: center; padding: var(--space-2) 0 var(--space-3); }
+  .empty svg { width: 160px; height: 124px; fill: none; stroke: var(--line-strong); stroke-width: 1; }
+  .empty svg .dot { fill: var(--ink); stroke: none; }
+  .sel-head { display: flex; align-items: center; gap: var(--space-2); margin: 2px 0 4px; }
+  .sel-head .am-dot { flex: none; }
+  .sel-name { overflow-wrap: anywhere; }
+  .sel-cat { display: inline-flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); text-transform: lowercase; }
+  .sw { width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); flex: none; }
+  .grp { margin-top: var(--space-4); }
+  .grp > .lbl { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2);
+    padding-bottom: 4px; border-bottom: var(--hair) solid var(--line-strong); }
   dl { margin: 0; display: grid; grid-template-columns: minmax(96px, 42%) 1fr; }
-  dt, dd { margin: 0; padding: 5px 0; box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--rule) 55%, transparent); }
-  dt { color: var(--ink-2); font-size: 12px; padding-right: 8px; }
-  dd { font: 12px/1.45 var(--mono); word-break: break-word; }
+  dt, dd { margin: 0; padding: 6px 0; border-bottom: var(--hair) solid var(--line); }
+  dt { color: var(--ink-2); padding-right: var(--space-2); text-transform: lowercase; }
+  dd { word-break: break-word; font-variant-numeric: tabular-nums; }
   dd .u { color: var(--ink-3); }
-  .idrow { display: flex; align-items: center; gap: 6px; }
-  .copy { border: 0; background: var(--chip); border-radius: 5px; padding: 1px 7px; font: 600 10.5px var(--ui); cursor: pointer; color: var(--ink-2); }
-  .copy:hover { background: var(--accent-soft); color: var(--accent); }
-  .sel-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .idrow { display: flex; align-items: center; gap: var(--space-2); }
+  .sel-actions { display: flex; gap: var(--space-2); }
 
-  /* Category chips */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: center; gap: 7px; border: 0; background: var(--chip); color: var(--ink);
-    padding: 5px 10px 5px 8px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 500;
-    transition: background .15s, opacity .15s, transform .1s; }
-  .chip:active { transform: scale(.97); }
-  .chip .n { font: 500 10.5px var(--mono); color: var(--ink-3); }
-  .chip[aria-pressed="false"] { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); color: var(--ink-3); }
-  .chip .tick { width: 10px; font: 700 10px var(--ui); color: var(--ink); }
-  .chip[aria-pressed="false"] .tick { visibility: hidden; }
-  .chip[aria-pressed="false"] .sw { background: transparent !important; }
-  .chip[aria-pressed="false"] .label { text-decoration: line-through; text-decoration-color: var(--ink-3); }
+  /* chips: hairline pills, value swatch, never color */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-2); padding: 3px 12px 3px 8px; border-radius: var(--round);
+    border: var(--hair) solid var(--line); background: none; color: var(--ink-2); cursor: pointer; text-transform: lowercase;
+    transition: border-color var(--slow) var(--ease), color var(--slow) var(--ease); }
+  .chip:hover { border-color: var(--line-strong); }
+  .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--line-strong); }
+  .chip[aria-pressed="false"] .sw { background: none !important; }
+  .chip .n { color: var(--ink-3); }
 
-  /* Key-cap hints */
-  footer { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 14px; background: var(--sheet);
-    box-shadow: inset 0 1px 0 var(--rule); color: var(--ink-3); font-size: 11.5px; }
-  footer span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-  kbd { font: 500 10px var(--mono); color: var(--ink-2); background: var(--paper); border-radius: 4px; padding: 1px 5px;
-    box-shadow: inset 0 -1px 0 var(--rule), 0 0 0 1px var(--rule); }
-  #toast { position: fixed; left: 50%; bottom: 52px; transform: translate(-50%, 8px); opacity: 0; background: var(--ink); color: var(--sheet);
-    padding: 6px 12px; border-radius: 8px; font-size: 12px; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 5; }
-  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  /* Gumball: hairline handles over the selected element; the hovered handle thickens. */
+  #gumball { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; overflow: visible; }
+  #gumball .h { pointer-events: visibleStroke; }
+  #gumball .h .hit { stroke: transparent; stroke-width: 14; fill: none; }
+  #gumball .h .vis { stroke: var(--ink); stroke-width: 1; fill: none; transition: stroke-width var(--slow) var(--ease); }
+  #gumball .h .head { fill: var(--ink); stroke: none; }
+  #gumball .h:hover .vis, #gumball .h.on .vis { stroke-width: 2.25; }
+  #gumball text { fill: var(--ink); font-size: var(--fs-micro); font-family: var(--font); }
+  #gumball .pivot { fill: var(--bg); stroke: var(--ink); stroke-width: 1; }
+  #readout { position: absolute; z-index: 5; pointer-events: none; padding: 1px 7px; background: var(--bg); color: var(--ink);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; display: none; }
+  /* Typed entry next to a gumball handle, and the side-panel value fields */
+  #typein { position: absolute; z-index: 6; display: none; padding: 6px 8px; background: var(--bg); border: var(--hair) solid var(--line-strong); min-width: 160px; }
+  #typein.on { display: grid; gap: 4px; }
+  #typein .lbl, .vf label { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); }
+  #typein input, .vf input { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: var(--hair) solid var(--line-strong); padding: 2px 0; width: 100%; border-radius: var(--radius); }
+  #typein input:focus, .vf input:focus { outline: none; border-bottom-color: var(--ink); }
+  #typein .err, .vf-err { display: none; font-size: var(--fs-micro); color: var(--ink); white-space: normal; max-width: 240px; }
+  #typein .err.on, .vf-err.on { display: block; }
+  .vf { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
+  .vf div { display: grid; gap: 2px; }
+  .vf input[aria-invalid="true"], #typein input[aria-invalid="true"] { border-bottom-style: dashed; border-bottom-color: var(--ink); }
+  /* Pending changes */
+  .pend { padding: 6px 0; border-bottom: var(--hair) solid var(--line); }
+  .pend-h { display: flex; align-items: baseline; gap: var(--space-2); }
+  .pend-h .nm { color: var(--ink); text-transform: lowercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .pend .ln { color: var(--ink-2); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
+  .pend-actions { display: flex; align-items: baseline; gap: var(--space-2); margin-top: var(--space-3); }
+  .pend-note { margin-top: var(--space-2); font-size: var(--fs-micro); }
+
+  /* Help: a 22px round "?" at the viewport's bottom right; it opens into a hairline panel of key-cap rows
+     on hover, keyboard focus or tap, and closes on leave, blur or Esc. */
+  /* Only the 22px button is a hover target; the closed panel takes no space and catches no pointer. */
+  #help { position: absolute; right: 14px; bottom: 14px; z-index: 4; width: 22px; height: 22px; }
+  #helpbtn { width: 22px; height: 22px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); background: var(--bg);
+    color: var(--ink-2); font-size: var(--fs-micro); line-height: 1; padding: 0; cursor: pointer; transition: color var(--slow) var(--ease), border-color var(--slow) var(--ease); }
+  #help.open #helpbtn, #helpbtn:hover { color: var(--ink); border-color: var(--ink); }
+  #helppanel { position: absolute; right: 0; bottom: 30px; pointer-events: none; padding: var(--space-3) var(--space-4); background: var(--bg); border: var(--hair) solid var(--line-strong);
+    display: grid; gap: 6px; color: var(--ink-2); font-size: var(--fs-micro); text-transform: lowercase; white-space: nowrap;
+    transform-origin: 100% 100%; opacity: 0; visibility: hidden; transform: translate(4px, 6px) scale(.96);
+    transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s linear var(--slow); }
+  #help.open #helppanel { pointer-events: auto; opacity: 1; visibility: visible; transform: none; transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s; }
+  #helppanel .row { display: flex; align-items: center; gap: 5px; }
+  #help.open #helppanel .row { animation: rowIn var(--slow) var(--ease) both; animation-delay: calc(var(--i) * 35ms); }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  kbd { font: inherit; color: var(--ink); border: var(--hair) solid var(--line-strong); padding: 0 5px; }
+  #toast { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); opacity: 0; background: var(--ink); color: var(--bg);
+    padding: 6px 12px; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 70; }
+  #toast.on { opacity: 1; }
 
   @media (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto auto; }
-    header { grid-column: 1; }
-    .tb.meta { display: none; }
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; }
+    header { grid-column: 1; padding: var(--space-3) 16px; }
+    .meta { display: none; }
     .tools { margin-left: 0; }
-    aside { grid-column: 1; grid-row: 3; box-shadow: inset 0 1px 0 var(--rule); }
-    footer { grid-row: 4; }
+    aside { grid-column: 1; grid-row: 3; }
+    aside::before { top: 0; left: 0; right: 0; bottom: auto; width: auto; height: var(--hair); }
   }
-  @media (prefers-reduced-motion: reduce) { .sec { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sec, #help.open #helppanel .row { animation: none; }
+    #helppanel, #help.open #helppanel { transition: none; transform: none; }
+  }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
 </script>
 </head>
-<body>
+<body class="am-surface">
 <div id="app">
   <header>
-    <div class="tb"><small>Model</small><strong id="title">__TITLE__</strong></div>
-    <div class="tb meta"><small>Source view</small><strong id="srcview">-</strong></div>
-    <div class="tb meta"><small>Units</small><strong>ft · Z up</strong></div>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="40" cy="48" r="30" fill="none" stroke="currentColor" stroke-width="9"/><circle cx="84" cy="82" r="11" fill="currentColor"/></svg>
+      <span class="am-micro" id="title">__TITLE__</span>
+      <span class="am-index" id="count"></span>
+    </div>
+    <div class="meta am-quiet"><span>view <b id="srcview">-</b></span><span>ft / z up</span></div>
     <div class="tools">
-      <div class="seg" role="group" aria-label="Named views">
-        <button data-view="top">Top</button>
-        <button data-view="front">Front</button>
-        <button data-view="right">Right</button>
-        <button data-view="perspective">Perspective</button>
+      <div class="seg" role="group" aria-label="Projection">
+        <button data-proj="perspective">perspective</button>
+        <button data-proj="parallel">parallel</button>
+        <button id="walkbtn" aria-pressed="false" title="First-person walk (G)">walk</button>
       </div>
-      <button class="act ghost" id="fit" title="Zoom extents">Zoom extents</button>
+      <button class="btn" id="fit" title="Zoom extents">zoom extents</button>
+      <button class="link" id="theme" title="Switch day / night until the next 07:00 or 19:00">paper / night</button>
     </div>
   </header>
   <div id="viewport">
-    <div id="viewname">Perspective</div>
+    <div id="viewname" class="am-micro">Perspective</div>
     <div id="labels"></div>
-    <svg id="gizmo" viewBox="-46 -46 92 92" aria-label="Axis gizmo"></svg>
+    <svg id="gumball" aria-label="Gumball: drag an arrow to move, the ring to rotate"></svg>
+    <div id="readout" role="status"></div>
+    <div id="typein" role="dialog" aria-label="Type a value"><span class="lbl" id="typelbl">move x</span><input id="typeval" autocomplete="off" spellcheck="false" aria-labelledby="typelbl" aria-describedby="typeerr"><div class="err" id="typeerr" role="alert"></div></div>
+    <div id="help">
+      <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
+      <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
+    </div>
+    <div id="walkinfo" aria-live="polite"><div id="walkhint">click to look around, esc to exit</div><div id="walkread"></div></div>
+    <div id="cubewrap">
+      <button id="cubehome" type="button" title="Home: the default perspective" aria-label="Home: the default perspective"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.2 L8 3.2 L13.5 8.2 M4.6 6.6 V12.8 H11.4 V6.6"/></svg></button>
+      <svg id="viewcube" viewBox="-42 -42 84 84" role="img" aria-label="View cube: click a face, edge or corner; drag to orbit; drag the ring to spin"></svg>
+    </div>
   </div>
   <aside>
     <section class="sec">
-      <div class="h"><b>Selected</b><button id="clear" hidden>Clear</button></div>
+      <div class="head"><span class="am-micro">selected</span><span class="r"><span class="am-index" id="selidx">--</span><button class="link" id="clear" hidden>clear</button></span></div>
       <div id="props"></div>
     </section>
+    <section class="sec" id="pendsec">
+      <div class="head"><span class="am-micro">pending changes</span><span class="r"><span class="am-index" id="pendidx">0</span><button class="link" id="clearall" disabled>clear all</button></span></div>
+      <div id="selfields" hidden>
+        <div class="vf">
+          <div><label for="vf-x">dx</label><input id="vf-x" data-k="x" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-y">dy</label><input id="vf-y" data-k="y" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-z">dz</label><input id="vf-z" data-k="z" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-rz">rot</label><input id="vf-rz" data-k="rz" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div class="vf-err" id="vferr" role="alert"></div>
+      </div>
+      <div id="pending"></div>
+      <div class="pend-actions"><button class="btn" id="copyrevit" disabled>copy changes for revit</button></div>
+      <div class="pend-note am-quiet">nothing changes in revit until you approve it there</div>
+    </section>
     <section class="sec">
-      <div class="h"><b>Categories</b><span><button id="all">All</button><button id="none">None</button></span></div>
+      <div class="head"><span class="am-micro">categories</span><span class="r"><span class="am-index" id="catidx"></span><button class="link" id="all">all</button><button class="link" id="none">none</button></span></div>
       <div class="chips" id="cats"></div>
     </section>
   </aside>
-  <footer id="hint"></footer>
 </div>
 <div id="toast" role="status"></div>
 <script type="module">
@@ -182,30 +397,56 @@ import * as THREE from 'three';
 
 const DATA = /*__DATA__*/null;
 
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const vp = document.getElementById('viewport');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+// Theme tokens are read from the viewport, which inherits the page theme (am-paper / am-night on <html>).
+const css = name => getComputedStyle(vp).getPropertyValue(name).trim();
+// Grid strength from the hairline token's alpha: major lines land near --line, minor lines finer.
+function gridOpacity(s) { const m = /^rgba\([^)]*,\s*([\d.]+)\s*\)/i.exec(s || ''); return Math.min(1, (m ? Number(m[1]) : .2) * 2.5); }
+// '#rrggbb' or 'rgb(a)(r, g, b, a)' -> THREE.Color (sRGB in, linear inside three.js).
+function toColor(s, fallback) {
+  const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(s || '');
+  if (m) return new THREE.Color().setRGB(m[1] / 255, m[2] / 255, m[3] / 255, THREE.SRGBColorSpace);
+  return new THREE.Color(s && s[0] === '#' ? s : fallback);
+}
+function readTokens() {
+  const t = { ink: css('--ink') || '#0a0a0a', ink2: css('--ink-2') || '#6b6b68', line: css('--line') || 'rgba(10, 10, 10, .14)' };
+  for (const k of [0, 1, 2, 3, 4, 5, 6, 7]) t['v' + k] = css('--v' + k) || '#' + VALUE_RGB[k in VALUE_RGB ? k : 0].map(c => c.toString(16).padStart(2, '0')).join('');
+  return t;
+}
+function currentTheme() {
+  const r = document.documentElement;
+  if (r.classList.contains('am-night')) return 'night';
+  if (r.classList.contains('am-paper')) return 'paper';
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'paper';
+}
+let pal = scenePalette(currentTheme(), readTokens());
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setClearColor(0x000000, 0); // transparent over the flat --bg of the viewport
 vp.prepend(renderer.domElement);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(css('--view') || '#e9e5da');
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.15));
-const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+scene.background = null;
+// Neutral (hue-free) light, bright enough that lit faces read close to their token value.
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(-0.5, -0.8, 1.6); // from the south-west, above (world Z up)
 scene.add(sun);
 
 const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 1e5) };
 const state = createViewState();
 let viewName = 'perspective';
-const ACCENT = new THREE.Color(css('--accent') || '#e2541b');
-const HOVER = new THREE.Color(css('--hover') || '#3c7dd9');
-const EDGE = new THREE.Color(css('--edge') || '#3a3833');
+let walk = null, walkDrag = null; // first-person walk state (see the Walk section)
+const SELECTED = toColor(pal.selected, '#f4f4f1');
+const OUTLINE = toColor(pal.outline, '#0a0a0a');
+const EDGE = toColor(pal.edge, '#0a0a0a');
 
 // One mesh per element. Data stays in Revit coordinates (Z up).
+// Categories are value steps --v2..--v6 (categoryValues), never hue.
 const elements = DATA.elements;
-const rgb = categoryColors(elements);
+const catStep = categoryValues(elements);
 const catColor = {};
-for (const k of Object.keys(rgb)) catColor[k] = new THREE.Color(rgb[k][0] / 255, rgb[k][1] / 255, rgb[k][2] / 255);
+for (const k of Object.keys(catStep)) catColor[k] = toColor(pal.steps[catStep[k]], '#9a9a96');
 const meshes = [];
 const byCat = {};
 for (const el of elements) {
@@ -214,9 +455,9 @@ for (const el of elements) {
   const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: catColor[cat].clone(), side: THREE.DoubleSide,
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
   mesh.userData.el = el;
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: .55 }));
-  // Selection outline: the same edges in the accent color, drawn on top of everything.
-  const outline = new THREE.LineSegments(edges.geometry, new THREE.LineBasicMaterial({ color: ACCENT, depthTest: false, transparent: true }));
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: pal.edgeOpacity }));
+  // Selection outline: the same edges as a hairline, drawn on top of everything.
+  const outline = new THREE.LineSegments(edges.geometry, new THREE.LineBasicMaterial({ color: OUTLINE, depthTest: false, transparent: true }));
   outline.visible = false; outline.renderOrder = 10;
   mesh.add(edges, outline);
   mesh.userData.outline = outline;
@@ -227,8 +468,10 @@ for (const el of elements) {
 const bounds = meshBounds(elements);
 setScene(state, bounds);
 
-// Ground grid: in the scene, at the base of the visible model, fading out.
-const grid = createGroundGrid(THREE, bounds, css('--ink') || '#22221f');
+// Ground grid: in the scene, at the base of the visible model, fading out. Hairline token color.
+const grid = createGroundGrid(THREE, bounds, '#f4f4f1');
+grid.material.uniforms.uColor.value.copy(toColor(pal.grid, '#f4f4f1'));
+grid.material.uniforms.uOpacity.value = gridOpacity(pal.grid);
 scene.add(grid);
 function updateGrid() {
   const shown = meshes.filter(m => m.visible).map(m => m.userData.el);
@@ -236,69 +479,61 @@ function updateGrid() {
   if (shown.length) placeGroundGrid(grid, meshBounds(shown));
 }
 document.getElementById('srcview').textContent = (DATA.source && DATA.source.view) || 'Demo';
+document.getElementById('count').textContent = elements.length + ' elements';
 
 // ---------- Category chips ----------
 const catsEl = document.getElementById('cats');
 const chipFor = {};
+function updateCatIndex() {
+  const cats = Object.keys(byCat);
+  document.getElementById('catidx').textContent = cats.filter(c => chipFor[c].getAttribute('aria-pressed') === 'true').length + ' / ' + cats.length;
+}
 function setCategory(cat, on) {
   for (const m of byCat[cat]) m.visible = on;
   updateGrid();
   chipFor[cat].setAttribute('aria-pressed', String(on));
+  updateCatIndex();
   if (selected && !selected.visible) select(null);
   if (hovered && !hovered.visible) setHover(null);
   requestRender();
 }
+function paintSwatch(el, cat) { el.style.background = '#' + catColor[cat].getHexString(THREE.SRGBColorSpace); }
 for (const cat of Object.keys(byCat).sort()) {
   const b = document.createElement('button');
   b.className = 'chip'; b.setAttribute('aria-pressed', 'true'); b.dataset.cat = cat;
-  b.innerHTML = '<span class="tick" aria-hidden="true">✓</span><span class="sw"></span><span class="label"></span><span class="n"></span>';
+  b.innerHTML = '<span class="sw"></span><span class="label"></span><span class="n"></span>';
   b.title = 'Show or hide ' + cat;
-  b.querySelector('.sw').style.background = '#' + catColor[cat].getHexString();
+  paintSwatch(b.querySelector('.sw'), cat);
   b.querySelector('.label').textContent = cat;
   b.querySelector('.n').textContent = byCat[cat].length;
   b.addEventListener('click', () => setCategory(cat, b.getAttribute('aria-pressed') !== 'true'));
   chipFor[cat] = b;
   catsEl.append(b);
 }
+updateCatIndex();
 document.getElementById('all').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, true)));
 document.getElementById('none').addEventListener('click', () => Object.keys(byCat).forEach(c => setCategory(c, false)));
 
 // ---------- Hover and selection ----------
 let hovered = null, selected = null, panelRenders = 0;
+const HOVER_TO = SELECTED.clone();
 function tint(mesh) {
   if (!mesh) return;
   const base = catColor[mesh.userData.el.category || 'Generic'];
   const c = mesh.material.color;
-  if (mesh === selected) c.copy(base).lerp(ACCENT, .78);
-  else if (mesh === hovered) c.copy(base).lerp(HOVER, .35);
+  if (mesh === selected) c.copy(SELECTED);
+  else if (mesh === hovered) c.copy(base).lerp(HOVER_TO, pal.hoverLift);
   else c.copy(base);
   mesh.userData.outline.visible = mesh === selected;
 }
-// ---------- Cursors: chunky rounded SVG, readable on light and dark views ----------
-// Each shape is drawn twice: a soft shadow offset by 1px, then a white body with a dark outline.
-const CURSOR_INK = '#22221f', CURSOR_FILL = '#ffffff';
-const CURSOR_SHAPES = {
-  idle:   { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z' },
-  hover:  { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z', dot: [24, 24.5] },
-  rotate: { hot: [16, 16], d: 'M25 14 A9.5 9.5 0 1 0 22.6 22.9 M25 7.5 L25 14 L18.5 14', open: true },
-  pan:    { hot: [16, 16], d: 'M16 4 L16 28 M4 16 L28 16 M12 8 L16 4 L20 8 M12 24 L16 28 L20 24 M8 12 L4 16 L8 20 M24 12 L28 16 L24 20', open: true },
-  zoom:   { hot: [13, 13], d: 'M13 4.5 A8.5 8.5 0 1 0 13 21.5 A8.5 8.5 0 1 0 13 4.5 Z M19.4 19.4 L27 27 M9 13 L17 13 M13 9 L13 17', open: true },
-};
-function cursorCss(name) {
-  const s = CURSOR_SHAPES[name];
-  const layer = (stroke, fill, w, dx) =>
-    '<path d="' + s.d + '" transform="translate(' + dx + ',' + dx + ')" fill="' + (s.open ? 'none' : fill) +
-    '" stroke="' + stroke + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"/>';
-  const body = s.open
-    ? layer('rgba(0,0,0,.28)', 'none', 6.5, 1) + layer(CURSOR_INK, 'none', 5.5, 0) + layer(CURSOR_FILL, 'none', 2.6, 0)
-    : layer('rgba(0,0,0,.28)', 'rgba(0,0,0,.28)', 3, 1) + layer(CURSOR_INK, CURSOR_FILL, 2.4, 0);
-  const dot = s.dot ? '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="4.6" fill="' + ACCENT.getStyle() + '" stroke="' + CURSOR_FILL + '" stroke-width="2"/>' : '';
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' + body + dot + '</svg>';
-  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
-  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
+// ---------- Cursors: soft rounded SVG shapes from viewer-core (cursorSvg / cursorCss) ----------
+// Paper fill + ink outline; a soft drop shadow by day, a paper halo by night (re-made on theme change).
+let cursorName = '', cursorTheme = '';
+function setCursor(name) {
+  if (name === cursorName && pal.theme === cursorTheme) return;
+  cursorName = name; cursorTheme = pal.theme;
+  vp.style.cursor = cursorCss(name, pal.theme);
 }
-let cursorName = '';
-function setCursor(name) { if (name === cursorName) return; cursorName = name; vp.style.cursor = cursorCss(name); }
 setCursor('idle');
 
 function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); if (!drag) setCursor(m ? 'hover' : 'idle'); requestRender(); }
@@ -306,6 +541,8 @@ function select(m) {
   const next = nextSelection(selected ? selected.userData.el.id : null, m ? m.userData.el : null);
   if (!next.isChanged) return; // the 2nd click of a double-click lands here: no flicker
   const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null); requestRender();
+  if (typed) closeTyped();
+  fillValueFields();
 }
 
 const fmtNum = v => (Math.round(v * 100) / 100).toFixed(2);
@@ -320,36 +557,39 @@ function lengthHtml(ft) { return valueHtml({ v: ft, u: 'ft' }); }
 function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function rows(list) { return '<dl>' + list.filter(r => r[1] !== '' && r[1] !== undefined).map(r => '<dt>' + escHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>'; }
 
+// Empty state: two tangent hairline circles, the focal dot where they meet, one lowercase line.
+const EMPTY_HTML = '<div class="empty">' +
+  '<svg viewBox="0 0 160 124" aria-hidden="true"><circle cx="80" cy="44" r="38"/><circle cx="80" cy="102" r="20"/><circle class="dot" cx="80" cy="82" r="4.5"/></svg>' +
+  '<div class="am-lead">element</div><div class="am-quiet">click one to see its data</div></div>';
+
 function showProps(el) {
   panelRenders++;
   const box = document.getElementById('props');
   document.getElementById('clear').hidden = !el;
-  if (!el) {
-    box.innerHTML = '<div class="empty"><kbd>Click</kbd> an element to see its data. <kbd>Double-click</kbd> to zoom to it.</div>';
-    return;
-  }
+  document.getElementById('selidx').textContent = el ? String(el.id) : '--';
+  if (!el) { box.innerHTML = EMPTY_HTML; return; }
   const b = elementBounds(el);
   const c = [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
   const cat = el.category || 'Generic';
   const params = Object.entries(el.params || {}).map(([k, v]) => [k, valueHtml(v)]);
   box.innerHTML =
-    '<div class="sel-name"></div>' +
-    '<div class="sel-cat"><span class="sw" style="background:#' + catColor[cat].getHexString() + '"></span><span></span></div>' +
-    '<div class="grp"><div>Identity</div>' + rows([
-      ['Element ID', '<span class="idrow">' + escHtml(el.id) + ' <button class="copy" id="copyid" title="Copy element ID">Copy</button></span>'],
+    '<div class="sel-head"><span class="am-dot" aria-hidden="true"></span><span class="sel-name am-lead"></span></div>' +
+    '<div class="sel-cat am-quiet"><span></span></div>' +
+    '<div class="grp"><div class="lbl">identity</div>' + rows([
+      ['Element ID', '<span class="idrow">' + escHtml(el.id) + ' <button class="btn sm" id="copyid" title="Copy element ID">copy</button></span>'],
       ['Category', escHtml(cat)], ['Family', escHtml(el.family || '')], ['Type', escHtml(el.type || '')],
     ]) + '</div>' +
-    '<div class="grp"><div>Location</div>' + rows([
+    '<div class="grp"><div class="lbl">location</div>' + rows([
       ['Level', escHtml(el.level || '')],
       ['Size X (E-W)', lengthHtml(b.max[0] - b.min[0])], ['Size Y (N-S)', lengthHtml(b.max[1] - b.min[1])], ['Size Z', lengthHtml(b.max[2] - b.min[2])],
       ['Center X, Y, Z', escHtml(c.map(fmtNum).join(', ')) + ' <span class="u">ft</span>'],
     ]) + '</div>' +
-    (params.length ? '<div class="grp"><div>Parameters</div>' + rows(params) + '</div>' : '') +
-    '<div class="grp sel-actions"><button class="act" id="zoomsel">Zoom selected</button></div>';
+    (params.length ? '<div class="grp"><div class="lbl">parameters</div>' + rows(params) + '</div>' : '') +
+    '<div class="grp sel-actions"><button class="btn primary" id="zoomsel">zoom selected</button></div>';
   box.querySelector('.sel-name').textContent = el.name || (cat + ' ' + el.id);
   box.querySelector('.sel-cat span:last-child').textContent = cat;
   document.getElementById('copyid').addEventListener('click', () => copyText(String(el.id)));
-  document.getElementById('zoomsel').addEventListener('click', () => frameTo(dblClickView(state, el, bounds)));
+  document.getElementById('zoomsel').addEventListener('click', () => frameTo(dblClickView(state, posedEl(el), bounds)));
 }
 document.getElementById('clear').addEventListener('click', () => select(null));
 function toast(t) { const n = document.getElementById('toast'); n.textContent = t; n.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => n.classList.remove('on'), 1400); }
@@ -383,6 +623,7 @@ let drag = null;
 const canvas = renderer.domElement;
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
+  if (walk) { walkPointerDown(e); return; }
   const action = mapPointer({ button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, isParallel: state.projection === 'parallel' });
   drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
@@ -390,6 +631,7 @@ canvas.addEventListener('pointerdown', e => {
   if (action === 'rotate' || action === 'pan' || action === 'zoom') setCursor(action);
 });
 canvas.addEventListener('pointermove', e => {
+  if (walk) { walkPointerMove(e); return; }
   if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY;
@@ -400,20 +642,22 @@ canvas.addEventListener('pointermove', e => {
   requestRender();
 });
 canvas.addEventListener('pointerup', e => {
+  if (walk) { walkDrag = null; return; }
   if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
   drag = null;
   setCursor(hovered ? 'hover' : 'idle');
 });
 // Double-click: Zoom Selected on an element, zoom extents on empty space.
 canvas.addEventListener('dblclick', e => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || walk) return;
   const m = pick(e.clientX, e.clientY);
   select(m);
-  frameTo(dblClickView(state, m ? m.userData.el : null, bounds));
+  frameTo(dblClickView(state, m ? posedEl(m.userData.el) : null, bounds));
 });
-canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
+canvas.addEventListener('pointerleave', () => { if (!drag && !walk) setHover(null); });
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  if (walk) return;
   const mode = mapWheel({ ctrl: e.ctrlKey || e.metaKey });
   const n = mode === 'zoom-cursor' ? ndcAt(e.clientX, e.clientY) : { x: 0, y: 0 };
   zoomAt(state, Math.exp(Math.sign(e.deltaY) * 0.12), n.x, n.y, aspect());
@@ -421,40 +665,138 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 
 // ---------- Named views ----------
-const viewButtons = [...document.querySelectorAll('[data-view]')];
+const projButtons = [...document.querySelectorAll('[data-proj]')];
 function setViewName(n) {
   viewName = n;
   const label = n === 'rotated' ? 'Rotated' : n;
-  document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' · ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
-  viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n)));
+  document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' / ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
+  projButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.proj === state.projection)));
   updateHint();
 }
 function setView(n) { setNamedView(state, n, bounds); setViewName(n); requestRender(); }
-viewButtons.forEach(b => b.addEventListener('click', () => { const end = setNamedView({ ...state, target: state.target.slice() }, b.dataset.view, bounds); state.projection = end.projection; setViewName(b.dataset.view); frameTo(end); }));
-document.getElementById('fit').addEventListener('click', () => frameTo(dblClickView(state, null, bounds)));
-function updateHint() {
-  const k = (keys, what) => '<span>' + keys.map(x => '<kbd>' + x + '</kbd>').join('+') + ' ' + what + '</span>';
-  document.getElementById('hint').innerHTML = (state.projection === 'parallel'
-    ? [k(['Right drag'], 'pan'), k(['Ctrl', 'Shift', 'Right'], 'rotate')]
-    : [k(['Right drag'], 'rotate'), k(['Shift', 'Right'], 'pan')]).join('') +
-    k(['Ctrl', 'Right'], 'zoom') + k(['Wheel'], 'zoom at cursor') + k(['Click'], 'select') + k(['Double-click'], 'zoom to element');
+// Projection toggle: keep the direction and the visible size at the target.
+function setProjection(p, s = state) {
+  if (s.projection === p) return s;
+  const t = Math.tan((s.fov * Math.PI) / 360);
+  if (p === 'parallel') s.viewHeight = 2 * s.distance * t; else s.distance = s.viewHeight / 2 / t;
+  s.projection = p;
+  return s;
 }
+projButtons.forEach(b => b.addEventListener('click', () => { if (walk) return; setProjection(b.dataset.proj); setViewName(viewName === 'perspective' && b.dataset.proj === 'parallel' ? 'rotated' : viewName); requestRender(); }));
 
-// ---------- Annotations, gizmo, render ----------
+// ---------- View cube: faces, edges and corners; drag to orbit; drag the ring to spin ----------
+const cubeEl = document.getElementById('viewcube');
+const CUBE_PX = 19;
+function drawCube() {
+  const L = cubeLayout(state), f = n => n.toFixed(1), P = p => f(p[0] * CUBE_PX) + ' ' + f(-p[1] * CUBE_PX);
+  let s = '<path class="ring" d="M' + L.ring.map(P).join('L') + '"/><path class="ringhit" data-ring="1" d="M' + L.ring.map(P).join('L') + '"/>';
+  for (const [k, p] of Object.entries(L.compass)) s += '<text x="' + f(p[0] * CUBE_PX) + '" y="' + f(-p[1] * CUBE_PX + 3.5) + '">' + k + '</text>';
+  for (const face of L.faces) {
+    for (const c of face.cells) s += '<polygon class="cell" data-names="' + c.names.join(' ') + '" points="' + c.pts.map(p => P(p).replace(' ', ',')).join(' ') + '"/>';
+    s += '<polygon class="edge" points="' + face.outline.map(p => P(p).replace(' ', ',')).join(' ') + '"/>';
+    // A label only where the face is wide enough on screen for it (no overlap at 45 deg views).
+    const xs = face.outline.map(p => p[0] * CUBE_PX), wide = Math.max(...xs) - Math.min(...xs);
+    if (face.facing > 0.5 && wide >= face.name.length * 6.4 + 6) s += '<text class="face" x="' + f(face.center[0] * CUBE_PX) + '" y="' + f(-face.center[1] * CUBE_PX + 3.5) + '">' + face.name.toUpperCase() + '</text>';
+  }
+  cubeEl.innerHTML = s;
+}
+function goCube(names) {
+  const v = cubeView(names);
+  const end = { ...state, target: state.target.slice(), azimuth: v.azimuth, elevation: v.elevation };
+  setProjection(v.projection || state.projection, end);
+  fitBounds(end, bounds);
+  setProjection(end.projection); // convert the current size too, so the move is smooth
+  setViewName(names.length === 1 ? names[0] : names.join('-'));
+  frameTo(end);
+}
+let cubeDrag = null;
+cubeEl.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const cell = e.target.closest('.cell'), isRing = !!e.target.closest('[data-ring]');
+  if (!cell && !isRing) return;
+  e.preventDefault();
+  cubeDrag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, names: cell ? cell.dataset.names.split(' ') : null, isRing, moved: false };
+  try { cubeEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+});
+cubeEl.addEventListener('pointermove', e => {
+  if (!cubeDrag) return;
+  const dx = e.clientX - cubeDrag.x, dy = e.clientY - cubeDrag.y;
+  if (!cubeDrag.moved && Math.hypot(e.clientX - cubeDrag.x0, e.clientY - cubeDrag.y0) < 4) return;
+  cubeDrag.moved = true; cubeDrag.x = e.clientX; cubeDrag.y = e.clientY;
+  if (cubeDrag.isRing) state.azimuth -= dx * 0.012; // spin about world Z
+  else orbit(state, dx, dy);                        // same as right drag
+  setViewName('rotated'); requestRender();
+});
+cubeEl.addEventListener('pointerup', () => {
+  if (cubeDrag && !cubeDrag.moved && cubeDrag.names) goCube(cubeDrag.names);
+  cubeDrag = null;
+});
+document.getElementById('cubehome').addEventListener('click', () => {
+  const end = setNamedView({ ...state, target: state.target.slice() }, 'perspective', bounds);
+  setProjection(end.projection); setViewName('perspective'); frameTo(end);
+});
+document.getElementById('fit').addEventListener('click', () => frameTo(dblClickView(state, null, bounds)));
+// ---------- Help: collapsed "?" that opens into the key bindings ----------
+const helpEl = document.getElementById('help'), helpBtn = document.getElementById('helpbtn'), helpPanel = document.getElementById('helppanel');
+function helpRows() {
+  return (state.projection === 'parallel'
+    ? [[['Right drag'], 'pan'], [['Ctrl', 'Shift', 'Right'], 'rotate']]
+    : [[['Right drag'], 'rotate'], [['Shift', 'Right'], 'pan']]).concat([
+    [['Ctrl', 'Right'], 'zoom'], [['Wheel'], 'zoom at cursor'], [['Click'], 'select'], [['Double-click'], 'zoom to element'],
+    [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag or the typed value'],
+    [['Click handle'], 'type a value: 2.5, 2\'6", 750mm, 15'], [['0-9'], 'while dragging: type the value'],
+    [['Enter'], 'apply the typed value'], [['Tab'], 'apply, then the next axis'],
+    [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
+    [['Shift'], 'walk: run'], [['C'], 'walk: collision on / off'], [['Click'], 'walk: look with the mouse (right drag if no lock)'],
+  ]);
+}
+function updateHint() {
+  helpPanel.innerHTML = helpRows().map(([keys, what], i) =>
+    '<span class="row" style="--i:' + i + '">' + keys.map(x => '<kbd>' + escHtml(x) + '</kbd>').join('+') + ' ' + escHtml(what) + '</span>').join('');
+}
+// Opens only from the "?" itself after a short intent delay (150 ms; leaving earlier cancels), stays
+// open over the "?" or the panel with a 250 ms grace to cross the gap, and ignores hover while any
+// mouse button is down (a camera drag passing over the corner). Focus and tap still open it.
+const HELP_INTENT_MS = 150, HELP_GRACE_MS = 250;
+let helpOpenTimer = 0, helpCloseTimer = 0, helpOver = 0;
+function setHelp(isOpen) {
+  clearTimeout(helpOpenTimer); clearTimeout(helpCloseTimer);
+  if (helpEl.classList.contains('open') === isOpen) return;
+  helpEl.classList.toggle('open', isOpen);
+  helpBtn.setAttribute('aria-expanded', String(isOpen));
+}
+function helpEnter(e, isButton) {
+  if (e.pointerType === 'touch') return;
+  helpOver++; clearTimeout(helpCloseTimer);
+  if (helpEl.classList.contains('open') || !isButton || e.buttons !== 0) return;
+  clearTimeout(helpOpenTimer);
+  helpOpenTimer = setTimeout(() => setHelp(true), HELP_INTENT_MS);
+}
+function helpLeave(e) {
+  if (e.pointerType === 'touch') return;
+  helpOver = Math.max(0, helpOver - 1);
+  clearTimeout(helpOpenTimer);
+  if (helpOver === 0 && !helpEl.contains(document.activeElement)) {
+    clearTimeout(helpCloseTimer);
+    helpCloseTimer = setTimeout(() => { if (helpOver === 0) setHelp(false); }, HELP_GRACE_MS);
+  }
+}
+helpBtn.addEventListener('pointerenter', e => helpEnter(e, true));
+helpBtn.addEventListener('pointerleave', helpLeave);
+helpPanel.addEventListener('pointerenter', e => helpEnter(e, false));
+helpPanel.addEventListener('pointerleave', helpLeave);
+helpEl.addEventListener('focusin', () => setHelp(true));
+helpEl.addEventListener('focusout', e => { if (!helpEl.contains(e.relatedTarget) && helpOver === 0) setHelp(false); });
+// Tap on touch toggles (state taken before the tap's own focus opened it).
+let helpWasOpen = false;
+helpBtn.addEventListener('pointerdown', () => { helpWasOpen = helpEl.classList.contains('open'); });
+helpBtn.addEventListener('pointerup', e => { if (e.pointerType === 'touch') setHelp(!helpWasOpen); });
+helpEl.addEventListener('keydown', e => { if (e.key === 'Escape') { helpOver = 0; setHelp(false); helpBtn.blur(); } });
+
+// ---------- Annotations, render ----------
 const labelsEl = document.getElementById('labels');
 const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
-const gizmo = document.getElementById('gizmo');
-function drawGizmo() {
-  const ax = gizmoAxes(state);
-  const spec = [['x', '#d62828', 'X'], ['y', '#2a9d3f', 'Y'], ['z', '#1f6fd9', 'Z']];
-  let svg = '<circle r="43" fill="' + css('--sheet') + '" fill-opacity=".8"/><circle r="43" fill="none" stroke="' + css('--rule') + '"/>';
-  for (const [key, col, lab] of spec) {
-    const [sx, sy] = ax[key];
-    svg += '<line x1="0" y1="0" x2="' + (sx * 28).toFixed(1) + '" y2="' + (-sy * 28).toFixed(1) + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>' +
-      '<text x="' + (sx * 37).toFixed(1) + '" y="' + (-sy * 37 + 4).toFixed(1) + '" fill="' + col + '" font-size="11.5" font-family="JetBrains Mono, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
-  }
-  gizmo.innerHTML = svg;
-}
 function aspect() { return Math.max(1e-3, vp.clientWidth / Math.max(1, vp.clientHeight)); }
 let pending = false;
 function requestRender() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; render(); }); } }
@@ -471,23 +813,389 @@ function render() {
     d.style.left = ((v.x + 1) / 2) * w + 'px';
     d.style.top = ((1 - v.y) / 2) * h + 'px';
   }
-  drawGizmo();
+  drawCube();
+  drawGumball();
 }
 new ResizeObserver(requestRender).observe(vp);
 
-// Follow the app's light/dark switch while the page is open.
+// ---------- Gumball: move along X / Y / Z, rotate about Z (viewer copy only) ----------
+// Left drag on a handle; the camera keeps its Rhino right-button mapping. Moves snap to 1/2 ft and
+// rotations to 5 deg; Alt = free. Esc cancels the drag. Edits only change this page: the pending
+// list exports "element-transforms" JSON that am-safe-change previews and applies in Revit.
+const edits = createEdits();
+const gumEl = document.getElementById('gumball'), readoutEl = document.getElementById('readout');
+const meshById = {};
+for (const m of meshes) meshById[String(m.userData.el.id)] = m;
+const ghosts = {};
+let gdrag = null, lastCopied = null;
+const ARROW_PX = 64, RING_PX = 44;
+function walkActive() { return walk !== null; } // walk mode (first person) hides the gumball
+const GUM_AXES = [['x', 'X', ''], ['y', 'Y', '4 3'], ['z', 'Z', '1 2.5']];
+
+function poseMesh(mesh) {
+  const rec = edits.byId[String(mesh.userData.el.id)];
+  const isMoved = rec && !isIdentity(rec);
+  mesh.matrixAutoUpdate = false;
+  if (isMoved) mesh.matrix.fromArray(editMatrix(rec)); else mesh.matrix.identity();
+  mesh.matrixWorldNeedsUpdate = true;
+  const key = String(mesh.userData.el.id);
+  if (isMoved && !ghosts[key]) {
+    // Hairline ghost at the original position.
+    ghosts[key] = new THREE.LineSegments(mesh.children[0].geometry, new THREE.LineBasicMaterial({ color: toColor(css('--line-strong'), '#9a9a96'), transparent: true, opacity: .55, depthWrite: false }));
+    scene.add(ghosts[key]);
+  } else if (!isMoved && ghosts[key]) { scene.remove(ghosts[key]); ghosts[key].material.dispose(); delete ghosts[key]; }
+}
+// The element as it now sits in the viewer (for zoom-to and the gumball center).
+function posedEl(el) {
+  const rec = edits.byId[String(el.id)];
+  if (!rec || isIdentity(rec)) return el;
+  const v = el.mesh.vertices, out = new Array(v.length);
+  for (let i = 0; i + 2 < v.length; i += 3) { const p = applyEditToPoint(rec, [v[i], v[i + 1], v[i + 2]]); out[i] = p[0]; out[i + 1] = p[1]; out[i + 2] = p[2]; }
+  return { ...el, mesh: { vertices: out, indices: el.mesh.indices } };
+}
+function gumCenter(el) {
+  const rec = edits.byId[String(el.id)];
+  if (rec) return rec.pivot.map((v, i) => v + rec.move[i]);
+  const b = elementBounds(el);
+  return [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
+}
+function toScreen(p) { // world -> viewport-local px
+  const v = new THREE.Vector3(p[0], p[1], p[2]).project(activeCam);
+  return { x: ((v.x + 1) / 2) * vp.clientWidth, y: ((1 - v.y) / 2) * vp.clientHeight, isFront: v.z > -1 && v.z < 1 };
+}
+// Handle geometry in viewport px, from the same camera basis the drag math uses.
+function gumballLayout() {
+  if (!selected || !selected.visible) return null;
+  const c = toScreen(gumCenter(selected.userData.el));
+  if (!c.isFront) return null;
+  const ax = gizmoAxes(state);
+  const arrows = GUM_AXES.map(([k, label, dash]) => {
+    const [sx, sy] = ax[k], len = Math.hypot(sx, sy);
+    return { k, label, dash, len, tip: { x: c.x + sx * ARROW_PX, y: c.y - sy * ARROW_PX }, dir: len > 1e-6 ? [sx / len, -sy / len] : [0, 0] };
+  });
+  const ring = [];
+  for (let i = 0; i <= 64; i++) {
+    const t = (i / 64) * Math.PI * 2, wx = Math.cos(t), wy = Math.sin(t);
+    ring.push({ x: c.x + RING_PX * (wx * ax.x[0] + wy * ax.y[0]), y: c.y - RING_PX * (wx * ax.x[1] + wy * ax.y[1]) });
+  }
+  return { c, arrows, ring };
+}
+function isActiveHandle(k) { return (gdrag && gdrag.handle === k) || (typed && typed.handle === k); }
+function drawGumball() {
+  const L = walkActive() ? null : gumballLayout();
+  if (!L) { if (gumEl.innerHTML) gumEl.innerHTML = ''; return; }
+  const f = n => n.toFixed(1);
+  let s = '';
+  const ringD = 'M' + L.ring.map(p => f(p.x) + ' ' + f(p.y)).join('L') + 'Z';
+  s += '<g class="h' + (isActiveHandle('rz') ? ' on' : '') + '" data-h="rz" style="cursor:' + cursorCss('rotate', pal.theme).replace(/"/g, "'") + '"><path class="hit" d="' + ringD + '"/><path class="vis" d="' + ringD + '"/></g>';
+  for (const a of L.arrows) {
+    if (a.len < 0.2) continue; // an axis pointing at the viewer cannot be dragged
+    const [dx, dy] = a.dir, hx = a.tip.x, hy = a.tip.y, bx = hx - dx * 9, by = hy - dy * 9, nx = -dy * 4, ny = dx * 4;
+    const line = 'M' + f(L.c.x + dx * 8) + ' ' + f(L.c.y + dy * 8) + 'L' + f(bx) + ' ' + f(by);
+    s += '<g class="h' + (isActiveHandle(a.k) ? ' on' : '') + '" data-h="' + a.k + '" style="cursor:' + cursorCss('pan', pal.theme).replace(/"/g, "'") + '">' +
+      '<path class="hit" d="M' + f(L.c.x) + ' ' + f(L.c.y) + 'L' + f(hx) + ' ' + f(hy) + '"/>' +
+      '<path class="vis" d="' + line + '"' + (a.dash ? ' stroke-dasharray="' + a.dash + '"' : '') + '/>' +
+      '<path class="head" d="M' + f(hx) + ' ' + f(hy) + 'L' + f(bx + nx) + ' ' + f(by + ny) + 'L' + f(bx - nx) + ' ' + f(by - ny) + 'Z"/>' +
+      '<text x="' + f(hx + dx * 10) + '" y="' + f(hy + dy * 10 + 3.5) + '" text-anchor="middle">' + a.label + '</text></g>';
+  }
+  s += '<circle class="pivot" cx="' + f(L.c.x) + '" cy="' + f(L.c.y) + '" r="3"/>';
+  gumEl.innerHTML = s;
+}
+function showReadout(text, x, y) {
+  readoutEl.textContent = text; readoutEl.style.display = 'block';
+  const r = vp.getBoundingClientRect();
+  readoutEl.style.left = Math.max(4, Math.min(r.width - readoutEl.offsetWidth - 6, x - r.left + 16)) + 'px'; // never clipped at the edge
+  readoutEl.style.top = Math.max(4, y - r.top - 26) + 'px';
+}
+function endGumballDrag(isCancel) {
+  if (!gdrag) return;
+  if (isCancel) gdrag.session.cancel(); else gdrag.session.commit();
+  poseMesh(gdrag.mesh);
+  gdrag = null;
+  readoutEl.style.display = 'none';
+  renderPending(); requestRender();
+}
+gumEl.addEventListener('pointerdown', e => {
+  const h = e.target.closest('.h');
+  if (!h || e.button !== 0 || !selected) return;
+  e.preventDefault(); e.stopPropagation();
+  const L = gumballLayout(), r = vp.getBoundingClientRect();
+  gdrag = { handle: h.dataset.h, mesh: selected, start: { x: e.clientX, y: e.clientY }, pivot: { x: r.left + L.c.x, y: r.top + L.c.y },
+    session: beginGumballDrag(edits, selected.userData.el), pointerId: e.pointerId };
+  try { gumEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+});
+gumEl.addEventListener('pointermove', e => {
+  if (!gdrag) return;
+  const result = gumballDrag(gdrag.handle, state, gdrag.start, { x: e.clientX, y: e.clientY }, { height: vp.clientHeight, pivot: gdrag.pivot }, e.altKey);
+  gdrag.session.update(result);
+  poseMesh(gdrag.mesh);
+  showReadout(gumballReadout(gdrag.handle, result), e.clientX, e.clientY);
+  requestRender();
+});
+gumEl.addEventListener('pointerup', e => {
+  if (!gdrag) return;
+  // A click (no drag) on a handle opens typed entry for it; nothing is applied.
+  if (Math.hypot(e.clientX - gdrag.start.x, e.clientY - gdrag.start.y) < 4) { const h = gdrag.handle; endGumballDrag(true); openTyped(h, ''); }
+  else endGumballDrag(false);
+});
+gumEl.addEventListener('pointercancel', () => endGumballDrag(true));
+window.addEventListener('keydown', e => {
+  if (!gdrag || (e.target && e.target.closest && e.target.closest('input'))) return;
+  if (e.key === 'Escape') { e.preventDefault(); endGumballDrag(true); return; }
+  // Typing a number during a drag switches to typed entry for that axis.
+  if (/^[0-9.+\-'"]$/.test(e.key)) { e.preventDefault(); const h = gdrag.handle; endGumballDrag(true); openTyped(h, e.key); }
+});
+
+// ---------- Typed entry: click a handle (or type while dragging) ----------
+// Enter applies the exact value (no snap) to the pending change; Tab applies and moves to the next
+// axis; Esc cancels. Lengths take 2.5, 2'6", 2'-6 1/2", 30", 750mm, 0.75m; rotation takes degrees.
+const typeBox = document.getElementById('typein'), typeVal = document.getElementById('typeval');
+const typeLbl = document.getElementById('typelbl'), typeErr = document.getElementById('typeerr');
+const TYPE_ORDER = ['x', 'y', 'z', 'rz'];
+let typed = null;
+const parseFor = (h, s) => { const r = h === 'rz' ? parseAngle(s) : parseLength(s); return r.error ? r : { value: h === 'rz' ? r.deg : r.ft }; };
+function openTyped(handle, initial) {
+  if (!selected) return;
+  const L = gumballLayout();
+  typed = { handle, mesh: selected };
+  typeLbl.textContent = handle === 'rz' ? 'rotate z' : 'move ' + handle;
+  typeVal.value = initial || ''; typeVal.removeAttribute('aria-invalid'); typeErr.classList.remove('on');
+  typeBox.classList.add('on');
+  const a = L && L.arrows.find(x => x.k === handle);
+  const at = a ? a.tip : (L ? { x: L.c.x + 50, y: L.c.y } : { x: 20, y: 20 });
+  typeBox.style.left = Math.max(4, Math.min(vp.clientWidth - 180, at.x + 14)) + 'px';
+  typeBox.style.top = Math.max(4, Math.min(vp.clientHeight - 70, at.y - 10)) + 'px';
+  typeVal.focus(); typeVal.setSelectionRange(typeVal.value.length, typeVal.value.length);
+  previewTyped();
+  drawGumball();
+}
+function closeTyped() { typed = null; typeBox.classList.remove('on'); readoutEl.style.display = 'none'; drawGumball(); }
+function previewTyped() {
+  if (!typed) return;
+  const s = typeVal.value.trim();
+  const r = s ? parseFor(typed.handle, s) : null;
+  const tb = typeBox.getBoundingClientRect();
+  if (r && !r.error) showReadout(typedReadout(typed.handle, r.value), tb.left - 2, tb.bottom + 30);
+  else readoutEl.style.display = 'none';
+}
+// Returns true when the field is empty or applied; false (field stays open, error shown) when invalid.
+function commitTyped() {
+  const s = typeVal.value.trim();
+  if (!s) return true;
+  const r = parseFor(typed.handle, s);
+  if (r.error) { typeErr.textContent = r.error; typeErr.classList.add('on'); typeVal.setAttribute('aria-invalid', 'true'); return false; }
+  if (r.value !== 0) { applyTyped(edits, typed.mesh.userData.el, typed.handle, r.value); poseMesh(typed.mesh); renderPending(); requestRender(); }
+  return true;
+}
+typeVal.addEventListener('input', () => { typeErr.classList.remove('on'); typeVal.removeAttribute('aria-invalid'); previewTyped(); });
+typeVal.addEventListener('keydown', e => {
+  if (!typed) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeTyped(); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (commitTyped()) closeTyped(); }
+  else if (e.key === 'Tab') {
+    e.preventDefault();
+    if (!commitTyped()) return;
+    const i = TYPE_ORDER.indexOf(typed.handle), next = TYPE_ORDER[(i + (e.shiftKey ? TYPE_ORDER.length - 1 : 1)) % TYPE_ORDER.length];
+    openTyped(next, '');
+  }
+});
+typeVal.addEventListener('blur', () => { setTimeout(() => { if (typed && document.activeElement !== typeVal) closeTyped(); }, 0); });
+
+// Side-panel value fields for the selected element: absolute dx, dy, dz (ft) and rotation (deg).
+const vfInputs = [...document.querySelectorAll('#selfields input')], vfErr = document.getElementById('vferr');
+function fillValueFields() {
+  const box = document.getElementById('selfields');
+  box.hidden = !selected;
+  if (!selected) return;
+  const rec = edits.byId[String(selected.userData.el.id)];
+  const mv = rec ? rec.move : [0, 0, 0], rz = rec ? rec.rotateZ : 0;
+  for (const inp of vfInputs) {
+    if (document.activeElement === inp) continue;
+    const k = inp.dataset.k;
+    inp.value = k === 'rz' ? String(Math.round(rz * 1000) / 1000) : String(Math.round(mv['xyz'.indexOf(k)] * 10000) / 10000);
+    inp.removeAttribute('aria-invalid');
+  }
+}
+function applyValueField(inp) {
+  if (!selected) return;
+  const k = inp.dataset.k, r = parseFor(k, inp.value.trim() || '0');
+  if (r.error) { inp.setAttribute('aria-invalid', 'true'); vfErr.textContent = r.error; vfErr.classList.add('on'); return; }
+  inp.removeAttribute('aria-invalid'); vfErr.classList.remove('on');
+  const el = selected.userData.el, rec = edits.byId[String(el.id)];
+  const move = rec ? rec.move.slice() : [0, 0, 0];
+  if (k === 'rz') setEditValues(edits, el, { move, rotateZ: r.value });
+  else { move['xyz'.indexOf(k)] = r.value; setEditValues(edits, el, { move, rotateZ: rec ? rec.rotateZ : 0 }); }
+  poseMesh(selected); renderPending(); requestRender();
+}
+for (const inp of vfInputs) {
+  inp.addEventListener('change', () => applyValueField(inp));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyValueField(inp); } if (e.key === 'Escape') { e.stopPropagation(); fillValueFields(); inp.blur(); } });
+}
+
+// Pending changes: one row per element, undo per row, Clear all, Copy for Revit.
+const fx = v => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2);
+function renderPending() {
+  const list = pendingEdits(edits);
+  document.getElementById('pendidx').textContent = String(list.length);
+  document.getElementById('copyrevit').disabled = list.length === 0;
+  document.getElementById('clearall').disabled = list.length === 0;
+  fillValueFields();
+  document.getElementById('pending').innerHTML = list.length === 0
+    ? '<div class="am-quiet">none. select an element and drag a handle.</div>'
+    : list.map(rec => '<div class="pend" data-id="' + escHtml(rec.id) + '"><div class="pend-h"><span class="nm">' + escHtml(rec.el.name || ((rec.el.category || 'Generic') + ' ' + rec.id)) + '</span>' +
+      '<span class="am-quiet">' + escHtml(rec.id) + '</span><button class="link" data-undo="' + escHtml(rec.id) + '">undo</button></div>' +
+      (rec.move.some(v => Math.abs(v) > 1e-9) ? '<div class="ln">move ' + rec.move.map(fx).join(', ') + ' ft</div>' : '') +
+      (Math.abs(rec.rotateZ) > 1e-9 ? '<div class="ln">rotate ' + (Math.round(rec.rotateZ * 10) / 10) + ' deg about ' + rec.pivot.map(v => v.toFixed(2)).join(', ') + '</div>' : '') +
+      '</div>').join('');
+}
+document.getElementById('pending').addEventListener('click', e => {
+  const b = e.target.closest('[data-undo]');
+  if (!b) return;
+  const id = b.dataset.undo;
+  undoEdit(edits, id);
+  if (meshById[id]) poseMesh(meshById[id]);
+  renderPending(); requestRender();
+});
+document.getElementById('clearall').addEventListener('click', () => {
+  const ids = edits.order.slice();
+  clearEdits(edits);
+  for (const id of ids) if (meshById[id]) poseMesh(meshById[id]);
+  renderPending(); requestRender();
+});
+document.getElementById('copyrevit').addEventListener('click', async () => {
+  lastCopied = JSON.stringify(exportTransforms(edits), null, 2);
+  try { await navigator.clipboard.writeText(lastCopied); toast('Copied. Paste it to Claude to preview and apply in Revit.'); }
+  catch (e) { toast('Copy failed. Select the changes again and retry.'); }
+});
+renderPending();
+
+// ---------- Walk: first person at eye height (G or the walk button; Esc exits) ----------
+// Look: click the view for pointer lock; if the browser denies it, right drag looks around.
+// In Chrome, the first Esc only releases the pointer lock (no keydown reaches the page), so the
+// view stays in walk with the "click to look around" hint; a second Esc exits to the old camera.
+const FLOOR_CATS = new Set(['Floors', 'Stairs', 'Ramps', 'Roofs', 'Structural Foundations', 'Topography', 'Toposolid']);
+const WALL_CATS = new Set(['Walls', 'Columns', 'Structural Columns', 'Doors', 'Curtain Panels', 'Curtain Wall Mullions', 'Windows']);
+const walkBtn = document.getElementById('walkbtn'), walkInfo = document.getElementById('walkinfo');
+const walkHint = document.getElementById('walkhint'), walkRead = document.getElementById('walkread');
+const walkKeys = {};
+let walkRaf = 0, walkLast = 0, walkPaused = false, walkPrevName = 'perspective', walkFloor = null, walkNoLock = false;
+const castDown = new THREE.Raycaster(), castAcross = new THREE.Raycaster();
+function floorZ(x, y, zFrom) {
+  castDown.set(new THREE.Vector3(x, y, zFrom), new THREE.Vector3(0, 0, -1)); castDown.far = 1e5;
+  const hits = castDown.intersectObjects(meshes.filter(m => m.visible && FLOOR_CATS.has(m.userData.el.category)), false);
+  return hits.length ? hits[0].point.z : null;
+}
+function hitDist(o, dir, max) {
+  castAcross.set(new THREE.Vector3(o[0], o[1], o[2] - WALK.eye + 3), new THREE.Vector3(dir[0], dir[1], 0)); castAcross.far = max;
+  const hits = castAcross.intersectObjects(meshes.filter(m => m.visible && WALL_CATS.has(m.userData.el.category)), false);
+  return hits.length ? hits[0].distance : null;
+}
+const walkEnv = { floorZ, hitDist };
+function walkKeyState() {
+  return { forward: walkKeys.w || walkKeys.arrowup, back: walkKeys.s || walkKeys.arrowdown, left: walkKeys.a || walkKeys.arrowleft,
+    right: walkKeys.d || walkKeys.arrowright, up: walkKeys.e, down: walkKeys.q, run: walkKeys.shift };
+}
+function walkApply() { Object.assign(state, walkView(walk, state)); }
+function updateWalkInfo() {
+  const above = walkFloor === null ? null : walk.pos[2] - walkFloor;
+  walkRead.textContent = 'eye ' + (above === null ? '--' : above.toFixed(2) + ' ft') + '   speed ' + Math.hypot(walk.vel[0], walk.vel[1]).toFixed(1) + ' ft/s   collision ' + (walk.isCollision ? 'on' : 'off');
+  walkHint.textContent = document.pointerLockElement === canvas ? 'mouse looks around, esc to exit' : walkNoLock ? 'right drag to look around, esc to exit' : 'click to look around, esc to exit';
+}
+function walkTick(now) {
+  if (!walk) return;
+  const dt = Math.min(0.1, Math.max(0, (now - walkLast) / 1000)); walkLast = now;
+  if (!walkPaused) walkStepOnce(dt);
+  walkRaf = requestAnimationFrame(walkTick);
+}
+function walkStepOnce(dt) {
+  walkStep(walk, walkKeyState(), dt, walkEnv);
+  walkFloor = floorZ(walk.pos[0], walk.pos[1], walk.pos[2] - WALK.eye - walk.eyeOffset + WALK.stepUp);
+  walkApply(); render(); updateWalkInfo();
+}
+function enterWalkMode() {
+  if (walk) return;
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+  select(null); setHover(null);
+  if (typed) closeTyped();
+  walkPrevName = viewName;
+  walk = enterWalk(state, floorZ);
+  walkApply();
+  vp.classList.add('walking'); walkInfo.classList.add('on'); walkBtn.setAttribute('aria-pressed', 'true');
+  setViewName('walk');
+  walkLast = performance.now(); walkRaf = requestAnimationFrame(walkTick);
+  walkStepOnce(0);
+}
+function exitWalkMode() {
+  if (!walk) return;
+  const saved = walk.saved;
+  cancelAnimationFrame(walkRaf); walk = null; walkDrag = null;
+  for (const k of Object.keys(walkKeys)) delete walkKeys[k];
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  vp.classList.remove('walking'); walkInfo.classList.remove('on'); walkBtn.setAttribute('aria-pressed', 'false');
+  state.projection = saved.projection;
+  setViewName(walkPrevName);
+  frameTo(saved); // animated back to the camera from before the walk
+}
+function walkPointerDown(e) {
+  e.preventDefault();
+  if (e.button === 2) { walkDrag = { x: e.clientX, y: e.clientY }; return; }
+  if (e.button === 0 && document.pointerLockElement !== canvas) {
+    try {
+      const p = canvas.requestPointerLock();
+      if (p && p.catch) p.catch(() => { walkNoLock = true; updateWalkInfo(); });
+    } catch (err) { walkNoLock = true; updateWalkInfo(); }
+  }
+}
+function walkPointerMove(e) {
+  if (!walkDrag) return;
+  walkLook(walk, e.clientX - walkDrag.x, e.clientY - walkDrag.y);
+  walkDrag = { x: e.clientX, y: e.clientY };
+}
+document.addEventListener('mousemove', e => { if (walk && document.pointerLockElement === canvas) walkLook(walk, e.movementX, e.movementY); });
+document.addEventListener('pointerlockchange', () => { if (walk) updateWalkInfo(); });
+document.addEventListener('pointerlockerror', () => { walkNoLock = true; if (walk) updateWalkInfo(); });
+window.addEventListener('keydown', e => {
+  if (e.target && e.target.closest && e.target.closest('input')) return; // typing a value
+  const k = e.key.toLowerCase();
+  if (k === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (walk) exitWalkMode(); else enterWalkMode(); return; }
+  if (!walk) return;
+  if (k === 'escape') { e.preventDefault(); exitWalkMode(); return; }
+  if (k === 'c') { walk.isCollision = !walk.isCollision; updateWalkInfo(); return; }
+  if (['w', 'a', 's', 'd', 'q', 'e', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); walkKeys[k] = true; }
+});
+window.addEventListener('keyup', e => { delete walkKeys[e.key.toLowerCase()]; });
+window.addEventListener('blur', () => { for (const k of Object.keys(walkKeys)) delete walkKeys[k]; });
+walkBtn.addEventListener('click', () => { if (walk) exitWalkMode(); else enterWalkMode(); });
+// ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
+// On each am-theme-change, re-read the tokens and recolor the scene: category values,
+// selection, outline, edges, grid and gizmo. The flat backdrop is CSS (--bg).
 function applyTheme() {
-  scene.background = new THREE.Color(css('--view') || '#e9e5da');
-  ACCENT.set(css('--accent') || '#e2541b');
-  HOVER.set(css('--hover') || '#3c7dd9');
-  EDGE.set(css('--edge') || '#3a3833');
-  grid.material.uniforms.uColor.value.set(css('--ink') || '#22221f');
-  for (const m of meshes) { m.children[0].material.color.copy(EDGE); m.userData.outline.material.color.copy(ACCENT); tint(m); }
+  pal = scenePalette(currentTheme(), readTokens());
+  for (const k of Object.keys(catStep)) catColor[k].copy(toColor(pal.steps[catStep[k]], '#9a9a96'));
+  SELECTED.copy(toColor(pal.selected, '#f4f4f1'));
+  HOVER_TO.copy(SELECTED);
+  OUTLINE.copy(toColor(pal.outline, '#0a0a0a'));
+  EDGE.copy(toColor(pal.edge, '#0a0a0a'));
+  grid.material.uniforms.uColor.value.copy(toColor(pal.grid, '#f4f4f1'));
+  grid.material.uniforms.uOpacity.value = gridOpacity(pal.grid);
+  for (const m of meshes) {
+    m.children[0].material.color.copy(EDGE); m.children[0].material.opacity = pal.edgeOpacity;
+    m.userData.outline.material.color.copy(OUTLINE); tint(m);
+  }
+  for (const cat of Object.keys(chipFor)) paintSwatch(chipFor[cat].querySelector('.sw'), cat);
+  for (const g of Object.values(ghosts)) g.material.color.copy(toColor(css('--line-strong'), '#9a9a96'));
+  setCursor(cursorName || 'idle');
   requestRender();
 }
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+document.addEventListener('am-theme-change', applyTheme);
+// Also catch a class change made without the event (am-theme's storage-blocked path).
+new MutationObserver(() => { if (currentTheme() !== pal.theme) applyTheme(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+document.getElementById('theme').addEventListener('click', () => { if (window.amTheme) window.amTheme.toggle(); });
 
-// Test hooks: project a world point to page pixels, read the selection.
+// Test hooks: project a world point to page pixels, read the selection and the scene colors.
+const hex = c => '#' + c.getHexString(THREE.SRGBColorSpace);
 window.__bim = {
   state, setView, bounds,
   select: id => select(meshes.find(m => String(m.userData.el.id) === String(id)) || null),
@@ -498,6 +1206,32 @@ window.__bim = {
   isAnimating: () => anim !== null,
   grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
   visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
+  walk: {
+    enter: () => enterWalkMode(), exit: () => exitWalkMode(), active: () => walk !== null,
+    pause: on => { walkPaused = on; }, step: (dt, keys = {}) => { Object.assign(walkKeys, keys); walkStepOnce(dt); for (const k of Object.keys(keys)) delete walkKeys[k]; },
+    get: () => walk && { pos: walk.pos.slice(), yaw: walk.yaw, pitch: walk.pitch, isCollision: walk.isCollision, eyeAboveFloor: walkFloor === null ? null : walk.pos[2] - walkFloor },
+    look: (dx, dy) => walkLook(walk, dx, dy),
+  },
+  gumball: {
+    layout: () => { const L = gumballLayout(), r = vp.getBoundingClientRect(); if (!L) return null;
+      const g = p => ({ x: r.left + p.x, y: r.top + p.y });
+      return { center: g(L.c), tips: Object.fromEntries(L.arrows.map(a => [a.k, g(a.tip)])), ringEast: g(L.ring[0]) }; },
+    transforms: () => exportTransforms(edits),
+    lastCopied: () => lastCopied,
+    pendingRows: () => document.querySelectorAll('#pending .pend').length,
+    meshMatrix: id => meshById[String(id)].matrix.toArray(),
+    ghostCount: () => Object.keys(ghosts).length,
+    isDragging: () => gdrag !== null,
+  },
+  gridOnly: on => { for (const m of meshes) m.visible = on ? false : chipFor[m.userData.el.category || 'Generic'].getAttribute('aria-pressed') === 'true'; grid.visible = true; render(); },
+  gridDensityFade: on => { grid.material.uniforms.uDensityFade.value = on ? 1 : 0; render(); },
+  renderNow: () => render(),
+  cursor: { svg: cursorSvg, names: Object.keys(CURSOR_SHAPES), current: () => vp.style.cursor },
+  sceneColors: () => ({
+    theme: pal.theme, selected: hex(SELECTED), outline: hex(OUTLINE), edge: hex(EDGE),
+    grid: hex(grid.material.uniforms.uColor.value), gizmo: pal.gizmo, backdrop: getComputedStyle(vp).backgroundColor,
+    categories: Object.fromEntries(Object.keys(catColor).map(k => [k, hex(catColor[k])])),
+  }),
 };
 
 state.aspect = aspect();
