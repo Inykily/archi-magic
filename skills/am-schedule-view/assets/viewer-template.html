@@ -467,13 +467,15 @@ tr.d-same td { color: var(--ink-2); }
   /* schedule mode                                                         */
   /* =================================================================== */
   function initSchedules(meta, scheds) {
-    $("h1").innerHTML = "Schedules" + (meta.document ? '<span class="sub">' + esc(meta.document) + "</span>" : "");
-    document.title = "Schedules - " + (meta.document || "Revit");
+    // Optional "pageTitle" and "banner" let other skills (e.g. am-markup-intake) reuse this table page.
+    var pageTitle = meta.pageTitle || "Schedules";
+    $("h1").innerHTML = esc(pageTitle) + (meta.document ? '<span class="sub">' + esc(meta.document) + "</span>" : "");
+    document.title = pageTitle + " - " + (meta.document || "Revit");
     $("tblock").innerHTML =
       "<div><b>Model</b><span>" + esc(meta.document || "-") + "</span></div>" +
       "<div><b>Revit</b><span>" + esc(meta.revitVersion || "-") + "</span></div>" +
       "<div><b>Read</b><span>" + esc(meta.readAt || "-") + "</span></div>";
-    var b = '<span class="status">Read only. This page shows what Revit displays; nothing in Revit was changed.</span>';
+    var b = '<span class="status">' + esc(meta.banner || "Read only. This page shows what Revit displays; nothing in Revit was changed.") + '</span>';
     if (meta.rowKindSource === "heuristic") b += '<span class="chip">Group and total rows are detected from the layout</span>';
     $("banner").innerHTML = b;
 

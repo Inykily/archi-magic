@@ -38,7 +38,7 @@ Every feature the user asked for in the build session, with its status. **Shippe
 | 32 | Revit health: many metrics + an interactive output page | `am-model-health` dashboard mode | v0.4.0 |
 | 33 | Mod to show Revit schedules | `am-schedule-view` skill + mod | v0.4.0 |
 | 34 | Real scenario: shift sheets A301 and up by one; preview before/after before executing | `am-safe-change` (sheet renumber recipe) + preview renderer | v0.4.0 |
-| 35 | Skill: intake many markups (JPG, PDF ...) and conclude what to do | `am-markup-intake` | In progress |
+| 35 | Skill: intake many markups (JPG, PDF ...) and conclude what to do | `am-markup-intake` (tested on synthetic markups + live Snowdon mapping) | v0.4.0 |
 | 36 | A very agent-friendly README, because users are not developers | README rewrite | To do |
 | 37 | Use the open Revit model for testing | Every Revit skill was tested on Snowdon Towers in read-only or dry-run mode | Done |
 | 38 | Sync the repo at good stopping points | v0.3.1 via PR #1; `main` protected | Shipped; v0.4.0 pending |
@@ -51,6 +51,11 @@ Every feature the user asked for in the build session, with its status. **Shippe
 4. Weekly reminder: a GitHub Action that opens or updates one issue each week. It runs the drift checks and reports upstream pin staleness (superpowers, frontend-design, rhino-mcp, pyRevit latest) (#11).
 5. Agent-friendly README (#36).
 6. Final checks, version bump, PR, CI green, merge; update the installed plugin on this machine and confirm the skills load.
+
+## Follow-ups (not blocking)
+
+- am-markup-intake: questions such as "Verify door swing" get the next step "Answer the reviewer". A separate "Check in model" step for these may be clearer.
+- Live checks still to do by hand: the SessionStart rules hook in a new session; the Rhino MCP with Rhino open; the workset fix on a workshared model.
 
 ## Not shipped by design (platform limits or open decisions)
 

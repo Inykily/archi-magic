@@ -592,7 +592,9 @@ def schedules_json(tracker):
         um = [[str(u["n"]), u["sheet"] or "(unknown)", "; ".join(u["missing"])] for u in tracker["unmatched"]]
         scheds.append({"name": "Not found in model", "id": "", "category": "Markup tracker",
                        "columns": ["#", "Sheet", "Not found"], "rows": um, "rowKinds": ["body"] * len(um)})
-    return {"kind": "schedules", "schedules": scheds}
+    return {"kind": "schedules", "schedules": scheds,
+            "pageTitle": "Markup action tracker",
+            "banner": "Read only. This list was built from review markups; nothing in Revit was changed."}
 
 
 def write_csv(tracker, path):
