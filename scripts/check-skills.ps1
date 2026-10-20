@@ -5,6 +5,7 @@
     - a skill folder has no SKILL.md
     - the SKILL.md frontmatter "name" is not the folder name
     - the SKILL.md frontmatter has no "description"
+    - two skills' descriptions share a quoted trigger phrase ("...", case-insensitive)
     - the root README.md does not mention the skill as `am-<name>`
     - the house rules at the end of a SKILL.md differ from HOUSE-RULES.md
     - hooks/hooks.json has no SessionStart command hook that reads hooks/session-rules.md
@@ -23,6 +24,7 @@ $readme = [IO.File]::ReadAllText((Join-Path $Root 'README.md'))
 $houseRules = ([IO.File]::ReadAllText((Join-Path $Root 'HOUSE-RULES.md')) -replace "`r`n", "`n").Trim()
 $dirs = @(Get-ChildItem (Join-Path $Root 'skills') -Directory | Sort-Object Name)
 if ($dirs.Count -eq 0) { Write-Host 'FAIL: no skill folders found under skills/'; exit 1 }
+$triggerOwners = @{}
 
 foreach ($d in $dirs) {
     $n = $d.Name
@@ -37,9 +39,24 @@ foreach ($d in $dirs) {
     $desc = [regex]::Match($fm.Groups[1].Value, '(?m)^description:\s*(.+?)\s*$').Groups[1].Value
     if ($name -ne $n) { $problems.Add("$n : frontmatter name is '$name', expected '$n'") }
     if (-not $desc) { $problems.Add("$n : frontmatter has no description") }
+    # Trigger phrases: every "..." string in the description. Two skills must not share one,
+    # or Claude cannot tell which skill the user means. No exemptions: am-grill-me is
+    # user-only (disable-model-invocation) and its description has no quoted phrases.
+    foreach ($m in [regex]::Matches($desc, '"([^"]+)"')) {
+        $p = ($m.Groups[1].Value.Trim().ToLowerInvariant() -replace '\s+', ' ')
+        if (-not $triggerOwners.ContainsKey($p)) { $triggerOwners[$p] = New-Object System.Collections.Generic.List[string] }
+        if (-not $triggerOwners[$p].Contains($n)) { $triggerOwners[$p].Add($n) }
+    }
     if (-not $readme.Contains("``$n``")) { $problems.Add("$n : README.md skills table does not mention ``$n``") }
     if (-not ($text -replace "`r`n", "`n").TrimEnd().EndsWith($houseRules)) {
         $problems.Add("$n : house rules differ from HOUSE-RULES.md (run scripts/sync-house-rules.ps1)")
+    }
+}
+$dupTriggers = 0
+foreach ($p in ($triggerOwners.Keys | Sort-Object)) {
+    if ($triggerOwners[$p].Count -gt 1) {
+        $problems.Add(("duplicate trigger phrase ""{0}"" in: {1}" -f $p, ($triggerOwners[$p] -join ', ')))
+        $dupTriggers++
     }
 }
 
@@ -96,6 +113,7 @@ if (Test-Path -LiteralPath $tokensPath) {
 }
 
 Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach-Object Name) -join ', '))
+Write-Host ("Checked trigger phrases: {0} unique, {1} shared by two or more skills" -f $triggerOwners.Count, $dupTriggers)
 Write-Host ("Checked design tokens: {0} page template(s) in sync" -f $designOk)
 Write-Host ("Checked SessionStart rules hook: {0}" -f $(if (Test-Path -LiteralPath $rulesMd) { "$(@(([IO.File]::ReadAllText($rulesMd) -replace "`r`n", "`n").Trim() -split "`n").Count) line(s)" } else { 'missing' }))
 if ($problems.Count -gt 0) {

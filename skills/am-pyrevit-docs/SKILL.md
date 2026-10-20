@@ -1,11 +1,20 @@
 ---
 name: am-pyrevit-docs
-description: Look up official pyRevit documentation (docs.pyrevitlabs.io) and the installed pyRevit source before writing or debugging pyRevit tools, extensions, bundles, forms, output window code, configs, CLI commands, routes or the Agent Runtime. Full-text searches the docs site's own search index (cached 7 days) and points at the exact page, then confirms against the installed pyrevitlib source. Triggers on "pyrevit docs", "how do I in pyrevit", "pyrevit forms", "pyrevit output", "pyrevit bundle / extension / pushbutton", "pyrevit cli", "pyrevit configs", "pyrevit routes", "script.get_output", "pyrevit agent runtime".
+description: Look up official pyRevit documentation (docs.pyrevitlabs.io) and the installed pyRevit source before writing or debugging pyRevit tools, extensions, bundles, forms, output window code, configs, CLI commands or routes. Full-text searches the docs site's own search index (cached 7 days), points at the exact page, then confirms against the installed pyrevitlib source. Use when the user asks "pyrevit docs", "how do I in pyrevit", "pyrevit forms", "pyrevit output", "pyrevit bundle / extension / pushbutton", "pyrevit cli", "pyrevit configs", "pyrevit routes", "script.get_output", or about another pyRevit version or offline. When the pyrevit MCP is connected, call its lookup_pyrevit_api tool first. NOT for installing, updating or connecting pyRevit or its agent (use am-pyrevit7-setup), and NOT for Revit API classes such as Autodesk.Revit.DB (use am-revit-api-docs).
 ---
 
 # am-pyrevit-docs
 
 Ground pyRevit answers in the real docs and the installed source. Don't rely on memory: pyRevit 7 changed things since older tutorials were written.
+
+## Which source first
+
+| Situation | Use first | Then |
+|---|---|---|
+| The `pyrevit` MCP tools are in this session (Revit is open with pyRevit 7) | `lookup_pyrevit_api` (asks the installed pyRevit), plus pyRevit's built-in skills: `get_skill("pyrevit-library")`, and `get_skill("extension-authoring")` for buttons and bundles | The docs search below, to cite the docs page |
+| Another pyRevit version, no Revit open, offline, or comparing versions | The docs search and the installed source below | |
+
+The pyrevit MCP tools can be deferred. Load them with ToolSearch (for example `select:mcp__pyrevit__lookup_pyrevit_api`) before you decide they are absent. Setup and connection problems go to `am-pyrevit7-setup` or `am-doctor`, not here.
 
 ## Sources, in order
 

@@ -72,7 +72,7 @@ Optional add-ons, installed only when the user needs them:
 
 | The user says (or means) | Use | First action |
 |---|---|---|
-| "I'm new", "what is this", "what can you do" | `am-welcome` | Run its setup check, then show the skill table it builds |
+| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help") | `am-welcome` | Run its setup check, then show the skill table it builds |
 | "set up pyRevit", "connect Claude to Revit", Revit shows pyRevit 6.x | `am-pyrevit7-setup` | Data warning, then ask the user to close Revit, then run the script |
 | "Claude can't see my Revit", any setup error, after a pyRevit update | `am-doctor` | Run `doctor.ps1` (read-only) and explain each finding |
 | "Revit crashed / froze / closed" | `am-revit-crash-doctor` | Run `crash-doctor.ps1` (read-only, Revit may be closed) |
@@ -86,12 +86,14 @@ Optional add-ons, installed only when the user needs them:
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
-| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | Search the installed `RevitAPI.xml` for the user's year |
-| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | Search the docs index, then confirm in the installed source |
+| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | If connected to that Revit year, `lookup_revit_api`; else search the installed `RevitAPI.xml` for the user's year |
+| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
 If you are connected to Revit through the `pyrevit` MCP server, call `get_context` first and `get_skill("revit-scripting")` before you send any script. pyRevit's own built-in skills (scheduling, views, drawings, modeling, family-editing) cover general Revit know-how. The `am-*` skills add archi-magic's workflows, previews and checks on top of them.
+
+API lookups: when connected to Revit, use the `pyrevit` MCP tools `lookup_revit_api` / `lookup_pyrevit_api` and its built-in skills first; for another Revit year, offline, or comparing years, use `am-revit-api-docs` / `am-pyrevit-docs`.
 
 ### Rules you must follow
 
