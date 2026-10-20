@@ -274,7 +274,34 @@ function tint(mesh) {
   else c.copy(base);
   mesh.userData.outline.visible = mesh === selected;
 }
-function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); vp.style.cursor = m ? 'pointer' : ''; requestRender(); }
+// ---------- Cursors: chunky rounded SVG, readable on light and dark views ----------
+// Each shape is drawn twice: a soft shadow offset by 1px, then a white body with a dark outline.
+const CURSOR_INK = '#22221f', CURSOR_FILL = '#ffffff';
+const CURSOR_SHAPES = {
+  idle:   { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z' },
+  hover:  { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z', dot: [24, 24.5] },
+  rotate: { hot: [16, 16], d: 'M25 14 A9.5 9.5 0 1 0 22.6 22.9 M25 7.5 L25 14 L18.5 14', open: true },
+  pan:    { hot: [16, 16], d: 'M16 4 L16 28 M4 16 L28 16 M12 8 L16 4 L20 8 M12 24 L16 28 L20 24 M8 12 L4 16 L8 20 M24 12 L28 16 L24 20', open: true },
+  zoom:   { hot: [13, 13], d: 'M13 4.5 A8.5 8.5 0 1 0 13 21.5 A8.5 8.5 0 1 0 13 4.5 Z M19.4 19.4 L27 27 M9 13 L17 13 M13 9 L13 17', open: true },
+};
+function cursorCss(name) {
+  const s = CURSOR_SHAPES[name];
+  const layer = (stroke, fill, w, dx) =>
+    '<path d="' + s.d + '" transform="translate(' + dx + ',' + dx + ')" fill="' + (s.open ? 'none' : fill) +
+    '" stroke="' + stroke + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"/>';
+  const body = s.open
+    ? layer('rgba(0,0,0,.28)', 'none', 6.5, 1) + layer(CURSOR_INK, 'none', 5.5, 0) + layer(CURSOR_FILL, 'none', 2.6, 0)
+    : layer('rgba(0,0,0,.28)', 'rgba(0,0,0,.28)', 3, 1) + layer(CURSOR_INK, CURSOR_FILL, 2.4, 0);
+  const dot = s.dot ? '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="4.6" fill="' + ACCENT.getStyle() + '" stroke="' + CURSOR_FILL + '" stroke-width="2"/>' : '';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' + body + dot + '</svg>';
+  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
+  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
+}
+let cursorName = '';
+function setCursor(name) { if (name === cursorName) return; cursorName = name; vp.style.cursor = cursorCss(name); }
+setCursor('idle');
+
+function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); if (!drag) setCursor(m ? 'hover' : 'idle'); requestRender(); }
 function select(m) {
   const next = nextSelection(selected ? selected.userData.el.id : null, m ? m.userData.el : null);
   if (!next.isChanged) return; // the 2nd click of a double-click lands here: no flicker
@@ -360,6 +387,7 @@ canvas.addEventListener('pointerdown', e => {
   drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
   if (action !== 'select') { e.preventDefault(); if (anim) { cancelAnimationFrame(anim); anim = null; } }
+  if (action === 'rotate' || action === 'pan' || action === 'zoom') setCursor(action);
 });
 canvas.addEventListener('pointermove', e => {
   if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
@@ -374,6 +402,7 @@ canvas.addEventListener('pointermove', e => {
 canvas.addEventListener('pointerup', e => {
   if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
   drag = null;
+  setCursor(hovered ? 'hover' : 'idle');
 });
 // Double-click: Zoom Selected on an element, zoom extents on empty space.
 canvas.addEventListener('dblclick', e => {
