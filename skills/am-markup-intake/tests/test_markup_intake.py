@@ -87,6 +87,44 @@ def test_pdf_annots_no_library_exit_3():
     check(b"NO-PDF-LIBRARY" in p.stdout, "clear message when no PDF library")
 
 
+def test_pdf_annots_check_flag():
+    script = os.path.join(SCRIPTS, "pdf_annots.py")
+    p = subprocess.run([sys.executable, script, "--check"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    eq(p.returncode, 0, "--check exits 0 when a library is usable")
+    code = ("import sys,runpy;sys.modules['pymupdf']=None;sys.modules['fitz']=None;"
+            "sys.modules['pypdf']=None;sys.argv=['pdf_annots.py','--check'];"
+            "runpy.run_path(%r,run_name='__main__')" % script)
+    p = subprocess.run([sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    eq(p.returncode, 3, "--check exits 3 when no library")
+
+
+def test_consolidate_cli_wildcard_and_unicode_pipe():
+    tmp = os.path.join(HERE, "_cli_tmp")
+    os.makedirs(tmp)
+    try:
+        rec = {"kind": "markup-records", "records": [
+            {"id": "u1", "sourceFile": "x.png", "page": 1, "sheet": "A101",
+             "text": u"Ramp slope ≥ 1:12 → check, 张 comment", "confidence": "low"}]}
+        with open(os.path.join(tmp, "records-1.json"), "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, ensure_ascii=False)
+        out = os.path.join(tmp, "tracker.json")
+        env = dict(os.environ)
+        env.pop("PYTHONIOENCODING", None)
+        env.pop("PYTHONUTF8", None)
+        p = subprocess.run([sys.executable, os.path.join(SCRIPTS, "consolidate.py"),
+                            os.path.join(tmp, "records-*.json"), os.path.join(tmp, "annots-*.json"),
+                            "--out", out], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        eq(p.returncode, 0, "CLI exit 0 (stderr: %r)" % p.stderr[-300:])
+        check(b"WARN: no file matches" in p.stderr, "unmatched wildcard warns")
+        with open(out, encoding="utf-8") as fh:
+            t = json.load(fh)
+        eq(t["items"][0]["text"], rec["records"][0]["text"], "non-ASCII text kept verbatim in the file")
+    finally:
+        for f in os.listdir(tmp):
+            os.remove(os.path.join(tmp, f))
+        os.rmdir(tmp)
+
+
 def test_norm_rect_rotation():
     box = [0, 0, 200, 100]
     r = [10, 70, 30, 90]  # near the top left of the unrotated page

@@ -54,6 +54,7 @@ Pure CPython 3.6+, ASCII source.
 import argparse
 import csv
 import difflib
+import glob
 import io
 import json
 import os
@@ -154,12 +155,28 @@ def annots_to_records(doc):
     return out
 
 
+def expand_paths(paths):
+    """Expand wildcards here: PowerShell and cmd pass "annots-*.json" to Python unexpanded.
+    A pattern with no match (for example no annots files after pdf_annots.py exit 3)
+    prints a WARN and is skipped."""
+    out = []
+    for p in paths:
+        if any(ch in p for ch in "*?["):
+            hits = sorted(glob.glob(p))
+            if not hits:
+                sys.stderr.write("WARN: no file matches %s (skipped)\n" % p)
+            out.extend(hits)
+        else:
+            out.append(p)
+    return out
+
+
 def load_records(paths):
     """Read every input. A "sheetMap" ({"<file>": {"<page>": "A101"}}) in any
     markup-records file sets the sheet of records from that file page that have none
     (the title-block reading of the visual pass wins over a text-layer guess)."""
     recs, sheet_map = [], {}
-    for p in paths:
+    for p in expand_paths(paths):
         obj = load_json(p)
         if isinstance(obj, list):
             batch = obj
@@ -603,6 +620,16 @@ def summary(tracker, top=10):
     return "\n".join(lines)
 
 
+def safe_stdout():
+    """A piped stdout on Windows uses the locale code page; a comment with an arrow or a
+    CJK name would raise after the files are written. Print those as escapes instead."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Consolidate markup records into an action tracker.")
     ap.add_argument("inputs", nargs="+")
@@ -612,6 +639,7 @@ def main(argv=None):
     ap.add_argument("--schedules")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
+    safe_stdout()
     try:
         records = load_records(a.inputs)
         model = load_model(a.model) if a.model else None

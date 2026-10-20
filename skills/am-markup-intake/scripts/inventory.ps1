@@ -4,9 +4,13 @@
 
 .DESCRIPTION
   inventory.ps1 -Path <folder or file> [-Path <more>] [-Json <out.json>] [-NoRecurse]
+                [-ConvertTiff <folder>]
 
-  Supported:       .pdf .jpg .jpeg .png .tif .tiff
-  Convert first:   .heic .heif (Claude cannot read them; export as JPG from Photos or the phone)
+  Readable:        .pdf .jpg .jpeg .png
+  Convert first:   .tif .tiff  Claude's Read tool cannot open TIFF. -ConvertTiff <folder>
+                               writes each TIFF page as a PNG (System.Drawing, no admin)
+                               and lists the PNGs as readable. The TIFF files stay unchanged.
+                   .heic .heif Claude cannot read them; export as JPG from Photos or the phone.
   Other files are listed as "skipped" with their extension.
 
   PDF page count: read from the file without extra tools. The script counts page
@@ -24,11 +28,35 @@ param(
     [string]$Json,
     [switch]$NoRecurse,
     [int]$BigPages = 60,
-    [int]$BigMB = 150
+    [int]$BigMB = 150,
+    [string]$ConvertTiff
 )
 $ErrorActionPreference = 'Stop'
-$supported = @('.pdf', '.jpg', '.jpeg', '.png', '.tif', '.tiff')
-$convert = @('.heic', '.heif')
+$supported = @('.pdf', '.jpg', '.jpeg', '.png')
+$tiff = @('.tif', '.tiff')
+$convert = @('.heic', '.heif', '.tif', '.tiff')
+
+# TIFF page count, and optional conversion to one PNG for each page.
+function Get-TiffPages([string]$file, [string]$outDir) {
+    Add-Type -AssemblyName System.Drawing
+    $img = [System.Drawing.Image]::FromFile($file)
+    $made = @()
+    try {
+        $dim = New-Object System.Drawing.Imaging.FrameDimension $img.FrameDimensionsList[0]
+        $n = $img.GetFrameCount($dim)
+        if ($outDir) {
+            if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+            $base = [IO.Path]::GetFileNameWithoutExtension($file)
+            for ($i = 0; $i -lt $n; $i++) {
+                [void]$img.SelectActiveFrame($dim, $i)
+                $png = Join-Path $outDir ("{0}_p{1}.png" -f $base, ($i + 1))
+                $img.Save($png, [System.Drawing.Imaging.ImageFormat]::Png)
+                $made += $png
+            }
+        }
+    } finally { $img.Dispose() }
+    return @{ Pages = $n; Made = $made }
+}
 $cap = 8MB
 
 function Get-PdfPages([string]$file) {
@@ -96,7 +124,23 @@ foreach ($f in ($files | Sort-Object FullName)) {
             if ($r.Encrypted) { $note = 'encrypted: the annotation reader may need the password' }
         } catch { $method = 'unknown'; $note = "could not read: $($_.Exception.Message)" }
     } elseif ($status -eq 'ok') { $pages = 1; $method = 'image' }
-    if ($status -eq 'convert first') { $note = 'HEIC: export as JPG first' }
+    if ($status -eq 'convert first' -and $tiff -contains $ext) {
+        try {
+            $tr = Get-TiffPages $f.FullName $ConvertTiff
+            $pages = $tr.Pages; $method = 'tiff frames'
+            if ($ConvertTiff) {
+                $note = "converted to $($tr.Made.Count) PNG page(s) in $ConvertTiff"
+                foreach ($m in $tr.Made) {
+                    $mi = Get-Item -LiteralPath $m
+                    $rows.Add([pscustomobject]@{
+                            file = $mi.FullName; name = $mi.Name; type = 'png'; status = 'ok'
+                            sizeMB = [math]::Round($mi.Length / 1MB, 2); pages = 1; pageMethod = 'image'
+                            note = "page of $($f.Name)"
+                        })
+                }
+            } else { $note = 'TIFF: run again with -ConvertTiff <folder> to make PNG pages' }
+        } catch { $note = "TIFF: could not open: $($_.Exception.Message)" }
+    } elseif ($status -eq 'convert first') { $note = 'HEIC: export as JPG first' }
     $rows.Add([pscustomobject]@{
             file = $f.FullName; name = $f.Name; type = $ext.TrimStart('.'); status = $status
             sizeMB = [math]::Round($f.Length / 1MB, 2); pages = $pages; pageMethod = $method; note = $note
@@ -134,5 +178,5 @@ if ($Json) {
     [IO.File]::WriteAllText([IO.Path]::GetFullPath($Json), $text, (New-Object Text.UTF8Encoding $false))
     Write-Host "OK: wrote $Json"
 }
-if ($ok.Count -eq 0) { Write-Host 'FAIL: no supported markup files (pdf, jpg, jpeg, png, tif, tiff)'; exit 1 }
+if ($ok.Count -eq 0) { Write-Host 'FAIL: no readable markup files (pdf, jpg, jpeg, png; convert tif and heic first)'; exit 1 }
 exit 0

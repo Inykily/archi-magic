@@ -2,6 +2,7 @@
 """Extract markup annotations (Bluebeam, Acrobat, ...) from a PDF.
 
     python pdf_annots.py <file.pdf> [--json out.json] [--backend auto|pymupdf|pypdf]
+    python pdf_annots.py --check        (exit 0: a PDF library is usable, 3: none)
 
 Backends: PyMuPDF ("import pymupdf" or "import fitz") if importable, else pypdf.
 If neither is importable, print a clear message and exit 3. The skill then
@@ -362,10 +363,28 @@ NO_LIB = ("NO-PDF-LIBRARY: neither PyMuPDF nor pypdf is installed for this Pytho
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Extract PDF markup annotations.")
-    ap.add_argument("pdf")
+    ap.add_argument("pdf", nargs="?")
     ap.add_argument("--json", dest="out", help="write the result to this file")
     ap.add_argument("--backend", default="auto", choices=["auto", "pymupdf", "pypdf"])
+    ap.add_argument("--check", action="store_true",
+                    help="only report the PDF library: exit 0 if one is usable, 3 if none")
     a = ap.parse_args(argv)
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
+    if a.check:
+        b = pick_backend(a.backend)
+        if b is None:
+            print(NO_LIB)
+            return 3
+        print("OK: PDF library: %s (Python %s)" % (b, sys.version.split()[0]))
+        return 0
+    if not a.pdf:
+        ap.print_usage()
+        print("FAIL: give a PDF file, or --check")
+        return 1
     if not os.path.isfile(a.pdf):
         print("FAIL: file not found: %s" % a.pdf)
         return 1

@@ -1,6 +1,6 @@
 {
  "kind": "markup-records",
- "note": "Expected output of the VISUAL pass (Claude reading the pages and the photo), written by hand for the tests. The PDF pass was given the annotation list, so it tags marks it could match and adds only what the annotation layer does not have.",
+ "note": "Expected output of the VISUAL pass (Claude reading the pages and the photo), written by hand for the tests. The PDF pass was given the annotation list, so it tags marks it could match and adds only what the annotation layer does not have. Caveat: the fixture annotations have no appearance streams, so a page render does NOT show the clouds or text boxes; v-p1-2 describes the cloud a Bluebeam file (which always writes appearances) would show, to test the region-overlap merge.",
  "sheetMap": {"review-set.pdf": {"1": "A101", "2": "A102"}, "photo-a102.png": {"1": "A102"}},
  "records": [
   {"id": "v-p1-1", "sourceFile": "review-set.pdf", "page": 1, "sheet": "A101",

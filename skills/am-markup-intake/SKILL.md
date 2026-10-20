@@ -11,7 +11,7 @@ A "markup" is one reviewer mark: a cloud, a callout, a text box, a strike-out, a
 
 | Script | Where it runs | What it does |
 |---|---|---|
-| `scripts/inventory.ps1` | User's computer | Lists the markup files: type, size, PDF page count, files to convert first. |
+| `scripts/inventory.ps1` | User's computer | Lists the markup files: type, size, PDF page count, files to convert first. Converts TIFF pages to PNG. |
 | `scripts/pdf_annots.py` | User's computer (Python) | Reads the PDF annotation layer: author, date, page, type, verbatim text, region. |
 | `scripts/consolidate.py` | User's computer (Python) | Merges records: removes duplicates, finds conflicts, sets priority and next step, writes the tracker. |
 | `scripts/read_model_index.py` | Inside Revit, `run_query` only | Lists sheets (with placed views), rooms, door marks and window marks. |
@@ -26,22 +26,24 @@ Run these scripts. Do not rewrite them.
    - Use a work folder such as `$env:TEMP\am-markup-intake\<yyyyMMdd-HHmmss>`.
    - Tell the user the counts by type, the page total and the size.
    - HEIC photos: tell the user to export them as JPG. Claude cannot read HEIC.
+   - TIFF scans: Claude cannot read TIFF. Run the script again with `-ConvertTiff "<work>\tiff-pages"`. It writes one PNG for each TIFF page and leaves the TIFF unchanged. Read the PNGs.
    - Page count "?" means the PDF hides its page list. `pdf_annots.py` gives the real count.
    - If the script prints `LARGE SET`, ask with AskUserQuestion: **All, in batches of 10 pages (Recommended)** / **Only some files** (the user names them) / **First 10 pages as a test**.
 2. **Data warning.** Say this before you read any markup: "The markup text and page images go to the AI provider. Use this only if your project allows AI tools." Ask with AskUserQuestion: **Yes, the project allows it (Recommended)** / **Stop**. Do not continue without a yes.
-3. **Check Python.** Run `python -c "import sys; print(sys.version)"`, then `python "<skill dir>\scripts\pdf_annots.py" --help`.
-   - If `pdf_annots.py` exits 3 (no PDF library), ask with AskUserQuestion: **Install PyMuPDF for this user (Recommended)** runs `python -m pip install --user pymupdf` (no admin rights) / **Continue without it** reads the pages visually only. Never install without a yes.
+3. **Check Python.** Run `python "<skill dir>\scripts\pdf_annots.py" --check`. It prints the PDF library it will use.
+   - If it exits 3 (no PDF library), ask with AskUserQuestion: **Install PyMuPDF for this user (Recommended)** runs `python -m pip install --user pymupdf` (no admin rights) / **Continue without it** reads the pages visually only. Never install without a yes.
    - If there is no Python, continue without the scripts. See "No Python" below.
 4. **Extract.**
    - First read the annotation layer of every PDF, in the main thread. It is fast and needs no AI reading:
      `python "<skill dir>\scripts\pdf_annots.py" "<file>" --json "<work>\annots-<n>.json"`
      Exit 3 means no PDF library: continue with the visual read only.
-   - Then start one subagent for each image, and for each 10 pages of each PDF. Send all of them in one message. Give each subagent the prompt in "Extraction subagent" below, with the annotations of its pages. Each subagent writes `<work>\records-<n>.json` and returns only counts and problems.
+   - Then start one subagent for each image, and for each 10 pages of each PDF. Send all of them in one message. Give each subagent the prompt in "Extraction subagent" below, with the path of its `annots-<n>.json` and its page range. Do not paste the annotations into the prompt. Each subagent writes `<work>\records-<n>.json` and returns only counts and problems.
    - The main thread does not read the pages itself. It only collects the record files.
    - If a subagent reports an image it cannot read (blurred, dark, sideways), ask the user to retake or rotate it. Do not guess the text.
 5. **Consolidate.** Run:
    `python "<skill dir>\scripts\consolidate.py" <work>\annots-*.json <work>\records-*.json --out <work>\tracker.json [--model <work>\model-index.json]`
    - It writes `tracker.json`, `tracker.csv` (opens in Excel) and `tracker.schedules.json`, and prints a summary.
+   - The script expands the `*` itself. A pattern with no file prints a WARN and is skipped.
    - Give the annotation files (`annots-*.json`) and the record files together. The script merges an annotation and the visual record of the same mark.
 6. **Map to the model (optional).** Do this only if the `pyrevit` MCP tools respond. Call `get_context` first.
    - Run `scripts/read_model_index.py` with `run_query` (pass the file text as `script`). Never use `run_modify`. Never change the active view or the selection. Do not use `capture_view` or `show_elements`.
@@ -68,7 +70,7 @@ Run these scripts. Do not rewrite them.
 Give each subagent this task. Fill in the file, the pages, the skill dir and the work folder.
 
 > Extract every review markup from `<file>` pages `<a>-<b>`. Write `<work>\records-<n>.json`. Never invent text.
-> 1. These annotations are already read from the PDF annotation layer (id, page, type, author, verbatim text, region): `<paste the annotations of these pages, or "none">`.
+> 1. Read `<work>\annots-<n>.json` (or "none"). It holds the annotations already read from the PDF annotation layer: id, page, type, author, verbatim text and region. Use only the entries for pages `<a>-<b>`.
 > 2. Read each page (Read tool, `pages: "<a>-<b>"`, max 20 pages for each call) or the image. For each page:
 >    - Read the sheet number and the sheet title from the title block. Put them in `sheetMap`. Do not trust a sheet number in the drawing body, such as a detail reference.
 >    - Find the marks that are drawn into the page and are not annotations: red or colored pen lines, clouds, text, and handwriting on scans and photos.
