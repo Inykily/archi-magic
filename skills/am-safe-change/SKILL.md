@@ -1,6 +1,6 @@
 ---
 name: am-safe-change
-description: Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, "make room for a new sheet"). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. Recipes: sheet renumbering ("shift all sheet numbers from A301 up by one"), and move or rotate elements, including changes copied from the 3D viewer (element-transforms JSON from am-bim-viewer). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view).
+description: "Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, \"make room for a new sheet\"). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. Recipes: sheet renumbering (\"shift all sheet numbers from A301 up by one\"), and move or rotate elements, including changes copied from the 3D viewer (element-transforms JSON from am-bim-viewer). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view)."
 ---
 
 # am-safe-change
