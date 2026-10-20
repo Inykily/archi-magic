@@ -15,6 +15,12 @@ mkdirSync(outDir, { recursive: true });
 
 const MUTANTS = [
   ['control (no change)', null, null],
+  ['typed arithmetic: + and - evaluated before * and /',
+    "if (op === '*' || op === '/') {", "if (false) {"],
+  ['typed arithmetic: operators without spaces split feet-inches',
+    String.raw`const OP_SPLIT = /\s+([+\-*/])\s+/;`, String.raw`const OP_SPLIT = /\s*([+\-*/])\s*/;`],
+  ['typing during a drag ignores digits',
+    String.raw`export function dragTypingStart(key) { return /^[0-9.+\-'"]$/.test(String(key)) ? String(key) : null; }`, 'export function dragTypingStart(key) { return null; }'],
   ['three.js default Y-up camera (camera.up = +Y, lookAt)',
     'cam.quaternion.setFromRotationMatrix(m);',
     'cam.up.set(0, 1, 0); cam.lookAt(state.target[0], state.target[1], state.target[2]);'],

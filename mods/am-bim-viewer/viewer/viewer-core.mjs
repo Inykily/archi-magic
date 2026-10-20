@@ -852,13 +852,13 @@ export function exportTransforms(edits) {
 }
 
 // ---- Typed gumball input: architect units ----
-export const LENGTH_HINT = 'Type a length, for example 2.5, 2\'6", 2\'-6 1/2", 30", 750mm or 0.75m.';
-export const ANGLE_HINT = 'Type an angle in degrees, for example 15, -90 or 22.5.';
+export const LENGTH_HINT = 'Type a length, for example 2.5, 2\'6", 2\'-6 1/2", 30", 750mm or 0.75m. To calculate, put spaces around + - * /, for example 10\' - 3" or 12\'6" / 2.';
+export const ANGLE_HINT = 'Type an angle in degrees, for example 15, -90 or 22.5. To calculate, put spaces around + - * /, for example 90 - 15.';
 const METRIC_PER_FT = { mm: 304.8, cm: 30.48, m: 0.3048 };
 
 // "2.5" (decimal feet), "2'6\"", "2' 6\"", "2'-6 1/2\"", "2'6", "30\"", "6 1/2\"", "750mm", "0.75m",
 // with an optional leading sign. Returns { ft } or { error } (plain words).
-export function parseLength(text) {
+function parseLengthTerm(text) {
   const s = String(text === undefined || text === null ? '' : text).trim().replace(/[′’]/g, "'").replace(/[″”]/g, '"');
   let m = /^([+-]?)\s*(\d+(?:\.\d*)?|\.\d+)\s*(mm|cm|m)$/i.exec(s);
   if (m) { const v = Number(m[2]) / METRIC_PER_FT[m[3].toLowerCase()]; return { ft: m[1] === '-' ? -v : v }; }
@@ -874,10 +874,49 @@ export function parseLength(text) {
   return { ft: m[1] === '-' ? -v : v };
 }
 
-export function parseAngle(text) {
-  const m = /^([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+))\s*(?:°|deg|degrees?)?$/i.exec(String(text === undefined || text === null ? '' : text).trim());
+function parseAngleTerm(text) {
+  const m =/^([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+))\s*(?:°|deg|degrees?)?$/i.exec(String(text === undefined || text === null ? '' : text).trim());
   return m ? { deg: Number(m[1].replace(/\s+/g, '')) } : { error: ANGLE_HINT };
 }
+
+// Arithmetic on typed values. Operators need spaces around them (10' - 3", 12'6" / 2), because
+// without spaces 10'-3/2" is ordinary feet-inches notation (10 ft 1 1/2 in). * and / take a plain
+// number on one side; + and - add lengths (a bare number is feet, as in single entry).
+const OP_SPLIT = /\s+([+\-*/])\s+/;
+function evalTyped(text, parseTerm, unitKey, hint) {
+  const s = String(text === undefined || text === null ? '' : text).trim();
+  const parts = s.split(OP_SPLIT);
+  if (parts.length === 1) return parseTerm(s);
+  const terms = [], ops = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2) { ops.push(parts[i]); continue; }
+    const isScalar = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(parts[i].trim());
+    const r = parseTerm(parts[i]);
+    if (r.error) return { error: 'Cannot read "' + parts[i] + '". ' + hint };
+    terms.push({ v: r[unitKey], scalar: isScalar });
+  }
+  // * and / first, left to right; a product or quotient keeps the unit of its length side.
+  const tv = [terms[0]], addOps = [];
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i], b = terms[i + 1];
+    if (op === '*' || op === '/') {
+      const a = tv[tv.length - 1];
+      if (op === '/' && !b.scalar) return { error: 'Divide by a plain number only. ' + hint };
+      if (op === '*' && !a.scalar && !b.scalar) return { error: 'Multiply by a plain number only. ' + hint };
+      if (op === '/' && b.v === 0) return { error: 'Cannot divide by zero. ' + hint };
+      tv[tv.length - 1] = { v: op === '*' ? a.v * b.v : a.v / b.v, scalar: a.scalar && b.scalar };
+    } else { addOps.push(op); tv.push(b); }
+  }
+  let v = tv[0].v;
+  for (let i = 0; i < addOps.length; i++) v = addOps[i] === '+' ? v + tv[i + 1].v : v - tv[i + 1].v;
+  if (!isFinite(v)) return { error: hint };
+  const out = {}; out[unitKey] = v; return out;
+}
+export function parseLength(text) { return evalTyped(text, parseLengthTerm, 'ft', LENGTH_HINT); }
+export function parseAngle(text) { return evalTyped(text, parseAngleTerm, 'deg', ANGLE_HINT); }
+
+// Typing during a gumball drag: the key that starts typed entry, and the text it starts with.
+export function dragTypingStart(key) { return /^[0-9.+\-'"]$/.test(String(key)) ? String(key) : null; }
 
 // 2.541666 -> 2'-6 1/2" (inches rounded to 1/16").
 export function formatFeetInches(ft) {
