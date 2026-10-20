@@ -21,8 +21,9 @@
   Exit codes (-Fix): the fix command's exit code; 4 = no automatic fix (user action needed);
     2 = fix command not available.
 
-  Test parameters (-AddinsRoot, -UserAddinsRoot, -Py7Root, -LogDir, -SetupLogRoot, -McpName, -Only)
-  point the checks at other folders or names. Defaults are the real locations.
+  Test parameters (-AddinsRoot, -UserAddinsRoot, -Py7Root, -LogDir, -SetupLogRoot, -McpName,
+  -InstalledPluginsJson, -ClaudeSettingsJson, -Only) point the checks at other folders or names.
+  Defaults are the real locations. The deps check only reads those two JSON files (no network).
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File .\doctor.ps1
@@ -32,7 +33,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
-        'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE')]
+        'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING')]
     [string]$Fix = '',
     [switch]$Report,
     [switch]$OpenIssue,
@@ -43,13 +44,15 @@ param(
     [string]$LogDir = '',
     [string]$SetupLogRoot = (Join-Path $env:TEMP 'pyrevit7-setup'),
     [string]$McpName = 'pyrevit',
+    [string]$InstalledPluginsJson = (Join-Path $env:USERPROFILE '.claude\plugins\installed_plugins.json'),
+    [string]$ClaudeSettingsJson = (Join-Path $env:USERPROFILE '.claude\settings.json'),
     [int]$BusyWaitSec = 25,
     [string[]]$Only = @()
 )
 # -Only accepts 'a,b' as one string too (powershell -File passes it that way).
 $Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-$badOnly = @($Only | Where-Object { $_ -notin 'py7', 'repoint', 'install', 'agent', 'revit', 'mcp', 'docs' })
-if ($badOnly.Count) { Write-Host "[am-doctor] Unknown -Only value(s): $($badOnly -join ', '). Use: py7, repoint, install, agent, revit, mcp, docs."; exit 2 }
+$badOnly = @($Only | Where-Object { $_ -notin 'py7', 'repoint', 'install', 'agent', 'revit', 'mcp', 'docs', 'deps' })
+if ($badOnly.Count) { Write-Host "[am-doctor] Unknown -Only value(s): $($badOnly -join ', '). Use: py7, repoint, install, agent, revit, mcp, docs, deps."; exit 2 }
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -154,6 +157,57 @@ function Get-LogEntries {
 
 function Redact([string]$s) { return (ConvertTo-AmRedacted $s) }
 
+# Plugin dependencies (read-only, offline). Reads installed_plugins.json (and settings.json for the
+# enabled flag). A dependency counts as missing ("failed to load") when its entry is absent, or its
+# installPath or installPath\.claude-plugin\plugin.json is missing on disk.
+# Returns @{ State = ok|missing|unchecked|notinstalled|disabled; Missing = @('<name>@<market>'); Evidence }.
+function Get-DepsState {
+    $r = @{ State = 'unchecked'; Missing = @(); Evidence = '' }
+    if (-not (Test-Path -LiteralPath $InstalledPluginsJson)) {
+        $r.State = 'notinstalled'; $r.Evidence = "$(Redact $InstalledPluginsJson) not found; archi-magic is not installed from a marketplace"; return $r
+    }
+    try { $j = [IO.File]::ReadAllText($InstalledPluginsJson) | ConvertFrom-Json } catch {
+        $r.Evidence = "could not read $(Redact $InstalledPluginsJson): $($_.Exception.Message)"; return $r
+    }
+    if (-not $j -or -not $j.plugins) { $r.Evidence = "$(Redact $InstalledPluginsJson) has no 'plugins' object"; return $r }
+    $amKey = @($j.plugins.PSObject.Properties | Where-Object { $_.Name -like 'archi-magic@*' } | ForEach-Object Name) | Select-Object -First 1
+    if (-not $amKey) { $r.State = 'notinstalled'; $r.Evidence = 'archi-magic is not in installed_plugins.json (not installed from a marketplace)'; return $r }
+    $market = $amKey.Substring($amKey.IndexOf('@') + 1)
+    if (Test-Path -LiteralPath $ClaudeSettingsJson) {
+        try {
+            $set = [IO.File]::ReadAllText($ClaudeSettingsJson) | ConvertFrom-Json
+            $en = if ($set.enabledPlugins) { $set.enabledPlugins.PSObject.Properties[$amKey] } else { $null }
+            if ($en -and $en.Value -eq $false) { $r.State = 'disabled'; $r.Evidence = "$amKey is installed but disabled in settings.json"; return $r }
+        } catch { }   # An unreadable settings.json does not block the dependency check.
+    }
+    # Dependency names: the installed archi-magic manifest, else this copy's manifest, else the known two.
+    $names = @()
+    $amEntry = @($j.plugins.PSObject.Properties[$amKey].Value) | Select-Object -Last 1
+    foreach ($m in @($(if ($amEntry -and $amEntry.installPath) { Join-Path $amEntry.installPath '.claude-plugin\plugin.json' }), (Join-Path $PluginRoot '.claude-plugin\plugin.json'))) {
+        if (-not $m -or -not (Test-Path -LiteralPath $m)) { continue }
+        try {
+            $man = [IO.File]::ReadAllText($m) | ConvertFrom-Json
+            $names = @(@($man.dependencies) | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.name) { [string]$_.name } } | Where-Object { $_ })
+            break
+        } catch { }
+    }
+    if ($names.Count -eq 0) { $names = @('superpowers', 'frontend-design') }
+    $missing = @(); $why = @()
+    foreach ($n in $names) {
+        $key = if ($n -match '@') { $n } else { "$n@$market" }
+        $prop = $j.plugins.PSObject.Properties[$key]
+        $entry = if ($prop) { @($prop.Value) | Select-Object -Last 1 } else { $null }
+        if (-not $entry) { $missing += $key; $why += "$key not installed"; continue }
+        $ip = [string]$entry.installPath
+        if (-not $ip -or -not (Test-Path -LiteralPath $ip)) { $missing += $key; $why += "$key install folder missing ($(Redact $ip))"; continue }
+        if (-not (Test-Path -LiteralPath (Join-Path $ip '.claude-plugin\plugin.json'))) { $missing += $key; $why += "$key has no .claude-plugin\plugin.json (fails to load)"; continue }
+    }
+    $r.Missing = $missing
+    if ($missing.Count) { $r.State = 'missing'; $r.Evidence = "$amKey needs: $($why -join '; ')" }
+    else { $r.State = 'ok'; $r.Evidence = "$amKey dependencies installed: $((@($names | ForEach-Object { if ($_ -match '@') { $_ } else { "$_@$market" } })) -join ', ')" }
+    return $r
+}
+
 $FixMap = @{
     PY7_MISSING          = @{ Kind = 'setup'; Args = @('-Install', '-Repoint', '-EnableAgent', '-Verify'); Text = 'am-pyrevit7-setup: run setup (Install, Repoint, EnableAgent, Verify).' }
     REPOINT_NEEDED       = @{ Kind = 'setup'; Args = @('-Repoint', '-Verify'); Text = 'am-pyrevit7-setup -Repoint -Verify' }
@@ -165,6 +219,25 @@ $FixMap = @{
     AGENT_NOT_RESPONDING = @{ Kind = 'manual'; Text = 'User: in Revit, click pyRevit tab > Reload (it can need two reloads), or restart Revit. Then run the doctor again.' }
     NO_MODEL_OPEN        = @{ Kind = 'manual'; Text = 'User: open a model in Revit (an Autodesk sample such as Snowdon Towers is fine).' }
     DOCS_OFFLINE         = @{ Kind = 'manual'; Text = 'No action needed. The cached docs copy is in use. Check the network later.' }
+    DEPS_MISSING         = @{ Kind = 'deps'; Text = 'claude plugin install <name>@archi-magic for each missing one (superpowers, frontend-design), then quit and restart the Claude app.' }
+}
+
+if ($Fix -eq 'DEPS_MISSING') {
+    $d = Get-DepsState
+    if ($d.State -ne 'missing') { Write-Host "[am-doctor] Nothing to fix: $($d.Evidence)."; exit 0 }
+    $claude = Find-ClaudeCli
+    if (-not $claude) { Write-Host '[am-doctor] Fix not available: Claude Code CLI not found (AnthropicClaude\claude.exe is not the CLI).'; exit 2 }
+    $code = 0
+    foreach ($key in $d.Missing) {
+        Write-Host "[am-doctor] Running fix for DEPS_MISSING: claude plugin install $key"
+        Write-AmLog -Skill 'am-doctor' -Step 'fix' -Level 'info' -Message "Fix DEPS_MISSING started: claude plugin install $key"
+        & $claude plugin install $key
+        if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE; Write-Host "[am-doctor] claude plugin install $key exit code $LASTEXITCODE." }
+    }
+    $lvl = if ($code -eq 0) { 'info' } else { 'error' }
+    Write-AmLog -Skill 'am-doctor' -Step 'fix' -Level $lvl -Message 'Fix DEPS_MISSING finished.' -ExitCode $code
+    Write-Host "[am-doctor] Fix DEPS_MISSING exit code $code. Quit and restart the Claude app so the plugins load, then run the doctor again."
+    exit $code
 }
 
 # ------------------------------------------------------------------ -Fix
@@ -341,6 +414,19 @@ if (Test-Want 'mcp') {
             else { Add-Finding 'MCP_WRONG_PATH' 'error' "$McpName MCP command is '$(Redact $cmdPath)', expected $(Redact $Py7)" $FixMap.MCP_WRONG_PATH.Text }
         } else { Add-Finding 'MCP' 'unchecked' "unknown output from claude mcp get ${McpName}: $(Redact $g.Out)" "Run: claude mcp get $McpName" }
     }
+}
+
+if (Test-Want 'deps') {
+    try {
+        $d = Get-DepsState
+        switch ($d.State) {
+            'ok'           { Add-Finding 'DEPS' 'ok' $d.Evidence '-' }
+            'missing'      { Add-Finding 'DEPS_MISSING' 'error' "$($d.Evidence). archi-magic fails to load without them" $FixMap.DEPS_MISSING.Text }
+            'notinstalled' { Add-Finding 'DEPS' 'info' $d.Evidence '-' }
+            'disabled'     { Add-Finding 'DEPS' 'info' $d.Evidence 'Enable archi-magic in /plugin, then run the doctor again.' }
+            default        { Add-Finding 'DEPS' 'unchecked' $d.Evidence 'Run: claude plugin list' }
+        }
+    } catch { Add-Finding 'DEPS' 'unchecked' "could not check plugin dependencies: $($_.Exception.Message)" 'Run: claude plugin list' }
 }
 
 if (Test-Want 'docs') {

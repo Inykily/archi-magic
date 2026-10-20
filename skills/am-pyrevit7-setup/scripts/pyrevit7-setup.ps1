@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Install pyRevit 7 per-user (no admin), point Revit at it, and connect the
-  pyRevit Agent Runtime (MCP) to Claude Code.
+  pyRevit Agent Runtime (MCP) to Claude Code. -Undo reverses a previous run.
 
 .DESCRIPTION
   Safe to re-run. Steps (default: all, in this order):
@@ -19,22 +19,41 @@
                   change needs Keep/Discard in Revit. 'readonly' blocks all changes.
                   'auto' (changes without approval) is never set by this script.
 
+  Backups and undo journal: every run that changes something writes
+    %LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\<timestamp>\journal.json
+  with the per-user manifests it created, replaced or deleted (and a byte copy of each
+  original under backup\), the MCP registration it replaced or added, and the previous
+  agent enabled state and policy. The log stays in %TEMP%\pyrevit7-setup\<timestamp>\.
+
+    -Undo [-Stamp <timestamp>]  Reverse the latest run that is not undone yet (or the
+                  given run): restore or delete the per-user manifests, restore the
+                  previous MCP registration (or remove the one the run added), and
+                  restore the previous agent enabled state and policy. A manifest that
+                  changed after the run is skipped (use -Force to restore it anyway).
+                  Undo does not uninstall pyRevit 7.
+
   Installer trust: the installer runs only when (1) GitHub gives a SHA256 digest
   and the file matches it, (2) the Authenticode signature is Valid, and (3) the
   signer is the known pyRevit signer (subject CN/O + Microsoft ID Verified issuer).
 
   Never needs admin, never kills Revit. Re-run -Repoint after any pyRevit update
   or 'pyrevit attach': those remove per-user manifests and then fail on the
-  admin-owned ones.
+  admin-owned ones. When Revit is running, manifest changes apply at the next start.
 
   Exit codes: 0 ok, 1 unexpected error (see log), 2 Revit must be closed,
   3 install failed, 4 repoint failed, 5 agent/MCP setup incomplete,
-  6 verify found problems.
+  6 verify found problems, 7 nothing to undo (no journal, or already undone),
+  8 undo finished with problems (some items skipped or failed).
+
+  Test parameters (-UserAddinsRoot, -MachineAddinsRoot, -Py7Root, -Py7Exe, -ClaudeCli,
+  -BackupRoot) point the script at other folders and programs. Defaults are the real ones.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -Repoint -Verify
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -EnableAgent -Policy readonly
+  powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -Undo
+  powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1 -Undo -Stamp 20261020-101500
 #>
 [CmdletBinding()]
 param(
@@ -43,26 +62,50 @@ param(
     [switch]$EnableAgent,
     [switch]$Verify,
     [switch]$Force,
-    [ValidateSet('ask', 'readonly')][string]$Policy = 'ask'
+    [ValidateSet('ask', 'readonly')][string]$Policy = 'ask',
+    [switch]$Undo,
+    [string]$Stamp = '',
+    [string]$UserAddinsRoot = (Join-Path $env:APPDATA 'Autodesk\Revit\Addins'),
+    [string]$MachineAddinsRoot = 'C:\ProgramData\Autodesk\Revit\Addins',
+    [string]$Py7Root = (Join-Path $env:APPDATA 'pyRevit-Master'),
+    [string]$Py7Exe = '',
+    [string]$ClaudeCli = '',
+    [string]$BackupRoot = (Join-Path $env:LOCALAPPDATA 'archi-magic\backups\pyrevit7-setup')
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-if (-not ($Install -or $Repoint -or $EnableAgent -or $Verify)) {
+if ($Undo -and ($Install -or $Repoint -or $EnableAgent -or $Verify)) {
+    Write-Host '[pyrevit7] FAILED: -Undo cannot be combined with -Install, -Repoint, -EnableAgent or -Verify.' -ForegroundColor Red
+    exit 1
+}
+if ($Stamp -and -not $Undo) {
+    Write-Host '[pyrevit7] FAILED: -Stamp is used only with -Undo.' -ForegroundColor Red
+    exit 1
+}
+if (-not $Undo -and -not ($Install -or $Repoint -or $EnableAgent -or $Verify)) {
     $Install = $true; $Repoint = $true; $EnableAgent = $true; $Verify = $true
 }
 
-$Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
-$WorkDir   = Join-Path $env:TEMP "pyrevit7-setup\$Stamp"
-$BackupDir = Join-Path $WorkDir 'backup'
+$RunStamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
+$WorkDir   = Join-Path $env:TEMP ("pyrevit7-setup\$RunStamp" + $(if ($Undo) { '-undo' } else { '' }))
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
 $LogFile   = Join-Path $WorkDir 'setup.log'
 Start-Transcript -Path $LogFile -Append | Out-Null
 
-$Py7Root   = Join-Path $env:APPDATA 'pyRevit-Master'
-$Py7       = Join-Path $Py7Root 'bin\pyrevit.exe'
-$MachineAddins = 'C:\ProgramData\Autodesk\Revit\Addins'
-$UserAddins    = Join-Path $env:APPDATA 'Autodesk\Revit\Addins'
+# Durable backups + undo journal (not %TEMP%, which cleanup tools empty).
+$JournalDir  = Join-Path $BackupRoot $RunStamp
+if (-not $Undo) {
+    # Two runs in the same second must not share (and overwrite) one backup folder.
+    $baseStamp = $RunStamp; $n = 2
+    while (Test-Path -LiteralPath $JournalDir) { $RunStamp = "$baseStamp-$n"; $JournalDir = Join-Path $BackupRoot $RunStamp; $n++ }
+}
+$BackupDir   = Join-Path $JournalDir 'backup'
+$JournalPath = Join-Path $JournalDir 'journal.json'
+
+$Py7       = if ($Py7Exe) { $Py7Exe } else { Join-Path $Py7Root 'bin\pyrevit.exe' }
+$MachineAddins = $MachineAddinsRoot
+$UserAddins    = $UserAddinsRoot
 $script:Problems = New-Object System.Collections.Generic.List[string]
 
 # Shared archi-magic log (scripts\lib\am-log.ps1 at the plugin root). Optional: the standalone kit
@@ -82,6 +125,7 @@ function Info($msg) { Write-Host "[pyrevit7] $msg"; AmLog 'info' $msg $null }
 function Say($msg)  { Write-Host "[pyrevit7] $msg" }
 function Warn($msg) { Write-Host "[pyrevit7] WARNING: $msg" -ForegroundColor Yellow; $script:Problems.Add($msg); AmLog 'warn' $msg $null }
 function Fail($code, $msg) {
+    Complete-RepointJournal
     Write-Host "[pyrevit7] FAILED: $msg" -ForegroundColor Red
     AmLog 'error' $msg $code
     Say "Log: $LogFile"
@@ -100,6 +144,7 @@ function Get-Py7Version {
 function Test-RevitRunning { return [bool](Get-Process Revit -ErrorAction SilentlyContinue) }
 
 function Find-ClaudeCli {
+    if ($ClaudeCli) { if (Test-Path -LiteralPath $ClaudeCli) { return $ClaudeCli } else { return $null } }
     # The Claude desktop app's own exe (AnthropicClaude\claude.exe) is NOT the CLI. Never use it.
     $cmd = Get-Command claude -ErrorAction SilentlyContinue |
         Where-Object { $_.Source -notmatch 'AnthropicClaude' } | Select-Object -First 1
@@ -111,6 +156,98 @@ function Find-ClaudeCli {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($bundled) { return $bundled.FullName }
     return $null
+}
+
+# ---------------------------------------------------------------- undo journal
+$script:Journal = [ordered]@{
+    version = 1; stamp = $RunStamp; startedAt = (Get-Date).ToUniversalTime().ToString('o'); undoneAt = $null
+    manifests = @(); createdDirs = @(); mcp = $null; agent = $null
+}
+function Get-Sha256([string]$path) { return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
+function Save-Journal([string]$path = $JournalPath, $data = $script:Journal) {
+    # Write a temp file, then swap it in, so a crash never leaves a half-written journal.
+    $dir = Split-Path $path
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $tmp = "$path.tmp"
+    [IO.File]::WriteAllText($tmp, ($data | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding $false))
+    Move-Item -LiteralPath $tmp -Destination $path -Force
+    if (-not (Test-Path -LiteralPath $path)) { throw "Could not write the undo journal $path." }
+}
+
+# Repoint journal: snapshot every per-user pyRevit manifest (byte copy) before the step, then diff after it.
+$script:RepointSnap = $null
+function Get-UserManifestMap {
+    $map = @{}
+    foreach ($f in @(Get-ChildItem (Join-Path $UserAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)) { $map[$f.FullName] = Get-Sha256 $f.FullName }
+    return $map
+}
+function Start-RepointJournal {
+    $files = Get-UserManifestMap
+    $dirs = @(Get-ChildItem -LiteralPath $UserAddins -Directory -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    $backups = @{}
+    foreach ($p in $files.Keys) {
+        $year = Split-Path (Split-Path $p) -Leaf
+        $bdir = Join-Path $BackupDir $year
+        New-Item -ItemType Directory -Force $bdir | Out-Null
+        $b = Join-Path $bdir (Split-Path $p -Leaf)
+        Copy-Item -LiteralPath $p -Destination $b -Force    # byte copy, never a text round trip
+        $backups[$p] = $b
+    }
+    $script:RepointSnap = @{ Files = $files; Dirs = $dirs; Backups = $backups; RootExisted = (Test-Path -LiteralPath $UserAddins) }
+}
+function Complete-RepointJournal {
+    if (-not $script:RepointSnap) { return }
+    $snap = $script:RepointSnap; $script:RepointSnap = $null
+    $after = Get-UserManifestMap
+    $entries = New-Object System.Collections.Generic.List[object]
+    foreach ($p in @(@($snap.Files.Keys) + @($after.Keys) | Select-Object -Unique)) {
+        $was = $snap.Files[$p]; $now = $after[$p]
+        if ($was -and $now -and $was -eq $now) { continue }
+        if ($was -and $now) { $entries.Add([ordered]@{ path = $p; action = 'replaced'; backup = $snap.Backups[$p]; backupSha256 = $was; writtenSha256 = $now }) }
+        elseif ($now) { $entries.Add([ordered]@{ path = $p; action = 'created'; backup = $null; backupSha256 = $null; writtenSha256 = $now }) }
+        else { $entries.Add([ordered]@{ path = $p; action = 'deleted'; backup = $snap.Backups[$p]; backupSha256 = $was; writtenSha256 = $null }) }
+    }
+    $newDirs = @(Get-ChildItem -LiteralPath $UserAddins -Directory -ErrorAction SilentlyContinue | ForEach-Object FullName | Where-Object { $snap.Dirs -notcontains $_ })
+    # Unchanged files need no backup: drop their copies so a backup always means "this run changed it".
+    foreach ($p in $snap.Backups.Keys) {
+        if (-not ($entries | Where-Object { $_.path -eq $p })) { Remove-Item -LiteralPath $snap.Backups[$p] -Force -ErrorAction SilentlyContinue }
+    }
+    if ($entries.Count -gt 0 -or $newDirs.Count -gt 0) {
+        $script:Journal['manifests'] = @($script:Journal['manifests']) + @($entries.ToArray())
+        $script:Journal['createdDirs'] = @($script:Journal['createdDirs']) + @($newDirs)
+        Save-Journal
+    }
+    if (Test-Path -LiteralPath $BackupDir) {
+        Get-ChildItem -LiteralPath $BackupDir -Directory -ErrorAction SilentlyContinue | Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName) } | Remove-Item -Force -ErrorAction SilentlyContinue
+        if (-not (Get-ChildItem -LiteralPath $BackupDir -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $BackupDir -Force -ErrorAction SilentlyContinue }
+    }
+    if (-not (Test-Path -LiteralPath $JournalPath) -and (Test-Path -LiteralPath $JournalDir) -and -not (Get-ChildItem -LiteralPath $JournalDir)) {
+        Remove-Item -LiteralPath $JournalDir -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-McpRegistration([string]$claude) {
+    # Parses 'claude mcp get pyrevit'. Returns $null when no server has that name.
+    $out = (& $claude mcp get pyrevit 2>&1 | Out-String)
+    if ($out -notmatch '(?m)^\s*Scope:') { return $null }
+    $scopeText = [regex]::Match($out, '(?m)^\s*Scope:\s*(.+?)\s*$').Groups[1].Value
+    $scope = if ($scopeText -match '^User') { 'user' } elseif ($scopeText -match '^Project') { 'project' } elseif ($scopeText -match '^Local') { 'local' } else { $scopeText }
+    $envList = @()
+    $inEnv = $false
+    foreach ($line in ($out -split "`r?`n")) {
+        if ($line -match '^\s*Environment:') { $inEnv = $true; continue }
+        if ($inEnv) {
+            if ($line -match '^\s{3,}(\w+)=(.*)$') { $envList += "$($Matches[1])=$($Matches[2])" } else { $inEnv = $false }
+        }
+    }
+    return [ordered]@{
+        scope   = $scope
+        type    = [regex]::Match($out, '(?m)^\s*Type:\s*(.+?)\s*$').Groups[1].Value
+        command = [regex]::Match($out, '(?m)^\s*Command:\s*(.+?)\s*$').Groups[1].Value
+        args    = [regex]::Match($out, '(?m)^\s*Args:\s*(.*?)\s*$').Groups[1].Value
+        env     = $envList
+        raw     = $out.Trim()
+    }
 }
 
 # Known pyRevit installer signer (read 2026-10-20 from pyRevit_7.0.0.26278_signed.exe).
@@ -165,6 +302,15 @@ function Get-AgentPolicy {
     return $null
 }
 
+function Get-AgentEnabled {
+    # 'pyrevit configs agent' prints "Agent host is Enabled" or "... Disabled". Returns $true, $false or $null.
+    if (-not (Test-Path $Py7)) { return $null }
+    $out = (& $Py7 configs agent 2>&1 | Out-String)
+    if ($out -match '\bDisabled\b') { return $false }
+    if ($out -match '\bEnabled\b') { return $true }
+    return $null
+}
+
 function Get-NetFailureText($err) {
     # Plain words for a failed call to GitHub. Names the two usual office causes.
     $status = $null
@@ -181,7 +327,8 @@ function Get-NetFailureText($err) {
 
 # Any error that no step handles: stop with exit 1 and show the log, not a raw stack trace.
 trap {
-    Write-Host "[pyrevit7] FAILED: Unexpected error: $($_.Exception.Message)" -ForegroundColor Red
+    try { Complete-RepointJournal } catch { }
+    Write-Host "[pyrevit7] FAILED: Unexpected error: $($_.Exception.Message) (script line $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
     AmLog 'error' "Unexpected error: $($_.Exception.Message)" 1
     Write-Host "[pyrevit7] Log: $LogFile"
     try { Stop-Transcript | Out-Null } catch { }
@@ -189,7 +336,142 @@ trap {
 }
 
 Say "Log file: $LogFile"
+
+# ---------------------------------------------------------------- Undo
+if ($Undo) {
+    $script:AmStep = 'undo'
+    AmLog 'info' ("Undo started. Stamp={0} Force={1}" -f $(if ($Stamp) { $Stamp } else { 'latest' }), [bool]$Force) $null
+    Say '== Undo a previous setup run =='
+    $jpath = $null
+    if ($Stamp) {
+        $jpath = Join-Path (Join-Path $BackupRoot $Stamp) 'journal.json'
+        if (-not (Test-Path -LiteralPath $jpath)) { Fail 7 "No undo journal for run $Stamp at $jpath." }
+    } else {
+        $cands = @(Get-ChildItem -LiteralPath $BackupRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+        foreach ($d in $cands) {
+            $p = Join-Path $d.FullName 'journal.json'
+            if (-not (Test-Path -LiteralPath $p)) { continue }
+            try { $j0 = [IO.File]::ReadAllText($p) | ConvertFrom-Json } catch { continue }
+            if (-not $j0.undoneAt) { $jpath = $p; break }
+        }
+        if (-not $jpath) { Fail 7 "No setup run to undo under $BackupRoot (none found, or all are already undone)." }
+    }
+    $j = [IO.File]::ReadAllText($jpath) | ConvertFrom-Json
+    if ($j.undoneAt -and -not $Force) { Fail 7 "Run $($j.stamp) was already undone at $($j.undoneAt). Use -Force to undo it again." }
+    Say "Undoing run $($j.stamp) (journal: $jpath)"
+    if (Test-RevitRunning) { Say 'Revit is running: the manifest changes apply the next time Revit starts.' }
+
+    # 1. Manifests, newest change first.
+    $ms = @($j.manifests)
+    [array]::Reverse($ms)
+    foreach ($m in $ms) {
+        $p = [string]$m.path
+        $cur = if (Test-Path -LiteralPath $p) { Get-Sha256 $p } else { $null }
+        switch ([string]$m.action) {
+            'created' {
+                if (-not $cur) { Say "Already gone: $p"; break }
+                if ($cur -ne $m.writtenSha256 -and -not $Force) { Warn "Skipped $p : it changed after the setup run (use -Force to delete it anyway)."; break }
+                Remove-Item -LiteralPath $p -Force
+                Say "Deleted (the setup run created it): $p"
+            }
+            'replaced' {
+                if (-not $m.backup -or -not (Test-Path -LiteralPath $m.backup)) { Warn "Cannot restore $p : backup $($m.backup) is missing."; break }
+                if ($cur -and $cur -ne $m.writtenSha256 -and -not $Force) { Warn "Skipped $p : it changed after the setup run (use -Force to restore the backup anyway)."; break }
+                New-Item -ItemType Directory -Force (Split-Path $p) | Out-Null
+                Copy-Item -LiteralPath $m.backup -Destination $p -Force
+                if ((Get-Sha256 $p) -ne $m.backupSha256) { Warn "Restored $p, but its checksum does not match the backup record." }
+                else { Say "Restored the original: $p" }
+            }
+            'deleted' {
+                if (-not $m.backup -or -not (Test-Path -LiteralPath $m.backup)) { Warn "Cannot restore $p : backup $($m.backup) is missing."; break }
+                if ($cur -and $cur -ne $m.backupSha256 -and -not $Force) { Warn "Skipped $p : a different file is there now (use -Force to restore the backup anyway)."; break }
+                New-Item -ItemType Directory -Force (Split-Path $p) | Out-Null
+                Copy-Item -LiteralPath $m.backup -Destination $p -Force
+                Say "Restored (the setup run deleted it): $p"
+            }
+            default { Warn "Unknown journal action '$($m.action)' for $p. Skipped." }
+        }
+    }
+    foreach ($d in @($j.createdDirs)) {
+        if ($d -and (Test-Path -LiteralPath $d) -and -not (Get-ChildItem -LiteralPath $d -Force)) {
+            Remove-Item -LiteralPath $d -Force
+            Say "Removed the empty folder the setup run created: $d"
+        }
+    }
+
+    # 2. MCP registration.
+    if ($j.mcp) {
+        $claude = Find-ClaudeCli
+        if (-not $claude) { Warn 'Claude Code CLI not found; the MCP registration was not restored.' }
+        else {
+            $env:PATH = (Split-Path $claude) + ';' + $env:PATH
+            if ($j.mcp.action -eq 'added') {
+                & $claude mcp remove pyrevit -s user 2>&1 | Out-Host
+                $left = Get-McpRegistration $claude
+                if ($left -and $left.scope -eq 'user') { Warn 'Could not remove the pyrevit MCP server that the setup run added.' }
+                else { Say 'Removed the pyrevit MCP registration that the setup run added.' }
+            } elseif ($j.mcp.action -eq 'replaced') {
+                $prev = $j.mcp.previous
+                if ($prev.type -and $prev.type -ne 'stdio') {
+                    Warn "The previous pyrevit MCP server was type '$($prev.type)'. Restore it by hand: claude mcp add --transport $($prev.type) pyrevit $($prev.command)"
+                } else {
+                    & $claude mcp remove pyrevit -s user 2>&1 | Out-Host
+                    $argv = @('mcp', 'add', 'pyrevit', '-s', [string]$prev.scope)
+                    foreach ($e in @($prev.env)) { if ($e) { $argv += @('-e', [string]$e) } }
+                    $argv += '--'
+                    $argv += [string]$prev.command
+                    if ($prev.args) { $argv += @(([string]$prev.args) -split '\s+' | Where-Object { $_ }) }
+                    & $claude @argv 2>&1 | Out-Host
+                    $now = Get-McpRegistration $claude
+                    if ($now -and $now.command -eq $prev.command) { Say "Restored the previous pyrevit MCP registration: $($prev.command) $($prev.args)" }
+                    else { Warn "Could not restore the previous pyrevit MCP registration ($($prev.command) $($prev.args))." }
+                }
+            }
+        }
+    }
+
+    # 3. Agent enabled state and policy.
+    if ($j.agent) {
+        if (-not (Test-Path $Py7)) { Warn "pyRevit not found at $Py7; the agent setting was not restored." }
+        else {
+            if ($j.agent.wasEnabled -eq $false -and (Get-AgentEnabled) -ne $false) {
+                & $Py7 configs agent disable | Out-Host
+                if ((Get-AgentEnabled) -ne $false) { Warn 'Could not disable the agent host again.' } else { Say 'Agent host: disabled again (as before the setup run).' }
+            }
+            $prevPol = [string]$j.agent.policy
+            if ($prevPol -and $prevPol -ne (Get-AgentPolicy)) {
+                if ($prevPol -eq 'auto') {
+                    Write-Host "[pyrevit7] WARNING: the previous agent policy was 'auto'. Model changes will run WITHOUT the Keep/Discard approval in Revit. To keep the approval, run: & `"$Py7`" configs agent policy ask" -ForegroundColor Yellow
+                    AmLog 'warn' "Undo restored agent policy 'auto'." $null
+                }
+                & $Py7 configs agent policy $prevPol | Out-Host
+                if ((Get-AgentPolicy) -ne $prevPol) { Warn "Could not restore the agent policy '$prevPol'." } else { Say "Agent policy restored to '$prevPol'." }
+            }
+        }
+    }
+
+    $j | Add-Member -NotePropertyName undoneAt -NotePropertyValue ((Get-Date).ToUniversalTime().ToString('o')) -Force
+    Save-Journal -path $jpath -data $j
+    Say 'Undo does not uninstall pyRevit 7. Restart Revit and start a new Claude Code session to pick up the changes.'
+    Say "Log: $LogFile"
+    $script:AmStep = 'end'
+    Stop-Transcript | Out-Null
+    if ($script:Problems.Count -gt 0) {
+        AmLog 'warn' "Undo finished with $($script:Problems.Count) problem(s)." 8
+        Write-Host "[pyrevit7] Undo finished with $($script:Problems.Count) problem(s):" -ForegroundColor Yellow
+        $script:Problems | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+        exit 8
+    }
+    AmLog 'info' 'Undo finished. No problems found.' 0
+    Write-Host '[pyrevit7] Undo done. No problems found.' -ForegroundColor Green
+    exit 0
+}
+
 AmLog 'info' ("Setup started. Install={0} Repoint={1} EnableAgent={2} Verify={3} Force={4}" -f [bool]$Install, [bool]$Repoint, [bool]$EnableAgent, [bool]$Verify, [bool]$Force) $null
+
+# Snapshot the per-user manifests before Install too: the installer runs 'pyrevit attach' itself,
+# which can delete a per-user manifest. Undo must return to the state before the whole run.
+if ($Install -or $Repoint) { Start-RepointJournal }
 
 # ---------------------------------------------------------------- Install
 if ($Install) {
@@ -253,6 +535,7 @@ if ($Install) {
         Say "Installed pyRevit $ver"
     }
     AmLog 'info' 'Install step finished.' $null
+    if (-not $Repoint) { Complete-RepointJournal }
 }
 
 # ---------------------------------------------------------------- Repoint
@@ -262,7 +545,8 @@ if ($Repoint) {
     if (-not (Test-Path $Py7)) { Fail 4 "pyRevit 7 not found at $Py7. Run with -Install first." }
     if (Test-RevitRunning) { Say 'Revit is running: changes apply the next time Revit starts.' }
 
-    $machine = @(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
+    if (-not $script:RepointSnap) { Start-RepointJournal }
+    $machine =@(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
     if ($machine.Count -eq 0) {
         Say 'No machine-wide pyRevit manifests found. Using the normal attach.'
         & $Py7 attach master default --installed
@@ -281,15 +565,13 @@ if ($Repoint) {
             $dstDir = Join-Path $UserAddins $year
             $dst    = Join-Path $dstDir $src.Name
             New-Item -ItemType Directory -Force $dstDir | Out-Null
-            if (Test-Path $dst) {
-                New-Item -ItemType Directory -Force (Join-Path $BackupDir $year) | Out-Null
-                Copy-Item $dst (Join-Path $BackupDir $year) -Force
-            }
             [IO.File]::WriteAllText($dst, $out, (New-Object Text.UTF8Encoding $false))
             Say "$year : $dst -> $asm"
         }
-        if (Test-Path $BackupDir) { Say "Previous per-user manifests backed up to $BackupDir" }
     }
+    Complete-RepointJournal
+    if (Test-Path -LiteralPath $BackupDir) { Say "Previous per-user manifests backed up to $BackupDir" }
+    if (Test-Path -LiteralPath $JournalPath) { Say "Undo journal: $JournalPath (run with -Undo to reverse this run)" }
     AmLog 'info' 'Repoint step finished.' $null
 }
 
@@ -299,11 +581,19 @@ if ($EnableAgent) {
     Say '== Agent Runtime + Claude Code MCP =='
     if (-not (Test-Path $Py7)) { Fail 5 "pyRevit 7 not found at $Py7. Run with -Install first." }
 
-    & $Py7 configs agent enable | Out-Host
-    # Keep/Discard in Revit exists only under policy 'ask'. Set it explicitly; never leave 'auto' in place.
+    $wasEnabled = Get-AgentEnabled
     $before = Get-AgentPolicy
+    # Keep/Discard in Revit exists only under policy 'ask'. Set it explicitly; never leave 'auto' in place.
     # A re-run must never loosen a stricter choice: keep an existing 'readonly' unless -Policy was passed.
     if ($before -eq 'readonly' -and -not $PSBoundParameters.ContainsKey('Policy')) { $Policy = 'readonly' }
+    # Journal the previous agent state only when this run changes it, so a no-op re-run never
+    # becomes the "latest run" that -Undo would pick.
+    if ($wasEnabled -ne $true -or $before -ne $Policy) {
+        $script:Journal['agent'] = [ordered]@{ wasEnabled = $wasEnabled; policy = $before }
+        Save-Journal
+    }
+
+    & $Py7 configs agent enable | Out-Host
     & $Py7 configs agent policy $Policy | Out-Host
     $policyNow = Get-AgentPolicy
     if ($policyNow -ne $Policy) {
@@ -321,11 +611,15 @@ if ($EnableAgent) {
         Say "Claude Code CLI: $claude"
         # 'pyrevit mcp install claude' shells out to 'claude', so make sure it is on PATH for this process.
         $env:PATH = (Split-Path $claude) + ';' + $env:PATH
-        $existing = (& $claude mcp get pyrevit 2>&1 | Out-String)
-        if ($existing -match [regex]::Escape($Py7)) {
+        $prevReg = Get-McpRegistration $claude
+        if ($prevReg -and $prevReg.command -ieq $Py7) {
             Say 'pyrevit MCP server already registered with the full pyRevit 7 path.'
         } else {
-            if ($existing -match 'Scope:') {
+            # Journal what is replaced (only a user-scope entry is removed) or that a new one is added.
+            if ($prevReg -and $prevReg.scope -eq 'user') { $script:Journal['mcp'] = [ordered]@{ action = 'replaced'; previous = $prevReg } }
+            else { $script:Journal['mcp'] = [ordered]@{ action = 'added'; previous = $prevReg } }
+            Save-Journal
+            if ($prevReg) {
                 Say 'Replacing an existing pyrevit MCP registration that does not use the pyRevit 7 path.'
                 & $claude mcp remove pyrevit -s user 2>&1 | Out-Host
             }
@@ -342,6 +636,7 @@ if ($EnableAgent) {
         }
     }
     if (Test-RevitRunning) { Say 'Revit is running: restart Revit (or pyRevit > Reload) so it picks up the agent setting.' }
+    if (Test-Path -LiteralPath $JournalPath) { Say "Undo journal: $JournalPath (run with -Undo to reverse this run)" }
     AmLog 'info' 'EnableAgent step finished.' $null
 }
 

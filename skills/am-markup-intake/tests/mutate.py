@@ -44,6 +44,7 @@ MUTATIONS = [
     ("text-normalized-not-verbatim", lambda: setattr(C, "build_items", _normalized_text(C.build_items))),
     ("replies-become-items", lambda: setattr(C, "build_items", _replies_as_items(C.build_items))),
     ("popup-not-skipped", lambda: setattr(P, "SKIP_SUBTYPES", ("Widget", "Link"))),
+    ("check-in-model-off", lambda: setattr(C, "model_refs", lambda item: [])),
 ]
 
 

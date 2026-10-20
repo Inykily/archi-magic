@@ -228,10 +228,27 @@ def test_next_steps_and_model_check():
        ["Model change -> am-safe-change", "Model change -> am-safe-change",
         "Drawing edit (notes, dimensions, details)", "Drawing edit (notes, dimensions, details)",
         "Answer the reviewer", "No action. Keep as a note"], "next steps")
+    eq(by_n[8]["next"], C.CHECK_IN_MODEL, "a question naming Room 205 is checked in the model first")
     eq(t["unmatched"], [{"n": 3, "sheet": "A101", "missing": ["detail 7/A503: sheet A503 not in model"]}],
        "unmatched model references")
     eq(by_n[8]["modelCheck"], "Sheet A102 found (Second Floor Plan); Room 205 Live/Work Unit; Door 205A",
        "sheet, room and door matched in the Snowdon model")
+
+
+def test_question_check_in_model_vs_pure_question():
+    base = {"sourceFile": "q.pdf", "sheet": "A201", "kind": "question", "author": "R"}
+    recs = [dict(base, id="q1", page=1, text="Why was this option chosen?"),
+            dict(base, id="q2", page=2, text="Verify spacing at grid 3."),
+            dict(base, id="q3", page=3, text="Is door 105A rated?"),
+            dict(base, id="q4", page=4, text="Is sheet A503 in the issue set?"),
+            dict(base, id="q5", page=5, text="Confirm detail 7/A503 matches spec."),
+            dict(base, id="q6", page=6, text="Verify beam size at grid 3.", discipline="Structural")]
+    t = C.consolidate(recs)
+    by_id = dict((it["memberIds"][0], it["next"]) for it in t["items"])
+    eq([by_id.get(r["id"]) for r in recs],
+       ["Answer the reviewer", C.CHECK_IN_MODEL, C.CHECK_IN_MODEL, C.CHECK_IN_MODEL, C.CHECK_IN_MODEL,
+        "RFI to Structural consultant"], "check-in-model only for questions that name a model thing")
+    eq(C.model_refs({"text": "Why?", "sheet": "A201"}), [], "the item's own sheet field is not a model reference")
 
 
 def test_model_index_unescape():
