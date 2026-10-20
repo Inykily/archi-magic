@@ -36,6 +36,17 @@ An MCP server is a small program that gives Claude tools for another app. Here t
    - If more than one Rhino window is open, Claude can edit a different document than the one you look at. Keep one Rhino open. If no Rhino is open, a Rhino tool call can start a new Rhino.
    - Save your file before you ask Claude to change it.
 
+## Fallback: RhinoCode CLI and the script server
+
+Use this path when the rhino-mcp plugin cannot be used (no Node.js, the plugin does not load, or the user needs IronPython 2). RhinoCode ships with Rhino 8.11 and later at `C:\Program Files\Rhino 8\System\RhinoCode.exe`. It talks to a script server inside a running Rhino.
+
+1. Ask the user to start the server in Rhino: type `StartScriptServer`. It does not start with Rhino. To start it every time, add `StartScriptServer` to Rhino Options > General > Command Lists ("Run these commands every time Rhino starts").
+2. Find the Rhino instance: `& "C:\Program Files\Rhino 8\System\RhinoCode.exe" list`. An empty list means no Rhino is running, or the server is not started.
+3. Run a script file (use a full path): `& "...\RhinoCode.exe" --rhino <id> script "C:\full\path\to\script.py"`. A `#! python 3` first line selects CPython 3. `#! python 2`, or the `.py2` extension, selects IronPython 2. C# scripts use `.cs`.
+4. Run a Rhino command: `& "...\RhinoCode.exe" --rhino <id> command "_-Export ..."`.
+
+Safety for this path: RhinoCode has no approval step. It runs the script at once, and it has no Claude ask rule. Before each `script` or `command` call, show the user the full script or command and ask with AskUserQuestion (Run (Recommended) / Change / Cancel). Read-only scripts (list layers, read user text, count objects) need the same question the first time; after that, ask once per session.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
