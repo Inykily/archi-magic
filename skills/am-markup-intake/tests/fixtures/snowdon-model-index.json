@@ -1,0 +1,152 @@
+{
+ "run_id": "205aa99a5f0c",
+ "status": "ok",
+ "result": {
+  "kind": "markup-model-index",
+  "document": "Snowdon Towers Sample Architectural",
+  "escaped": true,
+  "note": "Trimmed from a live read-only run of read_model_index.py on the Snowdon Towers Sample Architectural model (Revit 2026.3), run 205aa99a5f0c.",
+  "sheets": [
+   {
+    "number": "A101",
+    "name": "First Floor Plan",
+    "views": [
+     {
+      "detail": "1",
+      "type": "FloorPlan",
+      "name": "L1"
+     }
+    ],
+    "placeholder": false
+   },
+   {
+    "number": "A102",
+    "name": "Second Floor Plan",
+    "views": [
+     {
+      "detail": "1",
+      "type": "FloorPlan",
+      "name": "L2"
+     }
+    ],
+    "placeholder": false
+   },
+   {
+    "number": "A501",
+    "name": "Details",
+    "views": [
+     {
+      "detail": "1",
+      "type": "Detail",
+      "name": "Parapet Detail at Solar Wall"
+     },
+     {
+      "detail": "2",
+      "type": "Detail",
+      "name": "Parapet Detail - Typical"
+     },
+     {
+      "detail": "3",
+      "type": "Detail",
+      "name": "North Wall Window Detail"
+     },
+     {
+      "detail": "4",
+      "type": "Detail",
+      "name": "Typical Stair - Landing"
+     },
+     {
+      "detail": "5",
+      "type": "Detail",
+      "name": "Typical Stair - Railing Transition"
+     },
+     {
+      "detail": "6",
+      "type": "Detail",
+      "name": "Rainscreen Detail"
+     }
+    ],
+    "placeholder": false
+   },
+   {
+    "number": "A601",
+    "name": "Door Schedule",
+    "views": [
+     {
+      "detail": "",
+      "type": "Legend",
+      "name": "Door Types"
+     }
+    ],
+    "placeholder": false
+   },
+   {
+    "number": "K101",
+    "name": "Caf\\u00e9 Kitchen",
+    "views": [
+     {
+      "detail": "1",
+      "type": "FloorPlan",
+      "name": "Caf\\u00e9 Kitchen Plan"
+     },
+     {
+      "detail": "2",
+      "type": "FloorPlan",
+      "name": "Mezzanine Plan"
+     },
+     {
+      "detail": "3",
+      "type": "Elevation",
+      "name": "Caf\\u00e9 Kitchen A"
+     },
+     {
+      "detail": "4",
+      "type": "Elevation",
+      "name": "Caf\\u00e9 Kitchen B"
+     }
+    ],
+    "placeholder": false
+   }
+  ],
+  "rooms": [
+   {
+    "number": "101",
+    "name": "Caf\\u00e9",
+    "level": "L1 - Block 35"
+   },
+   {
+    "number": "105",
+    "name": "Commercial/Retail",
+    "level": "L1 - Block 37"
+   },
+   {
+    "number": "106",
+    "name": "Residential Lobby",
+    "level": "L1 - Block 37"
+   },
+   {
+    "number": "202",
+    "name": "Live/Work Unit",
+    "level": "L2"
+   },
+   {
+    "number": "205",
+    "name": "Live/Work Unit",
+    "level": "L2"
+   }
+  ],
+  "doorMarks": [
+   "105A",
+   "105B",
+   "205A",
+   "205B"
+  ],
+  "windowMarks": [
+   "101",
+   "102",
+   "104",
+   "106",
+   "107"
+  ]
+ }
+}

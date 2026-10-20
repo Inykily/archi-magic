@@ -30,6 +30,26 @@
         "sha": "ef7bfdca55d906929fe6b782025b93758c325074"
       },
       "description": "Anthropic's frontend design skill: distinctive, production-grade web interfaces instead of generic AI-looking pages. Pinned to v1.1.0."
+    },
+    {
+      "name": "am-bim-viewer",
+      "source": "./mods/am-bim-viewer",
+      "description": "Mod: /bim-view builds an interactive 3D BIM viewer page (Rhino-style camera, element data panel) from a Revit JSON export. Needs a Claude Code build with function hooks (tested on 2.1.299)."
+    },
+    {
+      "name": "am-schedule-view",
+      "source": "./mods/am-schedule-view",
+      "description": "Mod for the am-schedule-view skill: /am-schedule-view <file.json> shows a Revit schedule or change preview in a pane. Tested on Claude Code 2.1.299."
+    },
+    {
+      "name": "rhino-mcp",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/mcneel/RhinoAI.git",
+        "path": "cc-plugin",
+        "sha": "02547db0a93e1e841165bcf0baa18d93fa47f62d"
+      },
+      "description": "McNeel's official Rhino MCP plugin (MIT): lets Claude read and edit the open Rhino 8 document. On demand: needs Rhino 8, Node.js and the Rhino-MCP-Platform Rhino package. Run am-rhino-setup first."
     }
   ]
 }

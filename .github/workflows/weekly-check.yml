@@ -1,0 +1,36 @@
+name: weekly-check
+
+# Weekly reminder: drift checks + upstream pin staleness, posted as ONE GitHub issue
+# that is created once and then updated (comment) each week.
+on:
+  schedule:
+    - cron: '0 13 * * 1'   # Mondays 13:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the report
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/check-upstream.ps1 | Out-File -Encoding utf8 report.md
+      - name: Open or update the weekly issue
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $title = 'Weekly archi-magic check'
+          $existing = gh issue list --repo $env:GITHUB_REPOSITORY --state open --search "in:title $title" --json number,title |
+            ConvertFrom-Json | Where-Object { $_.title -eq $title } | Select-Object -First 1
+          if ($existing) {
+            gh issue comment $existing.number --repo $env:GITHUB_REPOSITORY --body-file report.md
+          } else {
+            gh issue create --repo $env:GITHUB_REPOSITORY --title $title --body-file report.md
+          }

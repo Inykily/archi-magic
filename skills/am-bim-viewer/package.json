@@ -1,0 +1,14 @@
+{
+  "name": "am-bim-viewer-tests",
+  "private": true,
+  "type": "module",
+  "description": "Headless tests for the am-bim-viewer camera core. three is pinned to the same version the viewer page loads from the CDN.",
+  "scripts": {
+    "test": "node --test tests/orientation.test.mjs tests/camera-input.test.mjs tests/interaction.test.mjs",
+    "mutate": "node tests/mutate.mjs",
+    "demo": "node scripts/make-demo.mjs && node scripts/build-viewer.mjs"
+  },
+  "devDependencies": {
+    "three": "0.160.0"
+  }
+}

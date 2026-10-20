@@ -1,0 +1,24 @@
+{
+  "description": "archi-magic: add the short archi-magic rules block (hooks/session-rules.md) to every session. Local file read only, no network. Windows PowerShell, no Git Bash needed. Never blocks the session.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { [Console]::Out.Write([IO.File]::ReadAllText([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'session-rules.md'))) } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
