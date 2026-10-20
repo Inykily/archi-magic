@@ -15,7 +15,7 @@ This also installs two trusted general-purpose plugins, pinned to tested version
 
 **Turn on auto-update once:** type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, and choose **Enable auto-update**. Third-party marketplaces have it off by default. Without it, you get new skills only when you run `/plugin marketplace update archi-magic`.
 
-Every release raises the plugin `version` (`scripts/bump-version.ps1`). Claude Code installs new content only when the version changes, and CI blocks any push that changes plugin content without a bump.
+Every release raises the plugin `version` (`scripts/bump-version.ps1`). Claude Code installs new content only when the version changes. `main` is protected: changes land through pull requests that must pass the `check` job, and that job fails when shipped content changes without a version bump.
 
 ## Skills
 
@@ -61,4 +61,7 @@ The pyRevit setup script also works without Claude. Run `skills/am-pyrevit7-setu
 4. Run `scripts/sync-house-rules.ps1`. It copies `HOUSE-RULES.md` (output in ASD-STE100, subagents for parallel work, ask with clickable options when unclear) to the end of every `SKILL.md`. Edit the rules only in `HOUSE-RULES.md`.
 5. Bump `version` in `.claude-plugin/plugin.json`, so installed copies pick up the update.
 
-`scripts/check-skills.ps1` runs on every push (GitHub Actions). It fails if a skill folder lacks the `am-` prefix, if its `SKILL.md` name doesn't match the folder, or if it's missing from the table above.
+The `check` job (GitHub Actions) runs on every pull request and every push to `main`. `main` accepts changes only through pull requests that pass it. It runs:
+
+- `scripts/check-skills.ps1`: fails if a skill folder lacks the `am-` prefix, if its `SKILL.md` name doesn't match the folder, if it's missing from the table above, or if its house rules differ from `HOUSE-RULES.md`.
+- `scripts/check-version-bump.ps1`: fails if a changed file needs a version bump and the version did not go up. Every path needs a bump except repo-only files (README.md, LICENSE, docs/, .github/, .gitignore, .gitattributes and the repo scripts `scripts/check-*.ps1`, `bump-version.ps1`, `sync-house-rules.ps1`). A change under `mods/<name>/` also needs that mod's own version to go up.
