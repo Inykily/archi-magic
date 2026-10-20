@@ -104,7 +104,8 @@ def test_consolidate_cli_wildcard_and_unicode_pipe():
     try:
         rec = {"kind": "markup-records", "records": [
             {"id": "u1", "sourceFile": "x.png", "page": 1, "sheet": "A101",
-             "text": u"Ramp slope ≥ 1:12 → check, 张 comment", "confidence": "low"}]}
+             "text": "Ramp slope %s 1:12 %s check, %s comment" % (chr(0x2265), chr(0x2192), chr(0x5F20)),
+             "confidence": "low"}]}
         with open(os.path.join(tmp, "records-1.json"), "w", encoding="utf-8") as fh:
             json.dump(rec, fh, ensure_ascii=False)
         out = os.path.join(tmp, "tracker.json")
