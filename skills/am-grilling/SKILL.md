@@ -1,6 +1,6 @@
 ---
 name: am-grilling
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.
+description: Grill the user relentlessly about a plan, decision or idea, in numbered rounds of questions with a recommended answer for each, until every branch is settled. Use when the user wants to stress-test their thinking, says "grill me", "grill this plan", "stress-test my plan", "poke holes in this design", or uses any other 'grill' phrase. NOT for making a change in the Revit model (use am-safe-change), and NOT for open-ended idea generation (use superpowers brainstorming).
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.

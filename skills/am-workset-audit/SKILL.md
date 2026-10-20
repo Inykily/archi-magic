@@ -1,6 +1,6 @@
 ---
 name: am-workset-audit
-description: Audit the worksets of the open, workshared Revit model through the pyRevit Agent Runtime MCP tools. It lists worksets with element counts and finds elements on the wrong workset (links not on a links workset, levels and grids not on the shared levels-and-grids workset, model elements left on Workset1, or a category-to-workset map). It can then move them, only after a dry run and your Keep/Discard approval in Revit. Triggers on "workset audit", "check worksets", "wrong workset", "elements on Workset1", "move links to the links workset", "workset cleanup". NOT for room or area totals (use am-area-report), and NOT for installing or connecting pyRevit (use am-pyrevit7-setup).
+description: Audit the worksets of the open, workshared Revit model through the pyRevit Agent Runtime MCP tools. It lists worksets with element counts and finds elements on the wrong workset (links not on a links workset, levels and grids not on the shared levels-and-grids workset, model elements left on Workset1, or a category-to-workset map). It can then move them, only after a dry run and your Keep/Discard approval in Revit. Use when the user asks "workset audit", "check worksets", "wrong workset", "elements on Workset1", "move links to the links workset", "workset cleanup". NOT for whole-model health such as warnings and links status (use am-model-health), NOT for room or area totals (use am-area-report), and NOT for installing or connecting pyRevit (use am-pyrevit7-setup).
 ---
 
 # am-workset-audit

@@ -1,6 +1,6 @@
 ---
 name: am-param-qa
-description: Read-only parameter completeness check of the open Revit model through the pyRevit Agent Runtime. For the categories and required parameters you choose (for example Doors with Mark, Fire Rating and Comments, Rooms with Department, or a BEP list you give), it lists the elements with missing or empty values as a table with counts and pass rates, and can then select the offenders in Revit. Use for "are my parameters filled in", "missing fire ratings", "empty marks", "BEP compliance", "COBie data check", "parameter QA" or a pre-submission data check. NOT for whole-model health such as warnings, links, in-place families or rooms (use am-model-health), and NOT for filling in values (that is a run_modify task).
+description: Read-only parameter completeness check of the open Revit model through the pyRevit Agent Runtime. For the categories and required parameters you choose (for example Doors with Mark, Fire Rating and Comments, Rooms with Department, or a BEP list you give), it lists the elements with missing or empty values as a table with counts and pass rates, and can then select the offenders in Revit. Use when the user asks "are my parameters filled in", "missing fire ratings", "empty marks", "BEP compliance", "COBie data check", "parameter QA" or for a pre-submission data check. NOT for whole-model health such as warnings, links, in-place families or rooms (use am-model-health), and NOT for filling in values (use am-safe-change).
 ---
 
 # am-param-qa

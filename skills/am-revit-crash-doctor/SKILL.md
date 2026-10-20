@@ -1,6 +1,6 @@
 ---
 name: am-revit-crash-doctor
-description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when Revit crashed, froze, closed unexpectedly, showed "Revit has experienced a fatal error", or "Revit keeps crashing". NOT for setup problems (am-doctor) or model QA (am-model-health).
+description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when the user says "Revit crashed", "Revit froze", "Revit closed by itself", "Revit has experienced a fatal error", or "Revit keeps crashing". NOT for pyRevit or Claude connection problems (use am-doctor), and NOT for model QA (use am-model-health).
 ---
 
 # am-revit-crash-doctor
