@@ -904,7 +904,7 @@ function drawGumball() {
 function showReadout(text, x, y) {
   readoutEl.textContent = text; readoutEl.style.display = 'block';
   const r = vp.getBoundingClientRect();
-  readoutEl.style.left = Math.min(r.width - 140, x - r.left + 16) + 'px';
+  readoutEl.style.left = Math.max(4, Math.min(r.width - readoutEl.offsetWidth - 6, x - r.left + 16)) + 'px'; // never clipped at the edge
   readoutEl.style.top = Math.max(4, y - r.top - 26) + 'px';
 }
 function endGumballDrag(isCancel) {
