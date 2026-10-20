@@ -1,6 +1,6 @@
 ---
 name: am-schedule-view
-description: Use when the user wants to see/compare/export a Revit schedule from the open model - show a door, room, area, sheet or any schedule as Revit displays it, search/sort/filter it, copy it as TSV, export CSV, or compare two schedules or two snapshots of one schedule. Also renders the before/after change-preview table for am-safe-change. Read only. Triggers on "show me the door schedule", "open the room schedule", "export the area schedule to CSV", "compare these schedules", "what changed in the schedule". NOT for building new schedules (pyRevit 'scheduling' skill) or model QA (am-model-health).
+description: Use when the user wants to see/compare/export a Revit schedule from the open model - show a door, room, area, sheet or any schedule as Revit displays it, search/sort/filter it, copy it as TSV, export CSV, or compare two schedules or two snapshots of one schedule. Also renders the before/after change-preview table for am-safe-change. Read only. Use when the user asks "show me the door schedule", "open the room schedule", "export the area schedule to CSV", "compare these schedules", "what changed in the schedule". NOT for room or area totals by level or department (use am-area-report), NOT for building new schedules (use pyRevit's scheduling skill), and NOT for model QA (use am-model-health).
 ---
 
 # am-schedule-view

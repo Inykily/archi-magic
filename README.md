@@ -86,8 +86,8 @@ Optional add-ons, installed only when the user needs them:
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
-| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | Search the installed `RevitAPI.xml` for the user's year |
-| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | Search the docs index, then confirm in the installed source |
+| Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | If connected to that Revit year, `lookup_revit_api`; else search the installed `RevitAPI.xml` for the user's year |
+| pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
