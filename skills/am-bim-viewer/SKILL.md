@@ -1,6 +1,6 @@
 ---
 name: am-bim-viewer
-description: Show a Revit model in 3D inside Claude Code. Export visible elements of the active Revit view to JSON with the pyRevit Agent Runtime, build a self-contained interactive viewer page (Rhino-style camera, click an element to see its category, family, type, level, id and parameters, category filters, named views), and open it in the app's Browser pane. Triggers on "show the model in 3D", "3D viewer", "view this Revit model", "bim viewer", "/bim-view", "export geometry to JSON", "orbit the model like Rhino".
+description: Show a Revit model in 3D inside Claude Code. Export the visible elements of a 3D view to JSON (read-only), build a self-contained viewer page (Rhino-style camera, view cube, element data, category filters, first-person walk, gumball move and rotate) and open it in the Browser pane. Use when the user wants to see, orbit or walk through the model in 3D, find where an element is, or move and rotate elements on screen and hand that change to Revit. NOT for tables or schedules (use am-schedule-view) and NOT for applying changes in Revit (use am-safe-change, recipe element-transforms). Triggers on "show the model in 3D", "3D viewer", "view this Revit model", "bim viewer", "/bim-view", "export geometry to JSON", "orbit the model like Rhino", "walk through the model in 3D", "gumball in the viewer".
 ---
 
 # am-bim-viewer
@@ -43,6 +43,8 @@ Show Revit geometry as an interactive 3D page next to the conversation.
 | Double-click | Zoom to the element (target = its center). On empty space: zoom extents | Same |
 | Middle drag | Pan (extra, not a Rhino default) | Pan |
 
+The **view cube** (top right) replaces the named-view buttons. Click a face for that parallel view (fit to the model), an edge for the 45 degree view between two faces, or a corner for the isometric from that corner. Drag the cube to orbit. Drag the compass ring (N = +Y) to turn the view about Z. The house button goes back to the default perspective. The header has a **perspective / parallel** switch, **walk**, and **zoom extents**. The **?** button (bottom right) opens the list of controls when you point at it.
+
 Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/, https://docs.mcneel.com/rhino/8/help/en-us/seealso/sak_navigate.htm, https://docs.mcneel.com/rhino/8/help/en-us/commands/zoom.htm. The rotate direction is not in the docs: the near face of the model follows the cursor.
 
 ## Orientation
@@ -51,8 +53,8 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 - "North" here is **Project North** (Revit internal Y). The exporter does not apply the True North rotation. (The Snowdon sample has True North at 26 degrees.)
 - The ground grid lies in the XY plane at the base of the visible model. It fades out at about 1.75 times the model size.
 - The viewer does not rotate or mirror the data. It builds the camera from azimuth and elevation around world Z (`mods/am-bim-viewer/viewer/viewer-core.mjs`).
-- Top: looks down -Z, North at the top, East to the right. Front: looks from -Y toward +Y. Right: looks from +X toward -X. Perspective: from the south-east, above.
-- The axis gizmo (bottom left) has no color: X is a solid line, Y is dashed, Z is dotted. Each arm has its letter.
+- View cube faces (Revit conventions): TOP looks down -Z with North at the top and East to the right. FRONT looks from the south toward North (+Y). BACK looks from the north toward South. RIGHT looks from the east toward West. LEFT looks from the west toward East. BOTTOM looks up +Z with North at the top, so East is on the left. The home view is a perspective from the south-east, above.
+- The cube turns with the camera, so it always shows the current direction. The gumball arrows have no color: X is a solid line, Y is dashed, Z is dotted.
 
 ## Gumball: move and rotate an element (viewer copy only)
 
@@ -73,10 +75,19 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 
 The viewer never changes the Revit model. When the user pastes "element-transforms" JSON, send it through the **am-safe-change** skill (recipe "element-transforms"): preview, then the user approves in Revit. Never apply it directly.
 
+## Walk through the model
+
+1. Click **walk** in the header, or press G. The view goes to a perspective at eye height: 5.5 ft above the floor, stair, ramp or roof under the view center. It looks in the same plan direction as before.
+2. Click the 3D view to look with the mouse (the pointer is hidden). If the browser does not allow this, right drag to look.
+3. Move with W, A, S, D (in plan only, so looking up does not lift you). Q and E lower and raise the eye. Hold Shift to run (3 times 4.5 ft/s). C turns collision on or off. With collision on, you stop 1 ft before walls, columns and doors.
+4. Press Esc to go back to the view from before the walk. In Chrome the first Esc only frees the mouse; press Esc again to leave the walk.
+
+The gumball, selection and view cube are off during a walk. A small label shows the eye height, the speed and the collision state.
+
 ## Theme and help
 
 - The page follows the time of day: paper (light) from 07:00 to 19:00, night (dark) at other hours. The "paper / night" link switches until the next 07:00 or 19:00.
-- The "?" button at the bottom right of the 3D view opens the list of mouse and key controls.
+- The "?" button at the bottom right of the 3D view opens the list of mouse and key controls when you point at it, or when it has keyboard focus.
 
 ## JSON schema (`am-bim-viewer/1`)
 
@@ -98,7 +109,7 @@ The viewer never changes the Revit model. When the user pastes "element-transfor
 
 ## Tests
 
-From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 21 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) and the gumball (axis mapping, snap, Esc, undo, the JSON contract). In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel and a gumball drag. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
+From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 29 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) the gumball (axis mapping, snap, Esc, undo, the JSON contract), typed values (the unit parser), the view cube and the walk. In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel, a gumball drag, typed values, the view cube and the walk. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
 
 ## House rules (all am-* skills)
 
