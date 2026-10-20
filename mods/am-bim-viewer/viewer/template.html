@@ -244,6 +244,25 @@
   .chip[aria-pressed="false"] .sw { background: none !important; }
   .chip .n { color: var(--ink-3); }
 
+  /* Gumball: hairline handles over the selected element; the hovered handle thickens. */
+  #gumball { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; overflow: visible; }
+  #gumball .h { pointer-events: visibleStroke; }
+  #gumball .h .hit { stroke: transparent; stroke-width: 14; fill: none; }
+  #gumball .h .vis { stroke: var(--ink); stroke-width: 1; fill: none; transition: stroke-width var(--slow) var(--ease); }
+  #gumball .h .head { fill: var(--ink); stroke: none; }
+  #gumball .h:hover .vis, #gumball .h.on .vis { stroke-width: 2.25; }
+  #gumball text { fill: var(--ink); font-size: var(--fs-micro); font-family: var(--font); }
+  #gumball .pivot { fill: var(--bg); stroke: var(--ink); stroke-width: 1; }
+  #readout { position: absolute; z-index: 5; pointer-events: none; padding: 1px 7px; background: var(--bg); color: var(--ink);
+    border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; display: none; }
+  /* Pending changes */
+  .pend { padding: 6px 0; border-bottom: var(--hair) solid var(--line); }
+  .pend-h { display: flex; align-items: baseline; gap: var(--space-2); }
+  .pend-h .nm { color: var(--ink); text-transform: lowercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .pend .ln { color: var(--ink-2); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
+  .pend-actions { display: flex; align-items: baseline; gap: var(--space-2); margin-top: var(--space-3); }
+  .pend-note { margin-top: var(--space-2); font-size: var(--fs-micro); }
+
   /* Help: a 22px round "?" at the viewport's bottom right; it opens into a hairline panel of key-cap rows
      on hover, keyboard focus or tap, and closes on leave, blur or Esc. */
   #help { position: absolute; right: 14px; bottom: 14px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; }
@@ -260,7 +279,7 @@
   @keyframes rowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
   kbd { font: inherit; color: var(--ink); border: var(--hair) solid var(--line-strong); padding: 0 5px; }
   #toast { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); opacity: 0; background: var(--ink); color: var(--bg);
-    padding: 6px 12px; text-transform: lowercase; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 70; }
+    padding: 6px 12px; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 70; }
   #toast.on { opacity: 1; }
 
   @media (max-width: 760px) {
@@ -303,6 +322,8 @@
   <div id="viewport">
     <div id="viewname" class="am-micro">Perspective</div>
     <div id="labels"></div>
+    <svg id="gumball" aria-label="Gumball: drag an arrow to move, the ring to rotate"></svg>
+    <div id="readout" role="status"></div>
     <div id="help">
       <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
       <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
@@ -313,6 +334,12 @@
     <section class="sec">
       <div class="head"><span class="am-micro">selected</span><span class="r"><span class="am-index" id="selidx">--</span><button class="link" id="clear" hidden>clear</button></span></div>
       <div id="props"></div>
+    </section>
+    <section class="sec" id="pendsec">
+      <div class="head"><span class="am-micro">pending changes</span><span class="r"><span class="am-index" id="pendidx">0</span><button class="link" id="clearall" disabled>clear all</button></span></div>
+      <div id="pending"></div>
+      <div class="pend-actions"><button class="btn" id="copyrevit" disabled>copy changes for revit</button></div>
+      <div class="pend-note am-quiet">nothing changes in revit until you approve it there</div>
     </section>
     <section class="sec">
       <div class="head"><span class="am-micro">categories</span><span class="r"><span class="am-index" id="catidx"></span><button class="link" id="all">all</button><button class="link" id="none">none</button></span></div>
@@ -517,7 +544,7 @@ function showProps(el) {
   box.querySelector('.sel-name').textContent = el.name || (cat + ' ' + el.id);
   box.querySelector('.sel-cat span:last-child').textContent = cat;
   document.getElementById('copyid').addEventListener('click', () => copyText(String(el.id)));
-  document.getElementById('zoomsel').addEventListener('click', () => frameTo(dblClickView(state, el, bounds)));
+  document.getElementById('zoomsel').addEventListener('click', () => frameTo(dblClickView(state, posedEl(el), bounds)));
 }
 document.getElementById('clear').addEventListener('click', () => select(null));
 function toast(t) { const n = document.getElementById('toast'); n.textContent = t; n.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => n.classList.remove('on'), 1400); }
@@ -577,7 +604,7 @@ canvas.addEventListener('dblclick', e => {
   if (e.button !== 0) return;
   const m = pick(e.clientX, e.clientY);
   select(m);
-  frameTo(dblClickView(state, m ? m.userData.el : null, bounds));
+  frameTo(dblClickView(state, m ? posedEl(m.userData.el) : null, bounds));
 });
 canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
 canvas.addEventListener('wheel', e => {
@@ -664,8 +691,163 @@ function render() {
     d.style.top = ((1 - v.y) / 2) * h + 'px';
   }
   drawGizmo();
+  drawGumball();
 }
 new ResizeObserver(requestRender).observe(vp);
+
+// ---------- Gumball: move along X / Y / Z, rotate about Z (viewer copy only) ----------
+// Left drag on a handle; the camera keeps its Rhino right-button mapping. Moves snap to 1/2 ft and
+// rotations to 5 deg; Alt = free. Esc cancels the drag. Edits only change this page: the pending
+// list exports "element-transforms" JSON that am-safe-change previews and applies in Revit.
+const edits = createEdits();
+const gumEl = document.getElementById('gumball'), readoutEl = document.getElementById('readout');
+const meshById = {};
+for (const m of meshes) meshById[String(m.userData.el.id)] = m;
+const ghosts = {};
+let gdrag = null, lastCopied = null;
+const ARROW_PX = 64, RING_PX = 44;
+function walkActive() { return false; } // walk mode (first person) hides the gumball; see below
+const GUM_AXES = [['x', 'X', ''], ['y', 'Y', '4 3'], ['z', 'Z', '1 2.5']];
+
+function poseMesh(mesh) {
+  const rec = edits.byId[String(mesh.userData.el.id)];
+  const isMoved = rec && !isIdentity(rec);
+  mesh.matrixAutoUpdate = false;
+  if (isMoved) mesh.matrix.fromArray(editMatrix(rec)); else mesh.matrix.identity();
+  mesh.matrixWorldNeedsUpdate = true;
+  const key = String(mesh.userData.el.id);
+  if (isMoved && !ghosts[key]) {
+    // Hairline ghost at the original position.
+    ghosts[key] = new THREE.LineSegments(mesh.children[0].geometry, new THREE.LineBasicMaterial({ color: toColor(css('--line-strong'), '#9a9a96'), transparent: true, opacity: .55, depthWrite: false }));
+    scene.add(ghosts[key]);
+  } else if (!isMoved && ghosts[key]) { scene.remove(ghosts[key]); ghosts[key].material.dispose(); delete ghosts[key]; }
+}
+// The element as it now sits in the viewer (for zoom-to and the gumball center).
+function posedEl(el) {
+  const rec = edits.byId[String(el.id)];
+  if (!rec || isIdentity(rec)) return el;
+  const v = el.mesh.vertices, out = new Array(v.length);
+  for (let i = 0; i + 2 < v.length; i += 3) { const p = applyEditToPoint(rec, [v[i], v[i + 1], v[i + 2]]); out[i] = p[0]; out[i + 1] = p[1]; out[i + 2] = p[2]; }
+  return { ...el, mesh: { vertices: out, indices: el.mesh.indices } };
+}
+function gumCenter(el) {
+  const rec = edits.byId[String(el.id)];
+  if (rec) return rec.pivot.map((v, i) => v + rec.move[i]);
+  const b = elementBounds(el);
+  return [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
+}
+function toScreen(p) { // world -> viewport-local px
+  const v = new THREE.Vector3(p[0], p[1], p[2]).project(activeCam);
+  return { x: ((v.x + 1) / 2) * vp.clientWidth, y: ((1 - v.y) / 2) * vp.clientHeight, isFront: v.z > -1 && v.z < 1 };
+}
+// Handle geometry in viewport px, from the same camera basis the drag math uses.
+function gumballLayout() {
+  if (!selected || !selected.visible) return null;
+  const c = toScreen(gumCenter(selected.userData.el));
+  if (!c.isFront) return null;
+  const ax = gizmoAxes(state);
+  const arrows = GUM_AXES.map(([k, label, dash]) => {
+    const [sx, sy] = ax[k], len = Math.hypot(sx, sy);
+    return { k, label, dash, len, tip: { x: c.x + sx * ARROW_PX, y: c.y - sy * ARROW_PX }, dir: len > 1e-6 ? [sx / len, -sy / len] : [0, 0] };
+  });
+  const ring = [];
+  for (let i = 0; i <= 64; i++) {
+    const t = (i / 64) * Math.PI * 2, wx = Math.cos(t), wy = Math.sin(t);
+    ring.push({ x: c.x + RING_PX * (wx * ax.x[0] + wy * ax.y[0]), y: c.y - RING_PX * (wx * ax.x[1] + wy * ax.y[1]) });
+  }
+  return { c, arrows, ring };
+}
+function drawGumball() {
+  const L = walkActive() ? null : gumballLayout();
+  if (!L) { if (gumEl.innerHTML) gumEl.innerHTML = ''; return; }
+  const f = n => n.toFixed(1);
+  let s = '';
+  const ringD = 'M' + L.ring.map(p => f(p.x) + ' ' + f(p.y)).join('L') + 'Z';
+  s += '<g class="h' + (gdrag && gdrag.handle === 'rz' ? ' on' : '') + '" data-h="rz" style="cursor:' + cursorCss('rotate', pal.theme).replace(/"/g, "'") + '"><path class="hit" d="' + ringD + '"/><path class="vis" d="' + ringD + '"/></g>';
+  for (const a of L.arrows) {
+    if (a.len < 0.2) continue; // an axis pointing at the viewer cannot be dragged
+    const [dx, dy] = a.dir, hx = a.tip.x, hy = a.tip.y, bx = hx - dx * 9, by = hy - dy * 9, nx = -dy * 4, ny = dx * 4;
+    const line = 'M' + f(L.c.x + dx * 8) + ' ' + f(L.c.y + dy * 8) + 'L' + f(bx) + ' ' + f(by);
+    s += '<g class="h' + (gdrag && gdrag.handle === a.k ? ' on' : '') + '" data-h="' + a.k + '" style="cursor:' + cursorCss('pan', pal.theme).replace(/"/g, "'") + '">' +
+      '<path class="hit" d="M' + f(L.c.x) + ' ' + f(L.c.y) + 'L' + f(hx) + ' ' + f(hy) + '"/>' +
+      '<path class="vis" d="' + line + '"' + (a.dash ? ' stroke-dasharray="' + a.dash + '"' : '') + '/>' +
+      '<path class="head" d="M' + f(hx) + ' ' + f(hy) + 'L' + f(bx + nx) + ' ' + f(by + ny) + 'L' + f(bx - nx) + ' ' + f(by - ny) + 'Z"/>' +
+      '<text x="' + f(hx + dx * 10) + '" y="' + f(hy + dy * 10 + 3.5) + '" text-anchor="middle">' + a.label + '</text></g>';
+  }
+  s += '<circle class="pivot" cx="' + f(L.c.x) + '" cy="' + f(L.c.y) + '" r="3"/>';
+  gumEl.innerHTML = s;
+}
+function showReadout(text, x, y) {
+  readoutEl.textContent = text; readoutEl.style.display = 'block';
+  const r = vp.getBoundingClientRect();
+  readoutEl.style.left = Math.min(r.width - 140, x - r.left + 16) + 'px';
+  readoutEl.style.top = Math.max(4, y - r.top - 26) + 'px';
+}
+function endGumballDrag(isCancel) {
+  if (!gdrag) return;
+  if (isCancel) gdrag.session.cancel(); else gdrag.session.commit();
+  poseMesh(gdrag.mesh);
+  gdrag = null;
+  readoutEl.style.display = 'none';
+  renderPending(); requestRender();
+}
+gumEl.addEventListener('pointerdown', e => {
+  const h = e.target.closest('.h');
+  if (!h || e.button !== 0 || !selected) return;
+  e.preventDefault(); e.stopPropagation();
+  const L = gumballLayout(), r = vp.getBoundingClientRect();
+  gdrag = { handle: h.dataset.h, mesh: selected, start: { x: e.clientX, y: e.clientY }, pivot: { x: r.left + L.c.x, y: r.top + L.c.y },
+    session: beginGumballDrag(edits, selected.userData.el), pointerId: e.pointerId };
+  try { gumEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+});
+gumEl.addEventListener('pointermove', e => {
+  if (!gdrag) return;
+  const result = gumballDrag(gdrag.handle, state, gdrag.start, { x: e.clientX, y: e.clientY }, { height: vp.clientHeight, pivot: gdrag.pivot }, e.altKey);
+  gdrag.session.update(result);
+  poseMesh(gdrag.mesh);
+  showReadout(gumballReadout(gdrag.handle, result), e.clientX, e.clientY);
+  requestRender();
+});
+gumEl.addEventListener('pointerup', () => endGumballDrag(false));
+gumEl.addEventListener('pointercancel', () => endGumballDrag(true));
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && gdrag) { e.preventDefault(); endGumballDrag(true); } });
+
+// Pending changes: one row per element, undo per row, Clear all, Copy for Revit.
+const fx = v => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2);
+function renderPending() {
+  const list = pendingEdits(edits);
+  document.getElementById('pendidx').textContent = String(list.length);
+  document.getElementById('copyrevit').disabled = list.length === 0;
+  document.getElementById('clearall').disabled = list.length === 0;
+  document.getElementById('pending').innerHTML = list.length === 0
+    ? '<div class="am-quiet">none. select an element and drag a handle.</div>'
+    : list.map(rec => '<div class="pend" data-id="' + escHtml(rec.id) + '"><div class="pend-h"><span class="nm">' + escHtml(rec.el.name || ((rec.el.category || 'Generic') + ' ' + rec.id)) + '</span>' +
+      '<span class="am-quiet">' + escHtml(rec.id) + '</span><button class="link" data-undo="' + escHtml(rec.id) + '">undo</button></div>' +
+      (rec.move.some(v => Math.abs(v) > 1e-9) ? '<div class="ln">move ' + rec.move.map(fx).join(', ') + ' ft</div>' : '') +
+      (Math.abs(rec.rotateZ) > 1e-9 ? '<div class="ln">rotate ' + (Math.round(rec.rotateZ * 10) / 10) + ' deg about ' + rec.pivot.map(v => v.toFixed(2)).join(', ') + '</div>' : '') +
+      '</div>').join('');
+}
+document.getElementById('pending').addEventListener('click', e => {
+  const b = e.target.closest('[data-undo]');
+  if (!b) return;
+  const id = b.dataset.undo;
+  undoEdit(edits, id);
+  if (meshById[id]) poseMesh(meshById[id]);
+  renderPending(); requestRender();
+});
+document.getElementById('clearall').addEventListener('click', () => {
+  const ids = edits.order.slice();
+  clearEdits(edits);
+  for (const id of ids) if (meshById[id]) poseMesh(meshById[id]);
+  renderPending(); requestRender();
+});
+document.getElementById('copyrevit').addEventListener('click', async () => {
+  lastCopied = JSON.stringify(exportTransforms(edits), null, 2);
+  try { await navigator.clipboard.writeText(lastCopied); toast('Copied. Paste it to Claude to preview and apply in Revit.'); }
+  catch (e) { toast('Copy failed. Select the changes again and retry.'); }
+});
+renderPending();
 
 // ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
 // On each am-theme-change, re-read the tokens and recolor the scene: category values,
@@ -684,6 +866,7 @@ function applyTheme() {
     m.userData.outline.material.color.copy(OUTLINE); tint(m);
   }
   for (const cat of Object.keys(chipFor)) paintSwatch(chipFor[cat].querySelector('.sw'), cat);
+  for (const g of Object.values(ghosts)) g.material.color.copy(toColor(css('--line-strong'), '#9a9a96'));
   setCursor(cursorName || 'idle');
   requestRender();
 }
@@ -705,6 +888,17 @@ window.__bim = {
   isAnimating: () => anim !== null,
   grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
   visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
+  gumball: {
+    layout: () => { const L = gumballLayout(), r = vp.getBoundingClientRect(); if (!L) return null;
+      const g = p => ({ x: r.left + p.x, y: r.top + p.y });
+      return { center: g(L.c), tips: Object.fromEntries(L.arrows.map(a => [a.k, g(a.tip)])), ringEast: g(L.ring[0]) }; },
+    transforms: () => exportTransforms(edits),
+    lastCopied: () => lastCopied,
+    pendingRows: () => document.querySelectorAll('#pending .pend').length,
+    meshMatrix: id => meshById[String(id)].matrix.toArray(),
+    ghostCount: () => Object.keys(ghosts).length,
+    isDragging: () => gdrag !== null,
+  },
   gridOnly: on => { for (const m of meshes) m.visible = on ? false : chipFor[m.userData.el.category || 'Generic'].getAttribute('aria-pressed') === 'true'; grid.visible = true; render(); },
   gridDensityFade: on => { grid.material.uniforms.uDensityFade.value = on ? 1 : 0; render(); },
   renderNow: () => render(),

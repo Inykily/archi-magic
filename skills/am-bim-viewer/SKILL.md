@@ -47,7 +47,31 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 - The ground grid lies in the XY plane at the base of the visible model. It fades out at about 1.75 times the model size.
 - The viewer does not rotate or mirror the data. It builds the camera from azimuth and elevation around world Z (`mods/am-bim-viewer/viewer/viewer-core.mjs`).
 - Top: looks down -Z, North at the top, East to the right. Front: looks from -Y toward +Y. Right: looks from +X toward -X. Perspective: from the south-east, above.
-- The axis gizmo shows X red, Y green, Z blue.
+- The axis gizmo (bottom left) has no color: X is a solid line, Y is dashed, Z is dotted. Each arm has its letter.
+
+## Gumball: move and rotate an element (viewer copy only)
+
+1. Click an element. A gumball shows at its center: three arrows and one ring.
+   - X arrow (solid line) moves the element East. Y arrow (dashed) moves it North. Z arrow (dotted) moves it Up.
+   - The ring turns the element in plan, about the vertical (Z) axis. Counterclockwise is positive, as in Revit.
+2. Drag a handle with the LEFT mouse button. The camera keeps the right button, so the two do not conflict.
+   - A move snaps to 1/2 ft. A rotation snaps to 5 degrees. Hold Alt to drag without snap.
+   - A label next to the cursor shows the value, for example `move x +2.50 ft` or `rotate 15 deg`.
+   - Press Esc during a drag to cancel it.
+3. The side panel lists the **pending changes**: the element, the move (dx, dy, dz in ft), and the rotation with its pivot. Each row has **undo**. **Clear all** removes all rows. A moved element shows a thin outline (a ghost) at its old position.
+4. Click **copy changes for revit**. The page copies this JSON:
+   ```json
+   {"kind":"element-transforms","source":"am-bim-viewer","units":"ft",
+    "items":[{"id":310009,"name":"NE corner column","category":"Columns","move":[2.5,-0.5,0],"rotateZ":15,"pivot":[60,50,12]}]}
+   ```
+   Each item means: first rotate the element by `rotateZ` degrees (counterclockwise in plan) about `pivot`, then move it by `move`. `pivot` is the element's original center, before the move.
+
+The viewer never changes the Revit model. When the user pastes "element-transforms" JSON, send it through the **am-safe-change** skill (recipe "element-transforms"): preview, then the user approves in Revit. Never apply it directly.
+
+## Theme and help
+
+- The page follows the time of day: paper (light) from 07:00 to 19:00, night (dark) at other hours. The "paper / night" link switches until the next 07:00 or 19:00.
+- The "?" button at the bottom right of the 3D view opens the list of mouse and key controls.
 
 ## JSON schema (`am-bim-viewer/1`)
 
@@ -69,7 +93,7 @@ Sources: https://www.rhino3d.com/docs/guides/modeling/rhino-windows-navigation/,
 
 ## Tests
 
-From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 16 known ways; every break must make a test fail). In the browser, run `tests/browser-check.js` in the built demo page. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
+From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 21 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) and the gumball (axis mapping, snap, Esc, undo, the JSON contract). In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel and a gumball drag. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
 
 ## House rules (all am-* skills)
 

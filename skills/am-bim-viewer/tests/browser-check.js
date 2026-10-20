@@ -128,7 +128,44 @@
   hb.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(450);
   const escaped = !shown() && hb.getAttribute('aria-expanded') === 'false' && hb.getAttribute('aria-controls') === 'helppanel';
   results.helpCollapses = rest && hovered && left && focused && escaped;
-  results.noFooter = !document.querySelector('footer');
+  // Gumball (left drag on a handle): Top view, X arrow +100 px moves east, Y arrow up moves north,
+  // ring CCW is positive; snapping; Esc cancels; undo; Copy for Revit gives the contract JSON.
+  __bim.setView('top'); __bim.select(310009); __bim.renderNow(); await wait(30);
+  const gum = document.getElementById('gumball');
+  function gdragTo(handle, dx, dy, opts = {}) {
+    const L = __bim.gumball.layout();
+    const from = handle === 'rz' ? L.ringEast : L.tips[handle];
+    const target = gum.querySelector('.h[data-h="' + handle + '"] .hit');
+    const ev = (t, X, Y) => new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'mouse', button: 0, buttons: t === 'pointerup' ? 0 : 1, clientX: X, clientY: Y, altKey: !!opts.alt });
+    target.dispatchEvent(ev('pointerdown', from.x, from.y));
+    const to = typeof dx === 'function' ? dx(from, L.center) : { x: from.x + dx, y: from.y + dy };
+    gum.dispatchEvent(ev('pointermove', to.x, to.y));
+    if (opts.cancel) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    else gum.dispatchEvent(ev('pointerup', to.x, to.y));
+  }
+  const items = () => __bim.gumball.transforms().items;
+  gdragTo('x', 100, 0); __bim.renderNow();
+  const afterX = items()[0];
+  results.gumballXEast = !!afterX && afterX.move[0] > 0 && afterX.move[1] === 0 && afterX.move[2] === 0 && afterX.move[0] % 0.5 === 0;
+  gdragTo('y', 0, -100);
+  const afterY = items()[0];
+  results.gumballYNorth = afterY.move[1] > 0 && afterY.move[0] === afterX.move[0];
+  gdragTo('rz', (from, c) => ({ x: c.x, y: c.y - (from.x - c.x) }));
+  results.gumballRingCCW = items()[0].rotateZ === 90;
+  results.gumballGhostAndPending = __bim.gumball.ghostCount() === 1 && __bim.gumball.pendingRows() === 1;
+  const keep = JSON.stringify(items());
+  gdragTo('x', 137, 0, { cancel: true });
+  results.gumballEscCancels = JSON.stringify(items()) === keep && !__bim.gumball.isDragging();
+  gdragTo('x', 37, 0, { alt: true }); // free: not a multiple of 1/2 ft
+  results.gumballAltFree = items()[0].move[0] % 0.5 !== 0;
+  document.getElementById('copyrevit').click(); await wait(30);
+  const copied = JSON.parse(__bim.gumball.lastCopied());
+  results.gumballCopyContract = copied.kind === 'element-transforms' && copied.source === 'am-bim-viewer' && copied.units === 'ft' &&
+    copied.items.length === 1 && Object.keys(copied.items[0]).join() === 'id,name,category,move,rotateZ,pivot' && copied.items[0].id === 310009;
+  document.querySelector('#pending [data-undo]').click(); await wait(30);
+  results.gumballUndo = items().length === 0 && __bim.gumball.ghostCount() === 0 && __bim.gumball.meshMatrix(310009).every((v, i) => v === [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1][i]);
+  __bim.select(null); __bim.setView('perspective');
+  results.noFooter =!document.querySelector('footer');
   results.oneViewLabel = document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
   return { pass: Object.entries(results).every(([k, v]) => v && (v === true || v.isInfo)), results };
 })();

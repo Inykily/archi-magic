@@ -42,9 +42,18 @@ const MUTANTS = [
     'z: bounds.min[2] - extent * 1e-4,', 'z: (bounds.min[2] + bounds.max[2]) / 2,'],
   ['repeat click on the selected element counts as a change',
     'isChanged: String(id) !== String(currentId)', 'isChanged: true'],
+  ['gumball: screen y not flipped (Y arrow drags south)',
+    'const d = [b.x - a.x, -(b.y - a.y)];', 'const d = [b.x - a.x, b.y - a.y];'],
+  ['gumball: rotate ring clockwise-positive',
+    'deg = ((t * 180) / Math.PI) * Math.sign(se);', 'deg = ((t * 180) / Math.PI) * -Math.sign(se);'],
+  ['gumball: move ignores the 1/2 ft snap',
+    'move[k] = isFree ? amount : snapTo(amount, GUMBALL.moveSnap);', 'move[k] = amount;'],
+  ['gumball: Esc keeps the previewed drag',
+    'cancel() { if (isNew) undoEdit(edits, el.id); else reset(); },', 'cancel() {},'],
+  ['gumball: export keeps no-op records',
+    'return edits.order.map(k => edits.byId[k]).filter(r => !isIdentity(r));', 'return edits.order.map(k => edits.byId[k]);'],
 ];
-
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;

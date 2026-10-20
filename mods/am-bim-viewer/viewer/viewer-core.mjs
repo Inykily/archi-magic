@@ -576,3 +576,154 @@ export function cursorCss(name, theme = 'paper') {
   const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
   return 'url("data:image/svg+xml,' + encodeURIComponent(cursorSvg(name, theme)) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
 }
+
+// ---- Gumball: manual move / rotate edits (viewer copy only) ----
+// Handles: 'x', 'y', 'z' move along world X (east), Y (north), Z (up);
+// 'rz' rotates about world Z through the element's center. Rotation is
+// counterclockwise-positive in plan (seen from above), as in Revit.
+export const GUMBALL = { moveSnap: 0.5, rotateSnap: 5 };
+const AXIS_INDEX = { x: 0, y: 1, z: 2 };
+
+export function snapTo(value, step) {
+  return Math.round(value / step) * step + 0; // + 0 turns -0 into 0
+}
+
+// World units per screen pixel at the target plane.
+export function worldPerPixel(state, viewportHeightPx) {
+  return (halfHeight(state) * 2) / Math.max(1, viewportHeightPx);
+}
+
+// A gumball drag from screen point a to b (page pixels, y down).
+// view: { height } of the viewport in px, and for 'rz' the screen point of the
+// rotation center as view.pivot. Returns { move: [dx, dy, dz] } in ft, or
+// { rotateZ } in degrees. isFree (Alt held) turns snapping off.
+export function gumballDrag(handle, state, a, b, view, isFree = false) {
+  const basis = cameraBasis(state.azimuth, state.elevation);
+  if (handle in AXIS_INDEX) {
+    const k = AXIS_INDEX[handle];
+    const s = [basis.r[k], basis.u[k]]; // screen direction of the world axis, y up
+    const len2 = s[0] * s[0] + s[1] * s[1];
+    const move = [0, 0, 0];
+    if (len2 > 0.04) { // an axis that points at the viewer cannot be dragged along
+      const d = [b.x - a.x, -(b.y - a.y)];
+      const amount = ((d[0] * s[0] + d[1] * s[1]) / len2) * worldPerPixel(state, view.height);
+      move[k] = isFree ? amount : snapTo(amount, GUMBALL.moveSnap);
+    }
+    return { move };
+  }
+  if (handle === 'rz') {
+    let deg;
+    const se = Math.sin(state.elevation);
+    if (Math.abs(se) < 0.2) {
+      deg = (b.x - a.x) * 0.5; // ring seen edge-on: a horizontal drag turns it
+    } else {
+      const p = view.pivot;
+      const a0 = Math.atan2(-(a.y - p.y), a.x - p.x), a1 = Math.atan2(-(b.y - p.y), b.x - p.x);
+      let t = a1 - a0;
+      while (t > Math.PI) t -= 2 * Math.PI;
+      while (t < -Math.PI) t += 2 * Math.PI;
+      deg = ((t * 180) / Math.PI) * Math.sign(se); // seen from below, screen CCW is plan CW
+    }
+    return { rotateZ: isFree ? deg : snapTo(deg, GUMBALL.rotateSnap) };
+  }
+  throw new Error('Unknown gumball handle ' + handle);
+}
+
+// Pending edits: one record per element, in the order first edited.
+// Final position = rotate the original about pivot (its original center) by
+// rotateZ, then translate by move. A later rotation turns about the current
+// center (pivot + move), and this form composes that exactly.
+export function createEdits() {
+  return { order: [], byId: {} };
+}
+
+export function editRecord(edits, el) {
+  const key = String(el.id);
+  if (!edits.byId[key]) {
+    const b = elementBounds(el);
+    edits.byId[key] = { id: el.id, el, move: [0, 0, 0], rotateZ: 0, pivot: [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2) };
+    edits.order.push(key);
+  }
+  return edits.byId[key];
+}
+
+export function applyDrag(record, result) {
+  if (result.move) record.move = record.move.map((v, i) => v + result.move[i]);
+  if (result.rotateZ) record.rotateZ += result.rotateZ;
+  return record;
+}
+
+// One drag on one element. update() previews the drag result on top of the
+// record as it was at the start; cancel() (Esc) puts it back; commit() keeps
+// it (and drops a record the drag left without any change).
+export function beginGumballDrag(edits, el) {
+  const isNew = !edits.byId[String(el.id)];
+  const record = editRecord(edits, el);
+  const base = { move: record.move.slice(), rotateZ: record.rotateZ };
+  const reset = () => { record.move = base.move.slice(); record.rotateZ = base.rotateZ; };
+  return {
+    record,
+    update(result) { reset(); return applyDrag(record, result); },
+    cancel() { if (isNew) undoEdit(edits, el.id); else reset(); },
+    commit() { if (isNew && isIdentity(record)) undoEdit(edits, el.id); return record; },
+  };
+}
+
+export function isIdentity(record) {
+  return record.move.every(v => Math.abs(v) < 1e-9) && Math.abs(record.rotateZ % 360) < 1e-9;
+}
+
+export function undoEdit(edits, id) {
+  const key = String(id);
+  delete edits.byId[key];
+  edits.order = edits.order.filter(k => k !== key);
+}
+
+export function clearEdits(edits) {
+  edits.order = [];
+  edits.byId = {};
+}
+
+export function pendingEdits(edits) {
+  return edits.order.map(k => edits.byId[k]).filter(r => !isIdentity(r));
+}
+
+// Column-major 4x4 (three.js Matrix4.fromArray order) for a record.
+export function editMatrix(record) {
+  const t = (record.rotateZ * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  const [px, py] = record.pivot, [mx, my, mz] = record.move;
+  const tx = px + mx - (c * px - s * py), ty = py + my - (s * px + c * py);
+  return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, tx, ty, mz, 1];
+}
+
+export function applyEditToPoint(record, p) {
+  const m = editMatrix(record);
+  return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+}
+
+const roundTo = (v, n) => { const f = Math.pow(10, n); return Math.round(v * f) / f + 0; };
+
+// The hand-off contract for Revit. It is applied only through am-safe-change.
+export function exportTransforms(edits) {
+  return {
+    kind: 'element-transforms',
+    source: 'am-bim-viewer',
+    units: 'ft',
+    items: pendingEdits(edits).map(r => ({
+      id: r.id,
+      name: r.el.name || ((r.el.category || 'Generic') + ' ' + r.id),
+      category: r.el.category || 'Generic',
+      move: r.move.map(v => roundTo(v, 4)),
+      rotateZ: roundTo(r.rotateZ, 3),
+      pivot: r.pivot.map(v => roundTo(v, 4)),
+    })),
+  };
+}
+
+function signed(v, digits) { return (v < 0 ? '-' : '+') + Math.abs(v).toFixed(digits); }
+
+// Live readout next to the cursor during a drag: "move x +2.50 ft", "rotate 15 deg".
+export function gumballReadout(handle, result) {
+  if (handle === 'rz') return 'rotate ' + (Number.isInteger(result.rotateZ) ? String(result.rotateZ) : result.rotateZ.toFixed(1)) + ' deg';
+  return 'move ' + handle + ' ' + signed(result.move[AXIS_INDEX[handle]], 2) + ' ft';
+}
