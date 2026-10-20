@@ -302,6 +302,8 @@ if ($EnableAgent) {
     & $Py7 configs agent enable | Out-Host
     # Keep/Discard in Revit exists only under policy 'ask'. Set it explicitly; never leave 'auto' in place.
     $before = Get-AgentPolicy
+    # A re-run must never loosen a stricter choice: keep an existing 'readonly' unless -Policy was passed.
+    if ($before -eq 'readonly' -and -not $PSBoundParameters.ContainsKey('Policy')) { $Policy = 'readonly' }
     & $Py7 configs agent policy $Policy | Out-Host
     $policyNow = Get-AgentPolicy
     if ($policyNow -ne $Policy) {
