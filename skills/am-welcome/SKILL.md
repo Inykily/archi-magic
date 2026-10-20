@@ -15,6 +15,8 @@ Run these checks before you talk. They do not change anything.
 2. `claude mcp get pyrevit` - a result that shows the server means Claude is connected to Revit. An error means it is not registered.
 3. `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\list-skills.ps1"` - prints one `name<TAB>description` line for each installed am-* skill (am-welcome is not included).
 
+4. Read the live agent policy. If the pyrevit MCP tools are in this session, call `get_context`; its result names the policy. If not, run `& "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe" configs agent policy`; it prints `Agent policy: ask`, `readonly` or `auto`.
+
 If a check fails or you cannot run it, treat that part as "not set up". Do not tell the user about the commands unless they ask.
 
 ## Step 2: Explain archi-magic in plain words
@@ -56,7 +58,11 @@ Tailor the steps to the result of Step 1. Mark completed steps as "done" and ski
 
 Then tell the user about the two safety points:
 
-- **Keep or Discard.** When Claude wants to change the model, Revit shows the change and asks you. Click **Keep** to accept it. Click **Discard** to cancel it. Nothing changes until you click Keep.
+- **Keep or Discard.** State the policy that you read in Step 1, check 4. Never assume it.
+  - `ask`: When Claude wants to change the model, Revit shows the change and asks you. Click **Keep** to accept it. Click **Discard** to cancel it. Nothing changes until you click Keep.
+  - `readonly`: Claude can only read the model. Claude cannot change it.
+  - `auto`: Claude can change the model **without** asking you. Tell the user this clearly. Recommend the fix: type "set up pyRevit 7" to set the policy to `ask`. Do not change the policy yourself unless the user asks for it in the chat.
+  - Unknown (the check failed): say "I cannot confirm that Revit asks you before each change." Do not promise Keep/Discard.
 - **Data goes to the AI provider.** Claude sends the model data that it reads to the AI company. Use it only on projects where your office and your client permit this.
 
 ## Step 5: Teach how to ask well

@@ -29,13 +29,16 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 
 ## Script switches
 
-`pyrevit7-setup.ps1 [-Install] [-Repoint] [-EnableAgent] [-Verify] [-Force]`. With no switch, it runs all four steps. `-Force` reinstalls even when 7.x is present.
+`pyrevit7-setup.ps1 [-Install] [-Repoint] [-EnableAgent] [-Verify] [-Force] [-Policy ask|readonly]`. With no switch, it runs all four steps. `-Force` reinstalls even when 7.x is present.
+
+`-EnableAgent` sets the agent policy to `ask`, so every model change needs Keep/Discard in Revit. Use `-Policy readonly` to block all model changes. The script never sets `auto` (changes without approval). `-Verify` reports a problem when the policy is not `ask` or `readonly`.
 
 Exit codes:
 
 | Code | Meaning |
 |---|---|
 | 0 | OK |
+| 1 | Unexpected error. Read the log that the script names. |
 | 2 | Close Revit first |
 | 3 | Install failed |
 | 4 | Repoint failed |
