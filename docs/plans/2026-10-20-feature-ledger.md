@@ -80,6 +80,17 @@ Every feature the user asked for in the build session, with its status. **Shippe
 - The naturalUIUX skill was not found on this machine; frontend-design was used instead.
 - Viewer True North vs Project North, offline vendoring of three.js and fonts, and the large-model size cap are open questions for a later release.
 
+## Verification gaps closed after release (2026-10-20, branch fix/session-gaps)
+
+- Gumball arithmetic input built: `10' - 3"`, `12'6" / 2`, `3 * 2'`, and `90 - 15` for angles. Operators need spaces; without spaces, `10'-3/2"` is still feet-inches. Typing during a drag is now tested (`dragTypingStart`). Result: 61/61 tests, with 3 new mutants killed.
+- Help-hover check run against the old behavior: the page built from `c382f3c` (before the hover fix) gave `helpCollapses: false`. The current page gave `true` for all 9 cases (rest, 8 px outside, brief pass, opened, kept over panel, closed after leave, drag ignored, keyboard focus, Esc).
+- Walk-mode pointer lock verified in real Microsoft Edge (Playwright, trusted input):
+  - A click locks the pointer to the canvas, and the hint changes to "mouse looks around".
+  - The control frame with no mouse movement is unchanged. After mouse movement the view changes.
+  - Esc exits walk mode.
+- Rules hook in a fresh session: this cannot be tested headless here, because the CLI stops at "Not logged in" before SessionStart runs. It needs a signed-in session: a one-click session card is offered.
+- Side discovery (not archi-magic): `senzhang-plugin-hub` SessionEnd hooks (`session-end-backup.sh`, `storyline-publish.sh`) fail on this PC. Their bash-syntax commands (`HOME="$(cygpath ...)" bash ...`) run in PowerShell.
+
 ## Release status (2026-10-20)
 
 - PR #4 (f8cdd7c) shipped requests 39 to 54. PR #5 (b87681e) fixed the first-release workflow and produced release `r2026.10.20-b87681e30097`.
