@@ -35,6 +35,11 @@
       "name": "am-bim-viewer",
       "source": "./mods/am-bim-viewer",
       "description": "Mod: /bim-view builds an interactive 3D BIM viewer page (Rhino-style camera, element data panel) from a Revit JSON export. Needs a Claude Code build with function hooks (tested on 2.1.299)."
+    },
+    {
+      "name": "am-schedule-view",
+      "source": "./mods/am-schedule-view",
+      "description": "Mod for the am-schedule-view skill: /am-schedule-view <file.json> shows a Revit schedule or change preview in a pane. Tested on Claude Code 2.1.299."
     }
   ]
 }
