@@ -193,6 +193,31 @@
   const copied = JSON.parse(__bim.gumball.lastCopied());
   results.gumballCopyContract = copied.kind === 'element-transforms' && copied.source === 'am-bim-viewer' && copied.units === 'ft' &&
     copied.items.length === 1 && Object.keys(copied.items[0]).join() === 'id,name,category,move,rotateZ,pivot' && copied.items[0].id === 310009;
+  // Typed entry: a click (no drag) on a handle opens the field; Enter applies exactly; invalid text
+  // keeps it open with an error; Esc cancels; Tab applies and moves on; side-panel fields round-trip.
+  document.querySelector('#pending [data-undo]').click(); await wait(30);
+  const tbox = document.getElementById('typein'), tval = document.getElementById('typeval'), tlbl = document.getElementById('typelbl');
+  const key = (k, extra = {}) => tval.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...extra }));
+  const typeIn = s => { tval.value = s; tval.dispatchEvent(new Event('input', { bubbles: true })); };
+  gdragTo('x', 0, 0);
+  const typeOpened = tbox.classList.contains('on') && tlbl.textContent === 'move x' && items().length === 0;
+  typeIn('2\'-6 1/2"');
+  const preview = document.getElementById('readout').textContent === 'move x +2\'-6 1/2" (2.542 ft)';
+  key('Enter');
+  results.typedEnterExact = typeOpened && preview && !tbox.classList.contains('on') && items()[0].move[0] === 2.5417;
+  gdragTo('y', 0, 0); typeIn('abc'); key('Enter');
+  const invalidKeeps = tbox.classList.contains('on') && document.getElementById('typeerr').classList.contains('on') && /Type a length/.test(document.getElementById('typeerr').textContent);
+  key('Escape');
+  results.typedInvalidAndEsc = invalidKeeps && !tbox.classList.contains('on') && items()[0].move[1] === 0;
+  gdragTo('x', 0, 0); typeIn('-1'); key('Tab');
+  const tabbed = tbox.classList.contains('on') && tlbl.textContent === 'move y' && items()[0].move[0] === 1.5417;
+  typeIn('750mm'); key('Tab');
+  results.typedTab = tabbed && tlbl.textContent === 'move z' && items()[0].move[1] === 2.4606;
+  key('Escape');
+  const vz = document.getElementById('vf-z'), vr = document.getElementById('vf-rz');
+  vz.value = '6"'; vz.dispatchEvent(new Event('change')); vr.value = '-22.5'; vr.dispatchEvent(new Event('change'));
+  const it = items()[0];
+  results.sidePanelRoundTrip = it.move[2] === 0.5 && it.rotateZ === -22.5 && it.move[0] === 1.5417 && document.getElementById('vf-x').value === '1.5417';
   document.querySelector('#pending [data-undo]').click(); await wait(30);
   results.gumballUndo = items().length === 0 && __bim.gumball.ghostCount() === 0 && __bim.gumball.meshMatrix(310009).every((v, i) => v === [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1][i]);
   __bim.select(null); __bim.setView('perspective');

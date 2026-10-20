@@ -720,6 +720,69 @@ export function exportTransforms(edits) {
   };
 }
 
+// ---- Typed gumball input: architect units ----
+export const LENGTH_HINT = 'Type a length, for example 2.5, 2\'6", 2\'-6 1/2", 30", 750mm or 0.75m.';
+export const ANGLE_HINT = 'Type an angle in degrees, for example 15, -90 or 22.5.';
+const METRIC_PER_FT = { mm: 304.8, cm: 30.48, m: 0.3048 };
+
+// "2.5" (decimal feet), "2'6\"", "2' 6\"", "2'-6 1/2\"", "2'6", "30\"", "6 1/2\"", "750mm", "0.75m",
+// with an optional leading sign. Returns { ft } or { error } (plain words).
+export function parseLength(text) {
+  const s = String(text === undefined || text === null ? '' : text).trim().replace(/[′’]/g, "'").replace(/[″”]/g, '"');
+  let m = /^([+-]?)\s*(\d+(?:\.\d*)?|\.\d+)\s*(mm|cm|m)$/i.exec(s);
+  if (m) { const v = Number(m[2]) / METRIC_PER_FT[m[3].toLowerCase()]; return { ft: m[1] === '-' ? -v : v }; }
+  m = /^([+-]?)\s*(\d+(?:\.\d*)?|\.\d+)$/.exec(s);
+  if (m) { const v = Number(m[2]); return { ft: m[1] === '-' ? -v : v }; }
+  if (!/['"]/.test(s)) return { error: LENGTH_HINT };
+  m = /^([+-]?)\s*(?:(\d+(?:\.\d+)?)\s*')?\s*-?\s*(\d+(?:\.\d+)?)?(?:\s*-?\s*(\d+)\s*\/\s*(\d+))?\s*("?)$/.exec(s);
+  if (!m || (m[2] === undefined && m[3] === undefined && m[4] === undefined)) return { error: LENGTH_HINT };
+  if (m[2] === undefined && m[6] !== '"') return { error: LENGTH_HINT }; // inches need the " mark
+  if (m[5] !== undefined && Number(m[5]) === 0) return { error: 'The fraction cannot divide by zero. ' + LENGTH_HINT };
+  const inches = Number(m[3] || 0) + (m[4] !== undefined ? Number(m[4]) / Number(m[5]) : 0);
+  const v = Number(m[2] || 0) + inches / 12;
+  return { ft: m[1] === '-' ? -v : v };
+}
+
+export function parseAngle(text) {
+  const m = /^([+-]?\s*(?:\d+(?:\.\d*)?|\.\d+))\s*(?:°|deg|degrees?)?$/i.exec(String(text === undefined || text === null ? '' : text).trim());
+  return m ? { deg: Number(m[1].replace(/\s+/g, '')) } : { error: ANGLE_HINT };
+}
+
+// 2.541666 -> 2'-6 1/2" (inches rounded to 1/16").
+export function formatFeetInches(ft) {
+  const sign = ft < 0 ? '-' : '';
+  let sixteenths = Math.round(Math.abs(ft) * 12 * 16);
+  const feet = Math.floor(sixteenths / (12 * 16));
+  sixteenths -= feet * 12 * 16;
+  const whole = Math.floor(sixteenths / 16);
+  let num = sixteenths - whole * 16, den = 16;
+  while (num && num % 2 === 0) { num /= 2; den /= 2; }
+  return sign + feet + "'-" + whole + (num ? ' ' + num + '/' + den : '') + '"';
+}
+
+// Live readout for typed entry: "move x +2'-6\" (2.500 ft)", "rotate 15 deg".
+export function typedReadout(handle, value) {
+  if (handle === 'rz') return 'rotate ' + value + ' deg';
+  return 'move ' + handle + ' ' + (value < 0 ? '' : '+') + formatFeetInches(value) + ' (' + value.toFixed(3) + ' ft)';
+}
+
+// Typed values apply exactly (no snap) and add to the pending change, like a drag.
+export function applyTyped(edits, el, handle, value) {
+  const d = beginGumballDrag(edits, el);
+  if (handle === 'rz') d.update({ rotateZ: value });
+  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = value; d.update({ move }); }
+  return d.commit();
+}
+
+// Side-panel fields set the pending change to absolute values (move in ft, rotateZ in deg).
+export function setEditValues(edits, el, values) {
+  const rec = editRecord(edits, el);
+  if (values.move) rec.move = values.move.slice();
+  if (values.rotateZ !== undefined) rec.rotateZ = values.rotateZ;
+  if (isIdentity(rec)) undoEdit(edits, el.id);
+  return rec;
+}
+
 function signed(v, digits) { return (v < 0 ? '-' : '+') + Math.abs(v).toFixed(digits); }
 
 // Live readout next to the cursor during a drag: "move x +2.50 ft", "rotate 15 deg".

@@ -52,8 +52,14 @@ const MUTANTS = [
     'cancel() { if (isNew) undoEdit(edits, el.id); else reset(); },', 'cancel() {},'],
   ['gumball: export keeps no-op records',
     'return edits.order.map(k => edits.byId[k]).filter(r => !isIdentity(r));', 'return edits.order.map(k => edits.byId[k]);'],
+  ['typed input: inches read as feet (inch conversion broken)',
+    'const v = Number(m[2] || 0) + inches / 12;', 'const v = Number(m[2] || 0) + inches;'],
+  ['typed input: metric divisor wrong (mm read as cm)',
+    'mm: 304.8, cm: 30.48', 'mm: 30.48, cm: 30.48'],
+  ['typed input: snapped like a drag',
+    "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = value; d.update({ move }); }", "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = snapTo(value, GUMBALL.moveSnap); d.update({ move }); }"],
 ];
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;

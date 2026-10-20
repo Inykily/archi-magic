@@ -255,6 +255,17 @@
   #gumball .pivot { fill: var(--bg); stroke: var(--ink); stroke-width: 1; }
   #readout { position: absolute; z-index: 5; pointer-events: none; padding: 1px 7px; background: var(--bg); color: var(--ink);
     border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; display: none; }
+  /* Typed entry next to a gumball handle, and the side-panel value fields */
+  #typein { position: absolute; z-index: 6; display: none; padding: 6px 8px; background: var(--bg); border: var(--hair) solid var(--line-strong); min-width: 160px; }
+  #typein.on { display: grid; gap: 4px; }
+  #typein .lbl, .vf label { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); }
+  #typein input, .vf input { font: inherit; color: var(--ink); background: none; border: 0; border-bottom: var(--hair) solid var(--line-strong); padding: 2px 0; width: 100%; border-radius: var(--radius); }
+  #typein input:focus, .vf input:focus { outline: none; border-bottom-color: var(--ink); }
+  #typein .err, .vf-err { display: none; font-size: var(--fs-micro); color: var(--ink); white-space: normal; max-width: 240px; }
+  #typein .err.on, .vf-err.on { display: block; }
+  .vf { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
+  .vf div { display: grid; gap: 2px; }
+  .vf input[aria-invalid="true"], #typein input[aria-invalid="true"] { border-bottom-style: dashed; border-bottom-color: var(--ink); }
   /* Pending changes */
   .pend { padding: 6px 0; border-bottom: var(--hair) solid var(--line); }
   .pend-h { display: flex; align-items: baseline; gap: var(--space-2); }
@@ -325,6 +336,7 @@
     <div id="labels"></div>
     <svg id="gumball" aria-label="Gumball: drag an arrow to move, the ring to rotate"></svg>
     <div id="readout" role="status"></div>
+    <div id="typein" role="dialog" aria-label="Type a value"><span class="lbl" id="typelbl">move x</span><input id="typeval" autocomplete="off" spellcheck="false" aria-labelledby="typelbl" aria-describedby="typeerr"><div class="err" id="typeerr" role="alert"></div></div>
     <div id="help">
       <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
       <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
@@ -338,6 +350,15 @@
     </section>
     <section class="sec" id="pendsec">
       <div class="head"><span class="am-micro">pending changes</span><span class="r"><span class="am-index" id="pendidx">0</span><button class="link" id="clearall" disabled>clear all</button></span></div>
+      <div id="selfields" hidden>
+        <div class="vf">
+          <div><label for="vf-x">dx</label><input id="vf-x" data-k="x" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-y">dy</label><input id="vf-y" data-k="y" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-z">dz</label><input id="vf-z" data-k="z" autocomplete="off" spellcheck="false"></div>
+          <div><label for="vf-rz">rot</label><input id="vf-rz" data-k="rz" autocomplete="off" spellcheck="false"></div>
+        </div>
+        <div class="vf-err" id="vferr" role="alert"></div>
+      </div>
       <div id="pending"></div>
       <div class="pend-actions"><button class="btn" id="copyrevit" disabled>copy changes for revit</button></div>
       <div class="pend-note am-quiet">nothing changes in revit until you approve it there</div>
@@ -499,6 +520,8 @@ function select(m) {
   const next = nextSelection(selected ? selected.userData.el.id : null, m ? m.userData.el : null);
   if (!next.isChanged) return; // the 2nd click of a double-click lands here: no flicker
   const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null); requestRender();
+  if (typed) closeTyped();
+  fillValueFields();
 }
 
 const fmtNum = v => (Math.round(v * 100) / 100).toFixed(2);
@@ -635,7 +658,9 @@ function helpRows() {
     ? [[['Right drag'], 'pan'], [['Ctrl', 'Shift', 'Right'], 'rotate']]
     : [[['Right drag'], 'rotate'], [['Shift', 'Right'], 'pan']]).concat([
     [['Ctrl', 'Right'], 'zoom'], [['Wheel'], 'zoom at cursor'], [['Click'], 'select'], [['Double-click'], 'zoom to element'],
-    [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag'],
+    [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag or the typed value'],
+    [['Click handle'], 'type a value: 2.5, 2\'6", 750mm, 15'], [['0-9'], 'while dragging: type the value'],
+    [['Enter'], 'apply the typed value'], [['Tab'], 'apply, then the next axis'],
   ]);
 }
 function updateHint() {
@@ -781,18 +806,19 @@ function gumballLayout() {
   }
   return { c, arrows, ring };
 }
+function isActiveHandle(k) { return (gdrag && gdrag.handle === k) || (typed && typed.handle === k); }
 function drawGumball() {
   const L = walkActive() ? null : gumballLayout();
   if (!L) { if (gumEl.innerHTML) gumEl.innerHTML = ''; return; }
   const f = n => n.toFixed(1);
   let s = '';
   const ringD = 'M' + L.ring.map(p => f(p.x) + ' ' + f(p.y)).join('L') + 'Z';
-  s += '<g class="h' + (gdrag && gdrag.handle === 'rz' ? ' on' : '') + '" data-h="rz" style="cursor:' + cursorCss('rotate', pal.theme).replace(/"/g, "'") + '"><path class="hit" d="' + ringD + '"/><path class="vis" d="' + ringD + '"/></g>';
+  s += '<g class="h' + (isActiveHandle('rz') ? ' on' : '') + '" data-h="rz" style="cursor:' + cursorCss('rotate', pal.theme).replace(/"/g, "'") + '"><path class="hit" d="' + ringD + '"/><path class="vis" d="' + ringD + '"/></g>';
   for (const a of L.arrows) {
     if (a.len < 0.2) continue; // an axis pointing at the viewer cannot be dragged
     const [dx, dy] = a.dir, hx = a.tip.x, hy = a.tip.y, bx = hx - dx * 9, by = hy - dy * 9, nx = -dy * 4, ny = dx * 4;
     const line = 'M' + f(L.c.x + dx * 8) + ' ' + f(L.c.y + dy * 8) + 'L' + f(bx) + ' ' + f(by);
-    s += '<g class="h' + (gdrag && gdrag.handle === a.k ? ' on' : '') + '" data-h="' + a.k + '" style="cursor:' + cursorCss('pan', pal.theme).replace(/"/g, "'") + '">' +
+    s += '<g class="h' + (isActiveHandle(a.k) ? ' on' : '') + '" data-h="' + a.k + '" style="cursor:' + cursorCss('pan', pal.theme).replace(/"/g, "'") + '">' +
       '<path class="hit" d="M' + f(L.c.x) + ' ' + f(L.c.y) + 'L' + f(hx) + ' ' + f(hy) + '"/>' +
       '<path class="vis" d="' + line + '"' + (a.dash ? ' stroke-dasharray="' + a.dash + '"' : '') + '/>' +
       '<path class="head" d="M' + f(hx) + ' ' + f(hy) + 'L' + f(bx + nx) + ' ' + f(by + ny) + 'L' + f(bx - nx) + ' ' + f(by - ny) + 'Z"/>' +
@@ -833,9 +859,105 @@ gumEl.addEventListener('pointermove', e => {
   showReadout(gumballReadout(gdrag.handle, result), e.clientX, e.clientY);
   requestRender();
 });
-gumEl.addEventListener('pointerup', () => endGumballDrag(false));
+gumEl.addEventListener('pointerup', e => {
+  if (!gdrag) return;
+  // A click (no drag) on a handle opens typed entry for it; nothing is applied.
+  if (Math.hypot(e.clientX - gdrag.start.x, e.clientY - gdrag.start.y) < 4) { const h = gdrag.handle; endGumballDrag(true); openTyped(h, ''); }
+  else endGumballDrag(false);
+});
 gumEl.addEventListener('pointercancel', () => endGumballDrag(true));
-window.addEventListener('keydown', e => { if (e.key === 'Escape' && gdrag) { e.preventDefault(); endGumballDrag(true); } });
+window.addEventListener('keydown', e => {
+  if (!gdrag || (e.target && e.target.closest && e.target.closest('input'))) return;
+  if (e.key === 'Escape') { e.preventDefault(); endGumballDrag(true); return; }
+  // Typing a number during a drag switches to typed entry for that axis.
+  if (/^[0-9.+\-'"]$/.test(e.key)) { e.preventDefault(); const h = gdrag.handle; endGumballDrag(true); openTyped(h, e.key); }
+});
+
+// ---------- Typed entry: click a handle (or type while dragging) ----------
+// Enter applies the exact value (no snap) to the pending change; Tab applies and moves to the next
+// axis; Esc cancels. Lengths take 2.5, 2'6", 2'-6 1/2", 30", 750mm, 0.75m; rotation takes degrees.
+const typeBox = document.getElementById('typein'), typeVal = document.getElementById('typeval');
+const typeLbl = document.getElementById('typelbl'), typeErr = document.getElementById('typeerr');
+const TYPE_ORDER = ['x', 'y', 'z', 'rz'];
+let typed = null;
+const parseFor = (h, s) => { const r = h === 'rz' ? parseAngle(s) : parseLength(s); return r.error ? r : { value: h === 'rz' ? r.deg : r.ft }; };
+function openTyped(handle, initial) {
+  if (!selected) return;
+  const L = gumballLayout();
+  typed = { handle, mesh: selected };
+  typeLbl.textContent = handle === 'rz' ? 'rotate z' : 'move ' + handle;
+  typeVal.value = initial || ''; typeVal.removeAttribute('aria-invalid'); typeErr.classList.remove('on');
+  typeBox.classList.add('on');
+  const a = L && L.arrows.find(x => x.k === handle);
+  const at = a ? a.tip : (L ? { x: L.c.x + 50, y: L.c.y } : { x: 20, y: 20 });
+  typeBox.style.left = Math.max(4, Math.min(vp.clientWidth - 180, at.x + 14)) + 'px';
+  typeBox.style.top = Math.max(4, Math.min(vp.clientHeight - 70, at.y - 10)) + 'px';
+  typeVal.focus(); typeVal.setSelectionRange(typeVal.value.length, typeVal.value.length);
+  previewTyped();
+  drawGumball();
+}
+function closeTyped() { typed = null; typeBox.classList.remove('on'); readoutEl.style.display = 'none'; drawGumball(); }
+function previewTyped() {
+  if (!typed) return;
+  const s = typeVal.value.trim();
+  const r = s ? parseFor(typed.handle, s) : null;
+  const tb = typeBox.getBoundingClientRect();
+  if (r && !r.error) showReadout(typedReadout(typed.handle, r.value), tb.left - 2, tb.bottom + 30);
+  else readoutEl.style.display = 'none';
+}
+// Returns true when the field is empty or applied; false (field stays open, error shown) when invalid.
+function commitTyped() {
+  const s = typeVal.value.trim();
+  if (!s) return true;
+  const r = parseFor(typed.handle, s);
+  if (r.error) { typeErr.textContent = r.error; typeErr.classList.add('on'); typeVal.setAttribute('aria-invalid', 'true'); return false; }
+  if (r.value !== 0) { applyTyped(edits, typed.mesh.userData.el, typed.handle, r.value); poseMesh(typed.mesh); renderPending(); requestRender(); }
+  return true;
+}
+typeVal.addEventListener('input', () => { typeErr.classList.remove('on'); typeVal.removeAttribute('aria-invalid'); previewTyped(); });
+typeVal.addEventListener('keydown', e => {
+  if (!typed) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeTyped(); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (commitTyped()) closeTyped(); }
+  else if (e.key === 'Tab') {
+    e.preventDefault();
+    if (!commitTyped()) return;
+    const i = TYPE_ORDER.indexOf(typed.handle), next = TYPE_ORDER[(i + (e.shiftKey ? TYPE_ORDER.length - 1 : 1)) % TYPE_ORDER.length];
+    openTyped(next, '');
+  }
+});
+typeVal.addEventListener('blur', () => { setTimeout(() => { if (typed && document.activeElement !== typeVal) closeTyped(); }, 0); });
+
+// Side-panel value fields for the selected element: absolute dx, dy, dz (ft) and rotation (deg).
+const vfInputs = [...document.querySelectorAll('#selfields input')], vfErr = document.getElementById('vferr');
+function fillValueFields() {
+  const box = document.getElementById('selfields');
+  box.hidden = !selected;
+  if (!selected) return;
+  const rec = edits.byId[String(selected.userData.el.id)];
+  const mv = rec ? rec.move : [0, 0, 0], rz = rec ? rec.rotateZ : 0;
+  for (const inp of vfInputs) {
+    if (document.activeElement === inp) continue;
+    const k = inp.dataset.k;
+    inp.value = k === 'rz' ? String(Math.round(rz * 1000) / 1000) : String(Math.round(mv['xyz'.indexOf(k)] * 10000) / 10000);
+    inp.removeAttribute('aria-invalid');
+  }
+}
+function applyValueField(inp) {
+  if (!selected) return;
+  const k = inp.dataset.k, r = parseFor(k, inp.value.trim() || '0');
+  if (r.error) { inp.setAttribute('aria-invalid', 'true'); vfErr.textContent = r.error; vfErr.classList.add('on'); return; }
+  inp.removeAttribute('aria-invalid'); vfErr.classList.remove('on');
+  const el = selected.userData.el, rec = edits.byId[String(el.id)];
+  const move = rec ? rec.move.slice() : [0, 0, 0];
+  if (k === 'rz') setEditValues(edits, el, { move, rotateZ: r.value });
+  else { move['xyz'.indexOf(k)] = r.value; setEditValues(edits, el, { move, rotateZ: rec ? rec.rotateZ : 0 }); }
+  poseMesh(selected); renderPending(); requestRender();
+}
+for (const inp of vfInputs) {
+  inp.addEventListener('change', () => applyValueField(inp));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyValueField(inp); } if (e.key === 'Escape') { e.stopPropagation(); fillValueFields(); inp.blur(); } });
+}
 
 // Pending changes: one row per element, undo per row, Clear all, Copy for Revit.
 const fx = v => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2);
@@ -844,6 +966,7 @@ function renderPending() {
   document.getElementById('pendidx').textContent = String(list.length);
   document.getElementById('copyrevit').disabled = list.length === 0;
   document.getElementById('clearall').disabled = list.length === 0;
+  fillValueFields();
   document.getElementById('pending').innerHTML = list.length === 0
     ? '<div class="am-quiet">none. select an element and drag a handle.</div>'
     : list.map(rec => '<div class="pend" data-id="' + escHtml(rec.id) + '"><div class="pend-h"><span class="nm">' + escHtml(rec.el.name || ((rec.el.category || 'Generic') + ' ' + rec.id)) + '</span>' +
