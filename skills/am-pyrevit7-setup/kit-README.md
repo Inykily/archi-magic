@@ -24,6 +24,7 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 - **Approvals:** every model change Claude makes asks for your approval inside Revit. **Keep** commits it as one undo step. **Discard** rolls it back.
 - **Data:** anything Claude reads from the model is sent to the AI provider. Only use this on projects where that's allowed. Run records are stored under `%APPDATA%\pyRevit\agent` for 14 days.
 - **Undo:** delete `%APPDATA%\Autodesk\Revit\Addins\<year>\pyRevit.addin`. Then run `"%APPDATA%\pyRevit-Master\bin\pyrevit.exe" mcp uninstall claude` and `... configs agent disable`.
+- **Installer check:** the script downloads the latest pyRevit release from GitHub. It runs the installer only when the file matches the SHA256 checksum from GitHub and the signature is valid and comes from the known pyRevit signer (Jean-Marc Couffin, through Microsoft ID Verified signing). If one check fails, the script stops with exit code 3 and does not run the installer.
 - **Logs and backups:** each run writes a log and backs up any manifest it replaces under `%TEMP%\pyrevit7-setup\<timestamp>\`.
 - **Clean long-term fix (IT, needs admin):** uninstall the machine-wide pyRevit 6.x, or delete `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. The per-user setup keeps working after that.
 

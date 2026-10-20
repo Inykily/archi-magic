@@ -113,6 +113,49 @@ function Find-ClaudeCli {
     return $null
 }
 
+# Known pyRevit installer signer (read 2026-10-20 from pyRevit_7.0.0.26278_signed.exe).
+#   Subject: CN=Jean-Marc Couffin, O=Jean-Marc Couffin, L=Zlin, S=Zlinsky (with accents), C=CZ
+#   Issuer : CN=Microsoft ID Verified CS AOC CA 03, O=Microsoft Corporation, C=US
+# Microsoft's ID Verified signing service issues certificates that live about 3 days, so the
+# thumbprint changes with almost every release. The hard pin is therefore subject CN + O + C and
+# the Microsoft ID Verified issuer. Known thumbprints are recorded; a new one is reported, not refused.
+$SignerCN          = 'Jean-Marc Couffin'
+$SignerO           = 'Jean-Marc Couffin'
+$SignerC           = 'CZ'
+$SignerIssuerRegex = '^CN=Microsoft ID Verified CS (AOC|EOC) CA \d+, O=Microsoft Corporation, C=US$'
+$KnownThumbprints  = @('D20345056E74D1858EEB0D336472C5B462CE0120')
+
+function Get-DnPart([string]$dn, [string]$key) {
+    $m = [regex]::Match($dn, '(?:^|,\s*)' + $key + '=([^,]+)')
+    if ($m.Success) { return $m.Groups[1].Value.Trim() } else { return $null }
+}
+
+function Test-InstallerTrust([string]$Path, $Digest) {
+    # Returns a list of failure reasons. An empty list means the installer may run.
+    $why = New-Object System.Collections.Generic.List[string]
+    if (-not ($Digest -is [string]) -or $Digest -notmatch '^sha256:([0-9a-fA-F]{64})$') {
+        $why.Add('GitHub did not give a SHA256 checksum for this file, so its content cannot be confirmed.')
+    } else {
+        $want = $Matches[1].ToUpperInvariant()
+        $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+        if ($hash -ne $want) { $why.Add("The file checksum does not match GitHub (got $hash, GitHub says $want). The download is damaged or changed.") }
+    }
+    $sig = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($sig.Status -ne 'Valid') {
+        $why.Add("The digital signature is '$($sig.Status)', not Valid.")
+    } else {
+        $cert = $sig.SignerCertificate
+        $cn = Get-DnPart $cert.Subject 'CN'; $o = Get-DnPart $cert.Subject 'O'; $c = Get-DnPart $cert.Subject 'C'
+        if ($cn -ne $SignerCN -or $o -ne $SignerO -or $c -ne $SignerC) {
+            $why.Add("The signer is '$($cert.Subject)', not the known pyRevit signer (CN=$SignerCN, O=$SignerO, C=$SignerC).")
+        }
+        if ($cert.Issuer -notmatch $SignerIssuerRegex) {
+            $why.Add("The signer certificate comes from '$($cert.Issuer)', not from Microsoft ID Verified signing.")
+        }
+    }
+    return ,$why
+}
+
 function Get-AgentPolicy {
     # 'pyrevit configs agent policy' prints "Agent policy: ask". Returns ask|readonly|auto, or $null.
     if (-not (Test-Path $Py7)) { return $null }
@@ -177,13 +220,14 @@ if ($Install) {
             Fail 3 ("Could not download the pyRevit installer. " + (Get-NetFailureText $_))
         }
 
-        $sig = Get-AuthenticodeSignature $exe
-        if ($sig.Status -ne 'Valid') { Fail 3 "Installer signature is '$($sig.Status)', not Valid. Not running it." }
-        Say "Signature: Valid ($($sig.SignerCertificate.Subject))"
-        if ($asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
-            $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
-            if ($hash -ne $Matches[1].ToUpper()) { Fail 3 "SHA256 mismatch: got $hash, GitHub says $($Matches[1])." }
-            Say 'SHA256 matches GitHub.'
+        $trust = Test-InstallerTrust -Path $exe -Digest $asset.digest
+        if ($trust.Count -gt 0) {
+            Fail 3 ("The pyRevit installer did not pass the safety check. The script did not run it. " + ($trust -join ' ') + " Tell your BIM manager or IT. Do not run $exe yourself.")
+        }
+        $cert = (Get-AuthenticodeSignature -LiteralPath $exe).SignerCertificate
+        Say "SHA256 matches GitHub. Signature: Valid, signer $(Get-DnPart $cert.Subject 'CN'), issuer $(Get-DnPart $cert.Issuer 'CN')."
+        if ($KnownThumbprints -notcontains $cert.Thumbprint) {
+            Info "New signer certificate thumbprint $($cert.Thumbprint) (subject and issuer match). Maintainers: add it to `$KnownThumbprints."
         }
 
         # Do NOT pass /LOG. With /LOG this installer (Inno Setup 6.7.1) crashes intermittently at
