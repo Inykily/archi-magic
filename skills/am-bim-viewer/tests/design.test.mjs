@@ -38,9 +38,23 @@ test('page CSS has no hue, no extra fonts, no border-left', () => {
   assert.ok(TEMPLATE.includes('family=IBM+Plex+Mono:wght@300;400;500'));
 });
 
+test('3D viewport is a flat clean field: no beam, vignette or gradient, and above the grain layer', () => {
+  const css = TEMPLATE.slice(TEMPLATE.indexOf('/* am-tokens:end */'), TEMPLATE.indexOf('</style>'));
+  const rules = [...css.matchAll(/(#viewport[^{]*)\{([^}]*)\}/g)].map(m => [m[1].trim(), m[2]]);
+  const vp = rules.find(r => r[0] === '#viewport');
+  assert.ok(vp, '#viewport rule present');
+  for (const [sel, body] of rules) {
+    assert.ok(!/gradient|--beam|--vignette|--grain|background-image|url\(/.test(body), sel + ' has no backdrop image: ' + body);
+  }
+  assert.match(vp[1], /background:\s*var\(--bg\);/);
+  const grainZ = Number(/\.am-surface::after[^}]*z-index:\s*(\d+)/.exec(TEMPLATE)[1]);
+  const vpZ = Number((/z-index:\s*(\d+)/.exec(vp[1]) || [])[1]);
+  assert.ok(vpZ > grainZ, 'viewport z-index ' + vpZ + ' above grain ' + grainZ);
+});
+
 const TOKENS = {
   v0: '#0a0a0a', v1: '#1c1c1b', v2: '#3a3a38', v3: '#6b6b68', v4: '#9a9a96', v5: '#c9c9c4', v6: '#e7e7e3', v7: '#f4f4f1',
-  ink: '#f4f4f1', line: 'rgba(244, 244, 241, .22)',
+  ink: '#f4f4f1', ink2: '#9a9a96', line: 'rgba(244, 244, 241, .22)',
 };
 
 test('category colors are value steps v2..v6 of the token scale, never hue', () => {
@@ -60,11 +74,11 @@ test('category colors are value steps v2..v6 of the token scale, never hue', () 
 
 test('scene palette: night selects paper with an ink outline, paper is the inverse', () => {
   const night = core.scenePalette('night', TOKENS);
-  const paper = core.scenePalette('paper', { ...TOKENS, ink: '#0a0a0a', line: 'rgba(10, 10, 10, .14)' });
+  const paper = core.scenePalette('paper', { ...TOKENS, ink: '#0a0a0a', ink2: '#6b6b68', line: 'rgba(10, 10, 10, .14)' });
   assert.deepEqual([night.theme, night.selected, night.outline], ['night', TOKENS.v7, TOKENS.v0]);
   assert.deepEqual([paper.theme, paper.selected, paper.outline], ['paper', TOKENS.v0, TOKENS.v7]);
   assert.equal(night.grid, 'rgba(244, 244, 241, .22)');
   assert.equal(paper.grid, 'rgba(10, 10, 10, .14)');
-  assert.deepEqual([night.gizmo, paper.gizmo], ['#f4f4f1', '#0a0a0a']);
+  assert.deepEqual([night.gizmo, paper.gizmo], ['#9a9a96', '#6b6b68'], 'gizmo in --ink-2');
   assert.deepEqual(night.steps, { 2: TOKENS.v2, 3: TOKENS.v3, 4: TOKENS.v4, 5: TOKENS.v5, 6: TOKENS.v6 });
 });

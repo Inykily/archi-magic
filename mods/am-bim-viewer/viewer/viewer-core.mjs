@@ -348,12 +348,17 @@ export function createGroundGrid(THREE, bounds, color = '#f4f4f1') {
     uniforms: {
       uMinor: { value: 1 }, uMajor: { value: 10 }, uFade: { value: 100 },
       uCenter: { value: new THREE.Vector2() }, uColor: { value: new THREE.Color(color) }, uOpacity: { value: 1 },
+      uDensityFade: { value: 1 }, // 1: lines fade out where cells get denser than a few px (no moire); 0: off (test control)
     },
     vertexShader: 'varying vec3 vWorld; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: [
-      'uniform float uMinor; uniform float uMajor; uniform float uFade; uniform vec2 uCenter; uniform vec3 uColor; uniform float uOpacity;',
+      'uniform float uMinor; uniform float uMajor; uniform float uFade; uniform vec2 uCenter; uniform vec3 uColor; uniform float uOpacity; uniform float uDensityFade;',
       'varying vec3 vWorld;',
-      'float gridLine(vec2 p, float s) { vec2 q = p / s; vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q); return 1.0 - min(min(g.x, g.y), 1.0); }',
+      // Anti-aliased line coverage from fwidth(); then fade by screen-space density: fwidth(q) is
+      // cells per pixel, so as one cell shrinks from ~25 px to ~6 px (far away, or grazing angles)
+      // the lines fade to 0 and dissolve into the clean background instead of aliasing into moire.
+      'float gridLine(vec2 p, float s) { vec2 q = p / s; vec2 w = fwidth(q); vec2 g = abs(fract(q - 0.5) - 0.5) / w; float line = 1.0 - min(min(g.x, g.y), 1.0);',
+      '  float dens = max(w.x, w.y); return line * mix(1.0, 1.0 - smoothstep(0.04, 0.16, dens), uDensityFade); }',
       'void main() {',
       '  vec2 p = vWorld.xy;',
       '  float d = length(p - uCenter);',
@@ -384,7 +389,7 @@ export function placeGroundGrid(grid, bounds) {
 }
 
 // ---- Scene colors per theme (design/DESIGN-SYSTEM.md, "selected (3D)") ----
-// tokens: CSS token values read from the page: v0..v7 ('#rrggbb'), ink, line.
+// tokens: CSS token values read from the page: v0..v7 ('#rrggbb'), ink, ink2, line.
 // Night: the selected element turns paper with an ink hairline outline.
 // Paper: the inverse, an ink element with a paper hairline outline.
 // Hover lifts the category value a little toward the selection value.
@@ -403,7 +408,7 @@ export function scenePalette(theme, tokens) {
     edge: tokens.v0,
     edgeOpacity: isNight ? 0.7 : 0.5,
     grid: tokens.line,
-    gizmo: tokens.ink,
+    gizmo: tokens.ink2 || tokens.ink, // the axis gizmo is quiet: --ink-2
   };
 }
 
@@ -524,4 +529,50 @@ export function renderSvg(elements, state, opts = {}) {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
     '<rect width="100%" height="100%" fill="' + (opts.background || '#0a0a0a') + '"/>' + body + dot + gizmo + '</svg>';
   return { svg, drawn: drawn.length, total, isCut: drawn.length < tris.length };
+}
+
+// ---- Cursors: soft, rounded SVG shapes, value palette only ----
+// Paper fill with an ink outline on BOTH themes: paper is the most legible
+// mark on the night field, and the ink outline separates it on paper.
+// Paper theme: a soft dark drop shadow. Night theme: a dark shadow cannot
+// show on near-black, so a soft paper halo (a glow) takes its place.
+// Shapes keep >= 3px padding inside the 32px canvas so the blur is not clipped.
+export const CURSOR_INK = '#0a0a0a';
+export const CURSOR_PAPER = '#f4f4f1';
+const PLUMP_ARROW = 'M7.5 4.8 L7.5 21.6 Q7.5 24.2 9.6 22.6 L12.4 20.4 L14.9 25.6 Q15.7 27.2 17.3 26.5 L18.9 25.8 Q20.5 25.1 19.7 23.5 L17.3 18.4 L21.3 18.2 Q23.9 18.1 22.1 16.3 L9.9 4.8 Q7.5 2.9 7.5 4.8 Z';
+export const CURSOR_SHAPES = {
+  idle: { hot: [8, 5], fill: PLUMP_ARROW },
+  hover: { hot: [8, 5], fill: PLUMP_ARROW, dot: [24.6, 24.2] },
+  rotate: { hot: [16, 16], strokes: [['M22.6 12.2 A7.6 7.6 0 1 0 22.2 20.6', 6.2, 3], ['M18.6 12.4 L22.8 12.6 L23.2 8.4', 6.2, 3]] },
+  pan: { hot: [16, 16], strokes: [['M12.4 9 L16 5.4 L19.6 9', 5.6, 2.6], ['M12.4 23 L16 26.6 L19.6 23', 5.6, 2.6], ['M9 12.4 L5.4 16 L9 19.6', 5.6, 2.6], ['M23 12.4 L26.6 16 L23 19.6', 5.6, 2.6]], center: 3.2 },
+  zoom: { hot: [13, 13], strokes: [['M19.4 19.4 L25.4 25.4', 7.6, 4.2], ['M13 6 A7 7 0 1 0 13 20 A7 7 0 1 0 13 6 Z', 6, 3]], plus: [13, 13, 3] },
+};
+
+export function cursorSvg(name, theme = 'paper', opts = {}) {
+  const s = CURSOR_SHAPES[name];
+  if (!s) throw new Error('Unknown cursor ' + name);
+  const isNight = theme === 'night';
+  const shadow = isNight
+    ? '<feDropShadow dx="0" dy="0" stdDeviation="1.1" flood-color="' + CURSOR_PAPER + '" flood-opacity="0.35"/>'
+    : '<feDropShadow dx="0.6" dy="1.2" stdDeviation="1.1" flood-color="' + CURSOR_INK + '" flood-opacity="0.45"/>';
+  const hasFilter = opts.filter !== false;
+  let body = '';
+  if (s.fill) body += '<path d="' + s.fill + '" fill="' + CURSOR_PAPER + '" stroke="' + CURSOR_INK + '" stroke-width="2.2" stroke-linejoin="round"/>';
+  for (const [d, outer] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_INK + '" stroke-width="' + outer + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  for (const [d, , inner] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_PAPER + '" stroke-width="' + inner + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  if (s.center) body += '<circle cx="16" cy="16" r="' + s.center + '" fill="' + CURSOR_INK + '" stroke="' + CURSOR_PAPER + '" stroke-width="1.6"/>';
+  if (s.plus) {
+    const [x, y, h] = s.plus;
+    body += '<path d="M' + (x - h) + ' ' + y + ' L' + (x + h) + ' ' + y + ' M' + x + ' ' + (y - h) + ' L' + x + ' ' + (y + h) + '" stroke="' + CURSOR_INK + '" stroke-width="1.8" stroke-linecap="round"/>';
+  }
+  if (s.dot) body += '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="3.6" fill="' + CURSOR_INK + '" stroke="' + CURSOR_PAPER + '" stroke-width="1.6"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    (hasFilter ? '<defs><filter id="s" x="-30%" y="-30%" width="160%" height="160%">' + shadow + '</filter></defs><g filter="url(#s)">' : '<g>') +
+    body + '</g></svg>';
+}
+
+export function cursorCss(name, theme = 'paper') {
+  const s = CURSOR_SHAPES[name];
+  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
+  return 'url("data:image/svg+xml,' + encodeURIComponent(cursorSvg(name, theme)) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
 }

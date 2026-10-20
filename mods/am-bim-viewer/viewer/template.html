@@ -164,7 +164,7 @@
   body { -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; }
   :focus-visible { outline: var(--hair) solid var(--ink); outline-offset: 2px; }
-  #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
 
   /* Header: micro uppercase title with an index, the views, one action */
   header { grid-column: 1 / 3; display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
@@ -193,18 +193,20 @@
     font-size: var(--fs-micro); text-transform: lowercase; transition: color var(--slow) var(--ease); }
   .link:hover { color: var(--ink); }
 
-  /* Viewport: the light beam inside the vignette; the canvas is transparent over it.
+  /* Viewport: a flat, clean field (--bg) so the model is the only bright or dark thing in it.
+     No beam, no vignette, and it sits above the page grain (z-index over .am-surface::after's 50).
      The grid is a world-space ground plane in the 3D scene. */
-  #viewport { position: relative; overflow: hidden; min-height: 260px; background: var(--vignette), var(--beam), var(--bg); }
+  #viewport { position: relative; z-index: 60; overflow: hidden; min-height: 260px; background: var(--bg); }
   #viewport canvas { position: relative; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   #labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
   .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; background: var(--bg); color: var(--ink);
     border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; }
   #viewname { position: absolute; left: var(--space-4); top: var(--space-3); z-index: 2; pointer-events: none; }
-  #gizmo { position: absolute; left: 12px; bottom: 12px; width: 92px; height: 92px; pointer-events: none; z-index: 2; }
+  /* Axis gizmo: small and quiet, hairline arms, no disc. */
+  #gizmo { position: absolute; left: 14px; bottom: 14px; width: 48px; height: 48px; overflow: visible; pointer-events: none; z-index: 2; }
 
   /* Side panel: property sheet and category chips */
-  aside { grid-row: 2 / 4; grid-column: 2; overflow: auto; background: var(--bg); position: relative; }
+  aside { grid-row: 2; grid-column: 2; overflow: auto; background: var(--bg); position: relative; }
   aside::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: var(--hair); background: var(--line); }
   .sec { padding: var(--space-4); border-bottom: var(--hair) solid var(--line); animation: fade var(--slow) var(--ease) both; }
   .sec:nth-child(2) { animation-delay: 80ms; }
@@ -242,25 +244,37 @@
   .chip[aria-pressed="false"] .sw { background: none !important; }
   .chip .n { color: var(--ink-3); }
 
-  /* Key hints */
-  footer { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px var(--space-4); padding: var(--space-2) var(--space-4);
-    border-top: var(--hair) solid var(--line); color: var(--ink-2); font-size: var(--fs-micro); text-transform: lowercase; }
-  footer span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  /* Help: a 22px round "?" at the viewport's bottom right; it opens into a hairline panel of key-cap rows
+     on hover, keyboard focus or tap, and closes on leave, blur or Esc. */
+  #help { position: absolute; right: 14px; bottom: 14px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; }
+  #helpbtn { width: 22px; height: 22px; border-radius: var(--round); border: var(--hair) solid var(--line-strong); background: var(--bg);
+    color: var(--ink-2); font-size: var(--fs-micro); line-height: 1; padding: 0; cursor: pointer; transition: color var(--slow) var(--ease), border-color var(--slow) var(--ease); }
+  #help.open #helpbtn, #helpbtn:hover { color: var(--ink); border-color: var(--ink); }
+  #helppanel { order: -1; margin-bottom: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--bg); border: var(--hair) solid var(--line-strong);
+    display: grid; gap: 6px; color: var(--ink-2); font-size: var(--fs-micro); text-transform: lowercase; white-space: nowrap;
+    transform-origin: 100% 100%; opacity: 0; visibility: hidden; transform: translate(4px, 6px) scale(.96);
+    transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s linear var(--slow); }
+  #help.open #helppanel { opacity: 1; visibility: visible; transform: none; transition: opacity var(--slow) var(--ease), transform var(--slow) var(--ease), visibility 0s; }
+  #helppanel .row { display: flex; align-items: center; gap: 5px; }
+  #help.open #helppanel .row { animation: rowIn var(--slow) var(--ease) both; animation-delay: calc(var(--i) * 35ms); }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
   kbd { font: inherit; color: var(--ink); border: var(--hair) solid var(--line-strong); padding: 0 5px; }
   #toast { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); opacity: 0; background: var(--ink); color: var(--bg);
-    padding: 6px 12px; text-transform: lowercase; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 5; }
+    padding: 6px 12px; text-transform: lowercase; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 70; }
   #toast.on { opacity: 1; }
 
   @media (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto auto; }
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; }
     header { grid-column: 1; padding: var(--space-3) 16px; }
     .meta { display: none; }
     .tools { margin-left: 0; }
     aside { grid-column: 1; grid-row: 3; }
     aside::before { top: 0; left: 0; right: 0; bottom: auto; width: auto; height: var(--hair); }
-    footer { grid-row: 4; }
   }
-  @media (prefers-reduced-motion: reduce) { .sec { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sec, #help.open #helppanel .row { animation: none; }
+    #helppanel, #help.open #helppanel { transition: none; transform: none; }
+  }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -289,7 +303,11 @@
   <div id="viewport">
     <div id="viewname" class="am-micro">Perspective</div>
     <div id="labels"></div>
-    <svg id="gizmo" viewBox="-46 -46 92 92" aria-label="Axis gizmo: X solid, Y dashed, Z dotted"></svg>
+    <div id="help">
+      <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
+      <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
+    </div>
+    <svg id="gizmo" viewBox="-24 -24 48 48" aria-label="Axis gizmo: X solid, Y dashed, Z dotted"></svg>
   </div>
   <aside>
     <section class="sec">
@@ -301,7 +319,6 @@
       <div class="chips" id="cats"></div>
     </section>
   </aside>
-  <footer id="hint"></footer>
 </div>
 <div id="toast" role="status"></div>
 <script type="module">
@@ -323,7 +340,7 @@ function toColor(s, fallback) {
   return new THREE.Color(s && s[0] === '#' ? s : fallback);
 }
 function readTokens() {
-  const t = { ink: css('--ink') || '#0a0a0a', line: css('--line') || 'rgba(10, 10, 10, .14)' };
+  const t = { ink: css('--ink') || '#0a0a0a', ink2: css('--ink-2') || '#6b6b68', line: css('--line') || 'rgba(10, 10, 10, .14)' };
   for (const k of [0, 1, 2, 3, 4, 5, 6, 7]) t['v' + k] = css('--v' + k) || '#' + VALUE_RGB[k in VALUE_RGB ? k : 0].map(c => c.toString(16).padStart(2, '0')).join('');
   return t;
 }
@@ -337,7 +354,7 @@ let pal = scenePalette(currentTheme(), readTokens());
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-renderer.setClearColor(0x000000, 0); // transparent: the CSS beam and vignette are the backdrop
+renderer.setClearColor(0x000000, 0); // transparent over the flat --bg of the viewport
 vp.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = null;
@@ -439,31 +456,14 @@ function tint(mesh) {
   else c.copy(base);
   mesh.userData.outline.visible = mesh === selected;
 }
-// ---------- Cursors: SVG, readable on paper and night ----------
-// Paper body with an ink hairline outline; the hover cursor carries the focal dot (ink, ringed in paper).
-const CURSOR_INK = '#0a0a0a', CURSOR_FILL = '#f4f4f1';
-const CURSOR_SHAPES = {
-  idle:   { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z' },
-  hover:  { hot: [5, 4], d: 'M5 4 L5 23.5 L10.2 18.6 L14 26.6 L17.8 24.9 L14.1 17.2 L21.2 17.2 Z', dot: [24, 24.5] },
-  rotate: { hot: [16, 16], d: 'M25 14 A9.5 9.5 0 1 0 22.6 22.9 M25 7.5 L25 14 L18.5 14', open: true },
-  pan:    { hot: [16, 16], d: 'M16 4 L16 28 M4 16 L28 16 M12 8 L16 4 L20 8 M12 24 L16 28 L20 24 M8 12 L4 16 L8 20 M24 12 L28 16 L24 20', open: true },
-  zoom:   { hot: [13, 13], d: 'M13 4.5 A8.5 8.5 0 1 0 13 21.5 A8.5 8.5 0 1 0 13 4.5 Z M19.4 19.4 L27 27 M9 13 L17 13 M13 9 L13 17', open: true },
-};
-function cursorCss(name) {
-  const s = CURSOR_SHAPES[name];
-  const layer = (stroke, fill, w) =>
-    '<path d="' + s.d + '" fill="' + (s.open ? 'none' : fill) +
-    '" stroke="' + stroke + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"/>';
-  const body = s.open
-    ? layer(CURSOR_INK, 'none', 5.5) + layer(CURSOR_FILL, 'none', 2.6)
-    : layer(CURSOR_INK, CURSOR_FILL, 2.4);
-  const dot = s.dot ? '<circle cx="' + s.dot[0] + '" cy="' + s.dot[1] + '" r="4.6" fill="' + CURSOR_INK + '" stroke="' + CURSOR_FILL + '" stroke-width="2"/>' : '';
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' + body + dot + '</svg>';
-  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
-  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
+// ---------- Cursors: soft rounded SVG shapes from viewer-core (cursorSvg / cursorCss) ----------
+// Paper fill + ink outline; a soft drop shadow by day, a paper halo by night (re-made on theme change).
+let cursorName = '', cursorTheme = '';
+function setCursor(name) {
+  if (name === cursorName && pal.theme === cursorTheme) return;
+  cursorName = name; cursorTheme = pal.theme;
+  vp.style.cursor = cursorCss(name, pal.theme);
 }
-let cursorName = '';
-function setCursor(name) { if (name === cursorName) return; cursorName = name; vp.style.cursor = cursorCss(name); }
 setCursor('idle');
 
 function setHover(m) { if (m === hovered) return; const old = hovered; hovered = m; tint(old); tint(m); if (!drag) setCursor(m ? 'hover' : 'idle'); requestRender(); }
@@ -600,28 +600,50 @@ function setViewName(n) {
 function setView(n) { setNamedView(state, n, bounds); setViewName(n); requestRender(); }
 viewButtons.forEach(b => b.addEventListener('click', () => { const end = setNamedView({ ...state, target: state.target.slice() }, b.dataset.view, bounds); state.projection = end.projection; setViewName(b.dataset.view); frameTo(end); }));
 document.getElementById('fit').addEventListener('click', () => frameTo(dblClickView(state, null, bounds)));
-function updateHint() {
-  const k = (keys, what) => '<span>' + keys.map(x => '<kbd>' + x + '</kbd>').join('+') + ' ' + what + '</span>';
-  document.getElementById('hint').innerHTML = (state.projection === 'parallel'
-    ? [k(['Right drag'], 'pan'), k(['Ctrl', 'Shift', 'Right'], 'rotate')]
-    : [k(['Right drag'], 'rotate'), k(['Shift', 'Right'], 'pan')]).join('') +
-    k(['Ctrl', 'Right'], 'zoom') + k(['Wheel'], 'zoom at cursor') + k(['Click'], 'select') + k(['Double-click'], 'zoom to element');
+// ---------- Help: collapsed "?" that opens into the key bindings ----------
+const helpEl = document.getElementById('help'), helpBtn = document.getElementById('helpbtn'), helpPanel = document.getElementById('helppanel');
+function helpRows() {
+  return (state.projection === 'parallel'
+    ? [[['Right drag'], 'pan'], [['Ctrl', 'Shift', 'Right'], 'rotate']]
+    : [[['Right drag'], 'rotate'], [['Shift', 'Right'], 'pan']]).concat([
+    [['Ctrl', 'Right'], 'zoom'], [['Wheel'], 'zoom at cursor'], [['Click'], 'select'], [['Double-click'], 'zoom to element'],
+    [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag'],
+  ]);
 }
+function updateHint() {
+  helpPanel.innerHTML = helpRows().map(([keys, what], i) =>
+    '<span class="row" style="--i:' + i + '">' + keys.map(x => '<kbd>' + escHtml(x) + '</kbd>').join('+') + ' ' + escHtml(what) + '</span>').join('');
+}
+let helpHover = false;
+function setHelp(isOpen) {
+  if (helpEl.classList.contains('open') === isOpen) return;
+  helpEl.classList.toggle('open', isOpen);
+  helpBtn.setAttribute('aria-expanded', String(isOpen));
+}
+helpEl.addEventListener('mouseenter', () => { helpHover = true; setHelp(true); });
+helpEl.addEventListener('mouseleave', () => { helpHover = false; if (!helpEl.contains(document.activeElement)) setHelp(false); });
+helpEl.addEventListener('focusin', () => setHelp(true));
+helpEl.addEventListener('focusout', e => { if (!helpEl.contains(e.relatedTarget) && !helpHover) setHelp(false); });
+// Tap on touch toggles (state taken before the tap's own focus opened it); mouse uses hover and focus.
+let helpWasOpen = false;
+helpBtn.addEventListener('pointerdown', () => { helpWasOpen = helpEl.classList.contains('open'); });
+helpBtn.addEventListener('pointerup', e => { if (e.pointerType === 'touch') setHelp(!helpWasOpen); });
+helpEl.addEventListener('keydown', e => { if (e.key === 'Escape') { helpHover = false; setHelp(false); helpBtn.blur(); } });
 
 // ---------- Annotations, gizmo, render ----------
 const labelsEl = document.getElementById('labels');
 const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
 const gizmo = document.getElementById('gizmo');
-// Axes without hue: X solid, Y dashed, Z dotted, each labeled, in the ink token.
+// Axes without hue: X solid, Y dashed, Z dotted; 1px hairlines in --ink-2, no disc, each labeled.
 function drawGizmo() {
   const ax = gizmoAxes(state);
   const ink = pal.gizmo;
-  const spec = [['x', 'X', '', 2], ['y', 'Y', '5 3.5', 1.6], ['z', 'Z', '0.1 4', 2.4]];
-  let svg = '<circle r="43" fill="none" stroke="' + css('--line') + '"/>';
-  for (const [key, lab, dash, w] of spec) {
+  const spec = [['x', 'X', ''], ['y', 'Y', '3 2'], ['z', 'Z', '1 2']];
+  let svg = '';
+  for (const [key, lab, dash] of spec) {
     const [sx, sy] = ax[key];
-    svg += '<line x1="0" y1="0" x2="' + (sx * 28).toFixed(1) + '" y2="' + (-sy * 28).toFixed(1) + '" stroke="' + ink + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
-      '<text x="' + (sx * 37).toFixed(1) + '" y="' + (-sy * 37 + 4).toFixed(1) + '" fill="' + ink + '" font-size="11" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" font-weight="500" text-anchor="middle">' + lab + '</text>';
+    svg += '<line x1="0" y1="0" x2="' + (sx * 17).toFixed(1) + '" y2="' + (-sy * 17).toFixed(1) + '" stroke="' + ink + '" stroke-width="1"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+      '<text x="' + (sx * 21.5).toFixed(1) + '" y="' + (-sy * 21.5 + 3.5).toFixed(1) + '" fill="' + ink + '" font-size="10.5" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" text-anchor="middle">' + lab + '</text>';
   }
   gizmo.innerHTML = svg;
 }
@@ -647,7 +669,7 @@ new ResizeObserver(requestRender).observe(vp);
 
 // ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
 // On each am-theme-change, re-read the tokens and recolor the scene: category values,
-// selection, outline, edges, grid and gizmo. The backdrop (beam, vignette) is CSS.
+// selection, outline, edges, grid and gizmo. The flat backdrop is CSS (--bg).
 function applyTheme() {
   pal = scenePalette(currentTheme(), readTokens());
   for (const k of Object.keys(catStep)) catColor[k].copy(toColor(pal.steps[catStep[k]], '#9a9a96'));
@@ -662,6 +684,7 @@ function applyTheme() {
     m.userData.outline.material.color.copy(OUTLINE); tint(m);
   }
   for (const cat of Object.keys(chipFor)) paintSwatch(chipFor[cat].querySelector('.sw'), cat);
+  setCursor(cursorName || 'idle');
   requestRender();
 }
 document.addEventListener('am-theme-change', applyTheme);
@@ -682,6 +705,10 @@ window.__bim = {
   isAnimating: () => anim !== null,
   grid: () => ({ inScene: grid.parent === scene, z: grid.position.z, matrix: grid.matrixWorld.toArray() }),
   visibleCount: cat => (byCat[cat] || []).filter(m => m.visible).length,
+  gridOnly: on => { for (const m of meshes) m.visible = on ? false : chipFor[m.userData.el.category || 'Generic'].getAttribute('aria-pressed') === 'true'; grid.visible = true; render(); },
+  gridDensityFade: on => { grid.material.uniforms.uDensityFade.value = on ? 1 : 0; render(); },
+  renderNow: () => render(),
+  cursor: { svg: cursorSvg, names: Object.keys(CURSOR_SHAPES), current: () => vp.style.cursor },
   sceneColors: () => ({
     theme: pal.theme, selected: hex(SELECTED), outline: hex(OUTLINE), edge: hex(EDGE),
     grid: hex(grid.material.uniforms.uColor.value), gizmo: pal.gizmo, backdrop: getComputedStyle(vp).backgroundColor,

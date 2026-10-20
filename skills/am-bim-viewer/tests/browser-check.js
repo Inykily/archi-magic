@@ -61,10 +61,74 @@
   }
   const night = await themed('night'), paper = await themed('paper');
   html.className = was; document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: (window.amTheme && amTheme.get()) || 'paper' } })); await wait(60);
-  results.themeNight = night.theme === 'night' && night.selected === '#f4f4f1' && night.outline === '#0a0a0a' && night.gizmo === '#f4f4f1' && night.backdrop === 'rgb(10, 10, 10)';
-  results.themePaper = paper.theme === 'paper' && paper.selected === '#0a0a0a' && paper.outline === '#f4f4f1' && paper.gizmo === '#0a0a0a' && paper.backdrop === 'rgb(244, 244, 241)';
+  results.themeNight = night.theme === 'night' && night.selected === '#f4f4f1' && night.outline === '#0a0a0a' && night.gizmo === '#9a9a96' && night.backdrop === 'rgb(10, 10, 10)';
+  results.themePaper = paper.theme === 'paper' && paper.selected === '#0a0a0a' && paper.outline === '#f4f4f1' && paper.gizmo === '#6b6b68' && paper.backdrop === 'rgb(244, 244, 241)';
   results.themeRecolorsGrid = night.grid !== paper.grid;
   results.categoriesAreGray = Object.values(night.categories).every(h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return Math.max(...c) - Math.min(...c) <= 6; });
-  results.oneViewLabel =document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
-  return { pass: Object.values(results).every(Boolean), results };
+  // Clean viewport: flat --bg, no image behind the model, and the page grain (z 50) stays below it.
+  const vs = getComputedStyle(document.getElementById('viewport'));
+  const grainZ = Number(getComputedStyle(document.body, '::after').zIndex);
+  results.viewportFlat = vs.backgroundImage === 'none' && getComputedStyle(c).backgroundImage === 'none' && Number(vs.zIndex) > grainZ;
+  // Axis gizmo: small and quiet, at most 48 px.
+  const gz = document.getElementById('gizmo').getBoundingClientRect();
+  results.gizmoSmall = gz.width > 0 && gz.width <= 48 && gz.height <= 48;
+  // Grid at a grazing angle: the far band dissolves into the clean field (low pixel variance);
+  // negative control with the density fade off must alias into texture (high variance).
+  async function farBandVariance(fade) {
+    __bim.gridOnly(true); __bim.gridDensityFade(fade);
+    const s = __bim.state, b = __bim.bounds;
+    s.projection = 'perspective'; s.elevation = 3 * Math.PI / 180;
+    s.target = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, b.min[2]];
+    s.distance = Math.max(b.max[0] - b.min[0], b.max[1] - b.min[1]) * 0.6;
+    __bim.renderNow(); await wait(30);
+    const w = c.width, h = c.height, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); g.fillStyle = getComputedStyle(document.getElementById('viewport')).backgroundColor; g.fillRect(0, 0, w, h); g.drawImage(c, 0, 0);
+    const horizon = h / 2 - (Math.tan(s.elevation) / Math.tan((s.fov * Math.PI) / 360)) * (h / 2);
+    const y0 = Math.round(horizon + h * 0.005), y1 = Math.round(horizon + h * 0.08);
+    const px = g.getImageData(Math.round(w * 0.1), y0, Math.round(w * 0.8), y1 - y0).data;
+    // High-frequency energy: mean absolute luminance step between neighbouring pixels (texture, not lines).
+    const bw = Math.round(w * 0.8), bh = y1 - y0, L = i => px[i] * .2126 + px[i + 1] * .7152 + px[i + 2] * .0722;
+    let n = 0, e = 0;
+    for (let y = 0; y < bh - 1; y++) for (let x = 0; x < bw - 1; x++) { const i = (y * bw + x) * 4; e += Math.abs(L(i) - L(i + 4)) + Math.abs(L(i) - L(i + bw * 4)); n++; }
+    return e / n;
+  }
+  const varOn = await farBandVariance(true), varOff = await farBandVariance(false);
+  __bim.gridDensityFade(true); __bim.gridOnly(false); __bim.setView('perspective'); await wait(30);
+  results.gridNoMoire = varOn < 4.5 && varOff > 4.5 && varOff / varOn > 2; // measured: on 3.0, off 7.3 (night demo)
+  results.gridVariance = { on: Math.round(varOn * 10) / 10, off: Math.round(varOff * 10) / 10, isInfo: true };
+  // Cursors: the soft shadow (paper) or halo (night) really renders outside the outline.
+  // Render each cursor SVG into an <img> at 1x and 3x; count pixels that are empty without the
+  // filter but painted with it. Negative control: the same count on the unfiltered render is 0.
+  async function haloPixels(name, theme, scale, isFiltered) {
+    const svgOf = f => __bim.cursor.svg(name, theme, { filter: f });
+    const load = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = 'data:image/svg+xml,' + encodeURIComponent(src); });
+    const draw = async src => { const cv = document.createElement('canvas'); cv.width = cv.height = 32 * scale; const g = cv.getContext('2d'); g.drawImage(await load(src), 0, 0, cv.width, cv.height); return g.getImageData(0, 0, cv.width, cv.height).data; };
+    const bare = await draw(svgOf(false)), test = await draw(svgOf(isFiltered));
+    let shape = 0, halo = 0;
+    for (let i = 3; i < bare.length; i += 4) { if (bare[i] > 0) shape++; else if (test[i] > 6) halo++; }
+    return { shape, halo };
+  }
+  const cursorRows = [];
+  for (const name of __bim.cursor.names) for (const theme of ['paper', 'night']) for (const scale of [1, 3]) {
+    const on = await haloPixels(name, theme, scale, true), off = await haloPixels(name, theme, scale, false);
+    cursorRows.push(on.shape > 0 && on.halo >= 8 * scale && off.halo === 0);
+  }
+  results.cursorShadowRenders = cursorRows.length === 20 && cursorRows.every(Boolean);
+  // Help: collapsed at rest, opens on hover and focus, closes on leave and Esc; aria-expanded follows.
+  const help = document.getElementById('help'), hb = document.getElementById('helpbtn'), hp = document.getElementById('helppanel');
+  const shown = () => getComputedStyle(hp).visibility === 'visible';
+  const rest = !shown() && hb.getAttribute('aria-expanded') === 'false';
+  help.dispatchEvent(new MouseEvent('mouseenter')); await wait(20);
+  const hovered = shown() && hb.getAttribute('aria-expanded') === 'true' && hp.querySelectorAll('kbd').length >= 9;
+  help.dispatchEvent(new MouseEvent('mouseleave')); await wait(450);
+  const left = !shown() && hb.getAttribute('aria-expanded') === 'false';
+  // Without OS focus (an automated pane), focus() moves activeElement but fires no focus events: send focusin.
+  hb.focus(); if (!document.hasFocus()) hb.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); await wait(20);
+  const focused = shown() && hb.getAttribute('aria-expanded') === 'true';
+  hb.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(450);
+  const escaped = !shown() && hb.getAttribute('aria-expanded') === 'false' && hb.getAttribute('aria-controls') === 'helppanel';
+  results.helpCollapses = rest && hovered && left && focused && escaped;
+  results.noFooter = !document.querySelector('footer');
+  results.oneViewLabel = document.querySelectorAll('#viewname *').length === 0 && document.getElementById('viewname').textContent !== '';
+  return { pass: Object.entries(results).every(([k, v]) => v && (v === true || v.isInfo)), results };
 })();
