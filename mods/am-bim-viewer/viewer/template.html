@@ -202,8 +202,19 @@
   .tag { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; background: var(--bg); color: var(--ink);
     border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); white-space: nowrap; }
   #viewname { position: absolute; left: var(--space-4); top: var(--space-3); z-index: 2; pointer-events: none; }
-  /* Axis gizmo: small and quiet, hairline arms, no disc. */
-  #gizmo { position: absolute; left: 14px; bottom: 14px; width: 48px; height: 48px; overflow: visible; pointer-events: none; z-index: 2; }
+  /* View cube (top right): hairline wireframe, no fill until hover, compass ring with N/E/S/W. */
+  #cubewrap { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; align-items: flex-start; gap: 2px; }
+  #viewcube { width: 84px; height: 84px; overflow: visible; touch-action: none; }
+  #viewcube .cell { fill: transparent; stroke: none; cursor: pointer; transition: fill var(--slow) var(--ease); }
+  #viewcube .cell:hover { fill: var(--line); }
+  #viewcube .edge { fill: none; stroke: var(--ink-2); stroke-width: 1; pointer-events: none; }
+  #viewcube .ring { fill: none; stroke: var(--ink-2); stroke-width: 1; pointer-events: none; }
+  #viewcube .ringhit { fill: none; stroke: transparent; stroke-width: 9; pointer-events: visibleStroke; cursor: ew-resize; }
+  #viewcube text { fill: var(--ink-2); font-family: var(--font); font-size: var(--fs-micro); text-anchor: middle; pointer-events: none; }
+  #viewcube text.face { fill: var(--ink); }
+  #cubehome { width: 20px; height: 20px; padding: 2px; border: 0; background: none; color: var(--ink-2); cursor: pointer; transition: color var(--slow) var(--ease); }
+  #cubehome:hover { color: var(--ink); }
+  #cubehome svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
 
   /* Side panel: property sheet and category chips */
   aside { grid-row: 2; grid-column: 2; overflow: auto; background: var(--bg); position: relative; }
@@ -321,11 +332,9 @@
     </div>
     <div class="meta am-quiet"><span>view <b id="srcview">-</b></span><span>ft / z up</span></div>
     <div class="tools">
-      <div class="seg" role="group" aria-label="Named views">
-        <button data-view="top">Top</button>
-        <button data-view="front">Front</button>
-        <button data-view="right">Right</button>
-        <button data-view="perspective">Perspective</button>
+      <div class="seg" role="group" aria-label="Projection">
+        <button data-proj="perspective">perspective</button>
+        <button data-proj="parallel">parallel</button>
       </div>
       <button class="btn" id="fit" title="Zoom extents">zoom extents</button>
       <button class="link" id="theme" title="Switch day / night until the next 07:00 or 19:00">paper / night</button>
@@ -341,7 +350,10 @@
       <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
       <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
     </div>
-    <svg id="gizmo" viewBox="-24 -24 48 48" aria-label="Axis gizmo: X solid, Y dashed, Z dotted"></svg>
+    <div id="cubewrap">
+      <button id="cubehome" type="button" title="Home: the default perspective" aria-label="Home: the default perspective"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.2 L8 3.2 L13.5 8.2 M4.6 6.6 V12.8 H11.4 V6.6"/></svg></button>
+      <svg id="viewcube" viewBox="-42 -42 84 84" role="img" aria-label="View cube: click a face, edge or corner; drag to orbit; drag the ring to spin"></svg>
+    </div>
   </div>
   <aside>
     <section class="sec">
@@ -640,16 +652,77 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 
 // ---------- Named views ----------
-const viewButtons = [...document.querySelectorAll('[data-view]')];
+const projButtons = [...document.querySelectorAll('[data-proj]')];
 function setViewName(n) {
   viewName = n;
   const label = n === 'rotated' ? 'Rotated' : n;
   document.getElementById('viewname').textContent = n === 'perspective' ? label : label + ' / ' + (state.projection === 'parallel' ? 'parallel' : 'perspective');
-  viewButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === n)));
+  projButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.proj === state.projection)));
   updateHint();
 }
 function setView(n) { setNamedView(state, n, bounds); setViewName(n); requestRender(); }
-viewButtons.forEach(b => b.addEventListener('click', () => { const end = setNamedView({ ...state, target: state.target.slice() }, b.dataset.view, bounds); state.projection = end.projection; setViewName(b.dataset.view); frameTo(end); }));
+// Projection toggle: keep the direction and the visible size at the target.
+function setProjection(p, s = state) {
+  if (s.projection === p) return s;
+  const t = Math.tan((s.fov * Math.PI) / 360);
+  if (p === 'parallel') s.viewHeight = 2 * s.distance * t; else s.distance = s.viewHeight / 2 / t;
+  s.projection = p;
+  return s;
+}
+projButtons.forEach(b => b.addEventListener('click', () => { setProjection(b.dataset.proj); setViewName(viewName === 'perspective' && b.dataset.proj === 'parallel' ? 'rotated' : viewName); requestRender(); }));
+
+// ---------- View cube: faces, edges and corners; drag to orbit; drag the ring to spin ----------
+const cubeEl = document.getElementById('viewcube');
+const CUBE_PX = 19;
+function drawCube() {
+  const L = cubeLayout(state), f = n => n.toFixed(1), P = p => f(p[0] * CUBE_PX) + ' ' + f(-p[1] * CUBE_PX);
+  let s = '<path class="ring" d="M' + L.ring.map(P).join('L') + '"/><path class="ringhit" data-ring="1" d="M' + L.ring.map(P).join('L') + '"/>';
+  for (const [k, p] of Object.entries(L.compass)) s += '<text x="' + f(p[0] * CUBE_PX) + '" y="' + f(-p[1] * CUBE_PX + 3.5) + '">' + k + '</text>';
+  for (const face of L.faces) {
+    for (const c of face.cells) s += '<polygon class="cell" data-names="' + c.names.join(' ') + '" points="' + c.pts.map(p => P(p).replace(' ', ',')).join(' ') + '"/>';
+    s += '<polygon class="edge" points="' + face.outline.map(p => P(p).replace(' ', ',')).join(' ') + '"/>';
+    // A label only where the face is wide enough on screen for it (no overlap at 45 deg views).
+    const xs = face.outline.map(p => p[0] * CUBE_PX), wide = Math.max(...xs) - Math.min(...xs);
+    if (face.facing > 0.5 && wide >= face.name.length * 6.4 + 6) s += '<text class="face" x="' + f(face.center[0] * CUBE_PX) + '" y="' + f(-face.center[1] * CUBE_PX + 3.5) + '">' + face.name.toUpperCase() + '</text>';
+  }
+  cubeEl.innerHTML = s;
+}
+function goCube(names) {
+  const v = cubeView(names);
+  const end = { ...state, target: state.target.slice(), azimuth: v.azimuth, elevation: v.elevation };
+  setProjection(v.projection || state.projection, end);
+  fitBounds(end, bounds);
+  setProjection(end.projection); // convert the current size too, so the move is smooth
+  setViewName(names.length === 1 ? names[0] : names.join('-'));
+  frameTo(end);
+}
+let cubeDrag = null;
+cubeEl.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const cell = e.target.closest('.cell'), isRing = !!e.target.closest('[data-ring]');
+  if (!cell && !isRing) return;
+  e.preventDefault();
+  cubeDrag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, names: cell ? cell.dataset.names.split(' ') : null, isRing, moved: false };
+  try { cubeEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+});
+cubeEl.addEventListener('pointermove', e => {
+  if (!cubeDrag) return;
+  const dx = e.clientX - cubeDrag.x, dy = e.clientY - cubeDrag.y;
+  if (!cubeDrag.moved && Math.hypot(e.clientX - cubeDrag.x0, e.clientY - cubeDrag.y0) < 4) return;
+  cubeDrag.moved = true; cubeDrag.x = e.clientX; cubeDrag.y = e.clientY;
+  if (cubeDrag.isRing) state.azimuth -= dx * 0.012; // spin about world Z
+  else orbit(state, dx, dy);                        // same as right drag
+  setViewName('rotated'); requestRender();
+});
+cubeEl.addEventListener('pointerup', () => {
+  if (cubeDrag && !cubeDrag.moved && cubeDrag.names) goCube(cubeDrag.names);
+  cubeDrag = null;
+});
+document.getElementById('cubehome').addEventListener('click', () => {
+  const end = setNamedView({ ...state, target: state.target.slice() }, 'perspective', bounds);
+  setProjection(end.projection); setViewName('perspective'); frameTo(end);
+});
 document.getElementById('fit').addEventListener('click', () => frameTo(dblClickView(state, null, bounds)));
 // ---------- Help: collapsed "?" that opens into the key bindings ----------
 const helpEl = document.getElementById('help'), helpBtn = document.getElementById('helpbtn'), helpPanel = document.getElementById('helppanel');
@@ -706,23 +779,9 @@ helpBtn.addEventListener('pointerdown', () => { helpWasOpen = helpEl.classList.c
 helpBtn.addEventListener('pointerup', e => { if (e.pointerType === 'touch') setHelp(!helpWasOpen); });
 helpEl.addEventListener('keydown', e => { if (e.key === 'Escape') { helpOver = 0; setHelp(false); helpBtn.blur(); } });
 
-// ---------- Annotations, gizmo, render ----------
+// ---------- Annotations, render ----------
 const labelsEl = document.getElementById('labels');
 const tags = (DATA.annotations || []).map(a => { const d = document.createElement('div'); d.className = 'tag'; d.textContent = a.text; labelsEl.append(d); return { a, d }; });
-const gizmo = document.getElementById('gizmo');
-// Axes without hue: X solid, Y dashed, Z dotted; 1px hairlines in --ink-2, no disc, each labeled.
-function drawGizmo() {
-  const ax = gizmoAxes(state);
-  const ink = pal.gizmo;
-  const spec = [['x', 'X', ''], ['y', 'Y', '3 2'], ['z', 'Z', '1 2']];
-  let svg = '';
-  for (const [key, lab, dash] of spec) {
-    const [sx, sy] = ax[key];
-    svg += '<line x1="0" y1="0" x2="' + (sx * 17).toFixed(1) + '" y2="' + (-sy * 17).toFixed(1) + '" stroke="' + ink + '" stroke-width="1"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
-      '<text x="' + (sx * 21.5).toFixed(1) + '" y="' + (-sy * 21.5 + 3.5).toFixed(1) + '" fill="' + ink + '" font-size="10.5" font-family="IBM Plex Mono, ui-monospace, Consolas, monospace" text-anchor="middle">' + lab + '</text>';
-  }
-  gizmo.innerHTML = svg;
-}
 function aspect() { return Math.max(1e-3, vp.clientWidth / Math.max(1, vp.clientHeight)); }
 let pending = false;
 function requestRender() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; render(); }); } }
@@ -739,7 +798,7 @@ function render() {
     d.style.left = ((v.x + 1) / 2) * w + 'px';
     d.style.top = ((1 - v.y) / 2) * h + 'px';
   }
-  drawGizmo();
+  drawCube();
   drawGumball();
 }
 new ResizeObserver(requestRender).observe(vp);

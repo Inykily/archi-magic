@@ -69,9 +69,35 @@
   const vs = getComputedStyle(document.getElementById('viewport'));
   const grainZ = Number(getComputedStyle(document.body, '::after').zIndex);
   results.viewportFlat = vs.backgroundImage === 'none' && getComputedStyle(c).backgroundImage === 'none' && Number(vs.zIndex) > grainZ;
-  // Axis gizmo: small and quiet, at most 48 px.
-  const gz = document.getElementById('gizmo').getBoundingClientRect();
-  results.gizmoSmall = gz.width > 0 && gz.width <= 48 && gz.height <= 48;
+  // View cube (replaces the axis gizmo): about 84 px, top right, clear of the help "?".
+  const cubeR = document.getElementById('viewcube').getBoundingClientRect(), helpR = document.getElementById('helpbtn').getBoundingClientRect();
+  const vpBox = document.getElementById('viewport').getBoundingClientRect();
+  results.cubeSizeAndPlace = cubeR.width > 0 && cubeR.width <= 84 && cubeR.height <= 84 && cubeR.right <= vpBox.right && cubeR.top - vpBox.top < 30 && cubeR.bottom < helpR.top && !document.getElementById('gizmo');
+  // Click cells with real hit-testing (center of the cell polygon -> elementFromPoint).
+  async function clickCell(names) {
+    const cell = [...document.querySelectorAll('#viewcube .cell')].find(p => p.dataset.names === names);
+    if (!cell) return false;
+    const b = cell.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    if (hit !== cell) return false;
+    const ev = t => new PointerEvent(t, { bubbles: true, pointerId: 5, pointerType: 'mouse', button: 0, buttons: t === 'pointerup' ? 0 : 1, clientX: x, clientY: y });
+    hit.dispatchEvent(ev('pointerdown')); hit.dispatchEvent(ev('pointerup')); await wait(450); __bim.renderNow();
+    return true;
+  }
+  __bim.setView('perspective'); __bim.renderNow();
+  const topClicked = await clickCell('top');
+  const ctr = __bim.bounds, cc = [(ctr.min[0] + ctr.max[0]) / 2, (ctr.min[1] + ctr.max[1]) / 2, ctr.min[2]];
+  const o = __bim.project(...cc), pn = __bim.project(cc[0], cc[1] + 10, cc[2]), pe = __bim.project(cc[0] + 10, cc[1], cc[2]);
+  results.cubeTopNorthUp = topClicked && __bim.state.projection === 'parallel' && pn.y < o.y - 5 && Math.abs(pn.x - o.x) < 0.5 && pe.x > o.x + 5 && Math.abs(pe.y - o.y) < 0.5;
+  __bim.setView('perspective'); __bim.state.azimuth += Math.PI; __bim.renderNow(); // orbit to the north-west: BACK is visible
+  const shownAfterOrbit = [...new Set([...document.querySelectorAll('#viewcube .cell')].map(c => c.dataset.names.split(' ')[0]))].sort().join();
+  const backClicked = await clickCell('back');
+  results.cubeFollowsAndBack = shownAfterOrbit === 'back,left,top' && backClicked && Math.abs(__bim.state.azimuth - Math.PI / 2) < 1e-6 && __bim.state.elevation === 0;
+  const ring = document.querySelector('#viewcube [data-ring]'), rb = ring.getBoundingClientRect(), az0 = __bim.state.azimuth;
+  const rev = (t, X) => new PointerEvent(t, { bubbles: true, pointerId: 6, pointerType: 'mouse', button: 0, buttons: t === 'pointerup' ? 0 : 1, clientX: X, clientY: rb.bottom - 2 });
+  ring.dispatchEvent(rev('pointerdown', rb.left + rb.width / 2)); document.getElementById('viewcube').dispatchEvent(rev('pointermove', rb.left + rb.width / 2 + 40)); document.getElementById('viewcube').dispatchEvent(rev('pointerup', rb.left + rb.width / 2 + 40));
+  results.cubeRingSpins = Math.abs(__bim.state.azimuth - az0) > 0.3 && __bim.state.elevation === 0;
+  __bim.setView('perspective');
   // Grid at a grazing angle: the far band dissolves into the clean field (low pixel variance);
   // negative control with the density fade off must alias into texture (high variance).
   async function farBandVariance(fade) {

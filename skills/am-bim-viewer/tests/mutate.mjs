@@ -58,8 +58,12 @@ const MUTANTS = [
     'mm: 304.8, cm: 30.48', 'mm: 30.48, cm: 30.48'],
   ['typed input: snapped like a drag',
     "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = value; d.update({ move }); }", "  else { const move = [0, 0, 0]; move[AXIS_INDEX[handle]] = snapTo(value, GUMBALL.moveSnap); d.update({ move }); }"],
+  ['view cube: FRONT and BACK swapped (front camera on the north side)',
+    'front: { n: [0, -1, 0],', 'front: { n: [0, 1, 0],'],
+  ['view cube: BOTTOM with north down',
+    "azimuth = d[2] > 0 ? -90 * DEG : 90 * DEG;", "azimuth = -90 * DEG;"],
 ];
-const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs'].map(f => join(here, f));
+const tests = ['orientation.test.mjs', 'camera-input.test.mjs', 'interaction.test.mjs', 'gumball.test.mjs', 'typed.test.mjs', 'viewcube.test.mjs'].map(f => join(here, f));
 let survivors = 0;
 for (const [name, from, to] of MUTANTS) {
   let text = source;

@@ -26,6 +26,11 @@ export const NAMED_VIEWS = {
   front: { azimuth: -90 * DEG, elevation: 0, projection: 'parallel' },
   right: { azimuth: 0, elevation: 0, projection: 'parallel' },
   perspective: { azimuth: -45 * DEG, elevation: Math.atan(1 / Math.SQRT2), projection: 'perspective' },
+  // View cube faces not above: Back = camera at +Y looking south; Left = camera at -X looking east;
+  // Bottom = looking up +Z with north at the top of the screen (east is then on the left).
+  back: { azimuth: 90 * DEG, elevation: 0, projection: 'parallel' },
+  left: { azimuth: 180 * DEG, elevation: 0, projection: 'parallel' },
+  bottom: { azimuth: 90 * DEG, elevation: -90 * DEG, projection: 'parallel' },
 };
 
 // Rhino mouse mapping (Windows defaults), from:
@@ -529,6 +534,63 @@ export function renderSvg(elements, state, opts = {}) {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
     '<rect width="100%" height="100%" fill="' + (opts.background || '#0a0a0a') + '"/>' + body + dot + gizmo + '</svg>';
   return { svg, drawn: drawn.length, total, isCut: drawn.length < tris.length };
+}
+
+// ---- View cube (Revit conventions, Z up, Y = north) ----
+// Each face's normal points from the model toward the camera that looks at that face:
+// FRONT = camera south looking north; BACK = camera north looking south; RIGHT = camera east
+// looking west; LEFT = camera west looking east; TOP looks down; BOTTOM looks up.
+// a and b span the face (cell column and row directions, b is "up" on the face as drawn).
+export const CUBE_FACES = {
+  front: { n: [0, -1, 0], a: [1, 0, 0], b: [0, 0, 1] },
+  back: { n: [0, 1, 0], a: [-1, 0, 0], b: [0, 0, 1] },
+  right: { n: [1, 0, 0], a: [0, 1, 0], b: [0, 0, 1] },
+  left: { n: [-1, 0, 0], a: [0, -1, 0], b: [0, 0, 1] },
+  top: { n: [0, 0, 1], a: [1, 0, 0], b: [0, 1, 0] },
+  bottom: { n: [0, 0, -1], a: [1, 0, 0], b: [0, -1, 0] },
+};
+const faceOfNormal = v => Object.keys(CUBE_FACES).find(k => CUBE_FACES[k].n.every((x, i) => x === v[i]));
+
+// A cube region (1 face, 2 faces = an edge, 3 faces = a corner) -> the camera to go to.
+// Faces give the parallel view of that face; edges and corners keep the current projection.
+// Looking straight down or up, north stays at the top of the screen (BOTTOM: east is on the left).
+export function cubeView(names) {
+  const s = [0, 0, 0];
+  for (const k of names) CUBE_FACES[k].n.forEach((v, i) => { s[i] += v; });
+  const len = Math.hypot(s[0], s[1], s[2]);
+  const d = s.map(v => v / len);
+  let azimuth, elevation;
+  if (Math.abs(d[2]) > 1 - 1e-9) { elevation = Math.sign(d[2]) * 90 * DEG; azimuth = d[2] > 0 ? -90 * DEG : 90 * DEG; }
+  else { azimuth = Math.atan2(d[1], d[0]); elevation = Math.asin(d[2]); }
+  return { azimuth, elevation, projection: names.length === 1 ? 'parallel' : null };
+}
+
+const CELL = [[-1, -0.56], [-0.56, 0.56], [0.56, 1]];
+// The visible faces of the unit cube as seen by the camera, in screen units (x right, y up),
+// each split into a 3x3 grid: the center cell is the face, edge cells the edges, corner cells the corners.
+export function cubeLayout(state) {
+  const { r, u, d } = cameraBasis(state.azimuth, state.elevation);
+  const scr = p => [p[0] * r[0] + p[1] * r[1] + p[2] * r[2], p[0] * u[0] + p[1] * u[1] + p[2] * u[2]];
+  const faces = [];
+  for (const [name, f] of Object.entries(CUBE_FACES)) {
+    const facing = f.n[0] * d[0] + f.n[1] * d[1] + f.n[2] * d[2];
+    if (facing <= 1e-6) continue;
+    const at = (x, y) => scr([0, 1, 2].map(i => f.n[i] + f.a[i] * x + f.b[i] * y));
+    const cells = [];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      const [x0, x1] = CELL[i], [y0, y1] = CELL[j];
+      const names = [name];
+      if (i !== 1) names.push(faceOfNormal(f.a.map(v => v * (i - 1))));
+      if (j !== 1) names.push(faceOfNormal(f.b.map(v => v * (j - 1))));
+      cells.push({ names, pts: [at(x0, y0), at(x1, y0), at(x1, y1), at(x0, y1)] });
+    }
+    faces.push({ name, facing, outline: [at(-1, -1), at(1, -1), at(1, 1), at(-1, 1)], center: at(0, 0), cells });
+  }
+  // The compass ring lies in the XY plane under the cube; N = +Y.
+  const ring = [];
+  for (let k = 0; k <= 48; k++) { const t = (k / 48) * 2 * Math.PI; ring.push(scr([Math.cos(t) * 1.5, Math.sin(t) * 1.5, -1])); }
+  const compass = { N: scr([0, 1.95, -1]), E: scr([1.95, 0, -1]), S: scr([0, -1.95, -1]), W: scr([-1.95, 0, -1]) };
+  return { faces, ring, compass };
 }
 
 // ---- Cursors: soft, rounded SVG shapes, value palette only ----
