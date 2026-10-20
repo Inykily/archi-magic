@@ -55,6 +55,7 @@ Every feature the user asked for in the build session, with its status. **Shippe
 ## Follow-ups (not blocking)
 
 - am-markup-intake: questions such as "Verify door swing" get the next step "Answer the reviewer". A separate "Check in model" step for these may be clearer.
+- Found while installing v0.4.1 on the maintainer PC: `claude plugin update` from 0.1.0 did not install the new dependencies (superpowers, frontend-design), so archi-magic failed to load until they were installed by hand. Documented in the README troubleshooting table. Consider an `am-doctor` check for missing dependencies.
 - Live checks still to do by hand: the SessionStart rules hook in a new session; the Rhino MCP with Rhino open; the workset fix on a workshared model.
 
 ## Not shipped by design (platform limits or open decisions)
