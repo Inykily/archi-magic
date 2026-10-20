@@ -1,0 +1,127 @@
+{
+ "kind": "change-preview",
+ "title": "Move or rotate 2 element(s)",
+ "keyColumn": "ElementId",
+ "columns": [
+  "ElementId",
+  "Name",
+  "Category",
+  "Location",
+  "Rotation"
+ ],
+ "changedColumns": [
+  "Location",
+  "Rotation"
+ ],
+ "before": [
+  [
+   1158107,
+   "Flex",
+   "Columns",
+   "(-2.092, -30.956, 0.000) ft",
+   "0.00 deg"
+  ],
+  [
+   738550,
+   "36\" Diameter",
+   "Furniture",
+   "(-80.000, 12.542, -5.917) ft",
+   "0.00 deg"
+  ]
+ ],
+ "after": [
+  [
+   1158107,
+   "Flex",
+   "Columns",
+   "(-0.092, -30.956, 0.000) ft",
+   "15.00 deg"
+  ],
+  [
+   738550,
+   "36\" Diameter",
+   "Furniture",
+   "(-77.966, 12.283, -5.917) ft",
+   "15.00 deg"
+  ]
+ ],
+ "notes": [
+  "2 of 2 elements move or rotate.",
+  "Lengths are Revit internal feet. The project shows lengths in feet and fractional inches.",
+  "Order: rotate about the pivot first (vertical axis, counter-clockwise positive), then move.",
+  "Location is the location point, or the midpoint of the location line."
+ ],
+ "warnings": [],
+ "blocked": false,
+ "params": {
+  "source": "am-bim-viewer",
+  "units": "ft",
+  "skip": [],
+  "accept": [],
+  "lengthUnit": "autodesk.unit.unit:feetFractionalInches-1.0.0"
+ },
+ "steps": [
+  {
+   "id": 1158107,
+   "move": [
+    2.0,
+    0.0,
+    0.0
+   ],
+   "rotateZ": 15.0,
+   "pivot": [
+    -2.0916666666708457,
+    -30.9562303974562,
+    0.0
+   ],
+   "kind": "point",
+   "expect": {
+    "point": [
+     -2.0916666666708457,
+     -30.9562303974562,
+     0.0
+    ],
+    "rotation": 0.0
+   },
+   "expectAfter": {
+    "point": [
+     -0.09166666667084566,
+     -30.9562303974562,
+     0.0
+    ],
+    "rotation": 15.0
+   }
+  },
+  {
+   "id": 738550,
+   "move": [
+    2.0,
+    0.0,
+    0.0
+   ],
+   "rotateZ": 15.0,
+   "pivot": [
+    -79.0,
+    12.541666666667208,
+    -5.916666666666664
+   ],
+   "kind": "point",
+   "expect": {
+    "point": [
+     -80.0,
+     12.541666666667208,
+     -5.916666666666664
+    ],
+    "rotation": 0.0
+   },
+   "expectAfter": {
+    "point": [
+     -77.96592582628907,
+     12.282847621564688,
+     -5.916666666666664
+    ],
+    "rotation": 15.0
+   }
+  }
+ ]
+}

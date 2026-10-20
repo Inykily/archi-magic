@@ -1,6 +1,6 @@
 ---
 name: am-safe-change
-description: Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, "make room for a new sheet"). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. First worked recipe is sheet renumbering ("shift all sheet numbers from A301 up by one"). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view).
+description: Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, "make room for a new sheet"). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. Recipes: sheet renumbering ("shift all sheet numbers from A301 up by one"), and move or rotate elements, including changes copied from the 3D viewer (element-transforms JSON from am-bim-viewer). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view).
 ---
 
 # am-safe-change
@@ -10,6 +10,7 @@ This skill is a gate for every change to a Revit model. The user sees a before/a
 Recipes (the task-specific parts):
 
 - Sheet renumbering: [recipes/sheet-renumber.md](recipes/sheet-renumber.md). Use it for "shift sheet numbers", "insert a sheet at A301", "renumber the A3xx sheets".
+- Element transforms: [recipes/element-transforms.md](recipes/element-transforms.md). Use it to move or rotate elements, including changes copied from the 3D viewer (JSON with `"kind": "element-transforms"`), or "move this column 2 ft east and turn it 15 degrees".
 
 For a change with no recipe yet, follow the same 8 steps. Write the read query, the pure compute function and the apply script in the recipe style: one transaction, a stale-state guard, and a result that lists the values after the change.
 
