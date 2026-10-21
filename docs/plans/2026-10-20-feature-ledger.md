@@ -88,10 +88,10 @@ Every feature the user asked for in the build session, with its status. **Shippe
   - A click locks the pointer to the canvas, and the hint changes to "mouse looks around".
   - The control frame with no mouse movement is unchanged. After mouse movement the view changes.
   - Esc exits walk mode.
-- Rules hook in a fresh session: this cannot be tested headless here, because the CLI stops at "Not logged in" before SessionStart runs. It needs a signed-in session: a one-click session card is offered.
+- Rules hook in a fresh session: **verified**. A fresh signed-in desktop session (started by the user) reported PRESENT: its context held the `archi-magic rules` block as `SessionStart:startup hook success` before any tool ran. A resumed session showed the same block from the resume hook. Headless CLI runs can still not show it, because they stop at "Not logged in" before SessionStart.
 - Side discovery (not archi-magic): `senzhang-plugin-hub` SessionEnd hooks (`session-end-backup.sh`, `storyline-publish.sh`) fail on this PC. Their bash-syntax commands (`HOME="$(cygpath ...)" bash ...`) run in PowerShell.
 
 ## Release status (2026-10-20)
 
 - PR #4 (f8cdd7c) shipped requests 39 to 54. PR #5 (b87681e) fixed the first-release workflow and produced release `r2026.10.20-b87681e30097`.
-- Still open, and they need the user or hardware: the rules hook checked in a fresh session, the Rhino MCP checked with Rhino open, the workset move checked on a workshared model, and pointer lock in walk mode (the in-app pane denies it). Filing the pyRevit non-ASCII issue (`docs/upstream/`) needs the user's OK.
+- Still open, and they need the user or hardware: the Rhino MCP checked with Rhino open, the workset move checked on a workshared model, and pointer lock in walk mode (the in-app pane denies it). Filing the pyRevit non-ASCII issue (`docs/upstream/`) needs the user's OK.
