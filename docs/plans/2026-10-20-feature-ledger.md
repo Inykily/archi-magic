@@ -101,5 +101,11 @@ Every feature the user asked for in the build session, with its status. **Shippe
   - `claude mcp list` shows `plugin:rhino-mcp:rhino` as Connected, so the tool names are `mcp__plugin_rhino-mcp_rhino__*` and match the ask rules.
   - A stdio probe (initialize + tools/list, no tool called) returned router 0.3.0 with 32 tools. Two router tools that start or close a Rhino instance, `spawn_slot` and `close_slot`, had no ask rule. They are added now: 28 tools, 56 rules.
   - Fixed: `-Verify` named the `win-arm64` router on an x64 PC. It now picks the router for this CPU.
-  - Not checked: a real tool call with Rhino open, and `SetDotNetRuntime` = NETCore. These need the user to start Rhino.
-- Workset move on a workshared model: **still open**. Revit was not running at test time, and the agent does not start Revit itself. Next step: open a workshared copy of Snowdon, then run `workset_audit.py` and `workset_fix.py` with `dry_run`.
+  - Live tool calls (2026-10-21, user approved starting Rhino): `spawn_slot` started Rhino 8 (slot `aardvark`), `get_context` and `run_python` worked, and the runtime is .NET 8.0.31 (NETCore). `close_slot` closed it.
+  - Not proved: that the ask prompt appears. This session ran in bypass-permissions mode, so no prompt was expected. Check it once in a normal-mode session.
+- Workset move on a workshared model: **verified live 2026-10-21** on a scratch copy of Snowdon in Revit 2026.3. The repo scripts ran unchanged through `exec`.
+  - Audit (defaults): 2 worksets, 6 Revit links on Workset1 with no links workset (correctly reported as "no target"), levels and grids already correct, and 14,830 model elements on Workset1.
+  - Audit with `links_workset: 189` (a test target): 6 movable moves.
+  - `workset_fix.py` dry run: 6 moved, 1 duplicate skipped ("already on ..."), `rolled_back`. A follow-up query confirmed that all links were still on Workset1.
+  - Limit found: `EnableWorksharing` fails in the agent runtime ("open transaction phase"). The user turned on worksharing with Collaborate. SKILL.md now says this.
+  - Side discovery: `pyrevit run` cannot detect the version of a Revit 2026.3 model (build `1515` is not in its table). Draft: `docs/upstream/2026-10-21-pyrevit-cli-run-build-detection.md`, not filed.

@@ -23,7 +23,7 @@ Two scripts in this skill's `scripts/` folder do the work. Read the file and pas
 ## Step 1: audit (read-only)
 
 1. Run `workset_audit.py` with `run_query` and no inputs. This gives the workset list and the default rules.
-2. If `status` is `not_workshared`, tell the user: "This model is not workshared. It has no worksets to audit." Then stop.
+2. If `status` is `not_workshared`, tell the user: "This model is not workshared. It has no worksets to audit." Then stop. Do not try to turn on worksharing with `run_modify`. `EnableWorksharing` fails inside the agent runtime, because every run is in a transaction. Only the user can turn it on, in Revit: Collaborate tab > Collaborate.
 3. Show the workset table: name, element count, open, editable, owner. If a workset is closed, say so first. Its elements are not loaded, so the audit cannot count or check them. Ask the user to open all worksets for a full audit.
 4. Ask which rules apply. Build the options from the real workset names in the result:
    - `links`: Revit links not on the links workset. Ask for the target workset if `targets.links.target` is null.
