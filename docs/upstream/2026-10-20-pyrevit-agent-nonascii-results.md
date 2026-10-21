@@ -1,6 +1,6 @@
 # Upstream issue draft: pyRevit agent runtime cannot return non-ASCII text from an IronPython run
 
-Status: DRAFT. Not filed. File it at https://github.com/pyrevitlabs/pyRevit/issues/new after a maintainer review.
+Status: FILED on 2026-10-20 as https://github.com/pyrevitlabs/pyRevit/issues/3812. The public issue leaves out the archi-magic file list below.
 Repro verified live on 2026-10-20 (run ids below are local run records under `%APPDATA%\pyRevit\agent\runs`).
 
 ---

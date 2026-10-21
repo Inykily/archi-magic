@@ -66,6 +66,8 @@ $WriteTools = @(
     'run_python', 'run_csharp', 'run_command',
     'open_doc', 'save_doc', 'close_doc',
     'set_layer_material', 'manage_plugin_commands',
+    # Router tools (rhino-mcp-router 0.3.0 tools/list): start or close a Rhino instance; closing can lose unsaved work.
+    'spawn_slot', 'close_slot',
     'g1_apply_graph', 'g1_clear_canvas', 'g1_delete_component',
     'g1_connect', 'g1_connect_many', 'g1_place_component', 'g1_place_slider', 'g1_solve_graph', 'g1_start',
     'g2_apply_graph', 'g2_clear_canvas', 'g2_delete_component',
@@ -308,7 +310,10 @@ if ($Verify) {
     # Info only: McNeel's router-launcher.mjs finds the router in the installed package itself.
     if (Test-Path $StagedExe) { Say "Router (info): $StagedExe" }
     else {
-        $payload = @(Get-ChildItem (Join-Path $RhinoData 'packages\*\Rhino-MCP-Platform\*\router\*\rhino-mcp-router.exe') -ErrorAction SilentlyContinue | Select-Object -First 1)
+        # The package ships win-x64 and win-arm64 routers; name the one for this CPU, not the first alphabetically.
+        $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+        $rid = if ($cpu -eq 'ARM64') { 'win-arm64' } else { 'win-x64' }
+        $payload = @(Get-ChildItem (Join-Path $RhinoData "packages\*\Rhino-MCP-Platform\*\router\$rid\rhino-mcp-router.exe") -ErrorAction SilentlyContinue | Select-Object -First 1)
         if ($payload.Count -gt 0) { Say "Router (info): not staged yet; the plugin launcher will use $($payload[0].FullName)" }
         else { Say 'Router (info): not found yet; the plugin launcher locates it in the installed Rhino package.' }
     }

@@ -72,7 +72,7 @@ Every feature the user asked for in the build session, with its status. **Shippe
 
 - am-markup-intake: questions such as "Verify door swing" get the next step "Answer the reviewer". A separate "Check in model" step for these may be clearer.
 - Found while installing v0.4.1 on the maintainer PC: `claude plugin update` from 0.1.0 did not install the new dependencies (superpowers, frontend-design), so archi-magic failed to load until they were installed by hand. Documented in the README troubleshooting table. Consider an `am-doctor` check for missing dependencies.
-- Live checks still to do by hand: the SessionStart rules hook in a new session; the Rhino MCP with Rhino open; the workset fix on a workshared model.
+- Live checks still to do by hand: a Rhino tool call with Rhino open; the workset fix on a workshared model. (The rules hook is verified; see below.)
 
 ## Not shipped by design (platform limits or open decisions)
 
@@ -94,4 +94,12 @@ Every feature the user asked for in the build session, with its status. **Shippe
 ## Release status (2026-10-20)
 
 - PR #4 (f8cdd7c) shipped requests 39 to 54. PR #5 (b87681e) fixed the first-release workflow and produced release `r2026.10.20-b87681e30097`.
-- Still open, and they need the user or hardware: the Rhino MCP checked with Rhino open, the workset move checked on a workshared model, and pointer lock in walk mode (the in-app pane denies it). Filing the pyRevit non-ASCII issue (`docs/upstream/`) needs the user's OK.
+- Pointer lock in walk mode: verified in real Edge (see above).
+- pyRevit non-ASCII issue: filed as pyrevitlabs/pyRevit#3812 (open, by zsenarchitect). A search found no duplicate.
+- Rhino setup run live on the maintainer PC (no admin):
+  - Yak installed Rhino-MCP-Platform 0.3.0 per user. `/plugin install rhino-mcp@archi-magic` installed plugin 0.1.3.
+  - `claude mcp list` shows `plugin:rhino-mcp:rhino` as Connected, so the tool names are `mcp__plugin_rhino-mcp_rhino__*` and match the ask rules.
+  - A stdio probe (initialize + tools/list, no tool called) returned router 0.3.0 with 32 tools. Two router tools that start or close a Rhino instance, `spawn_slot` and `close_slot`, had no ask rule. They are added now: 28 tools, 56 rules.
+  - Fixed: `-Verify` named the `win-arm64` router on an x64 PC. It now picks the router for this CPU.
+  - Not checked: a real tool call with Rhino open, and `SetDotNetRuntime` = NETCore. These need the user to start Rhino.
+- Workset move on a workshared model: **still open**. Revit was not running at test time, and the agent does not start Revit itself. Next step: open a workshared copy of Snowdon, then run `workset_audit.py` and `workset_fix.py` with `dry_run`.
