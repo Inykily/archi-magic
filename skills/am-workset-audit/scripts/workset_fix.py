@@ -52,6 +52,7 @@ def main():
 
     moved = []
     skipped = []
+    borrowed = []
     tx = DB.Transaction(doc, "Move elements to worksets")
     tx.Start()
     try:
@@ -84,8 +85,8 @@ def main():
             if el.GroupId != DB.ElementId.InvalidElementId:
                 skip("element is inside a group")
                 continue
-            if (DB.WorksharingUtils.GetCheckoutStatus(doc, el.Id)
-                    == DB.CheckoutStatus.OwnedByOtherUser):
+            status = DB.WorksharingUtils.GetCheckoutStatus(doc, el.Id)
+            if status == DB.CheckoutStatus.OwnedByOtherUser:
                 skip("element is borrowed by another user")
                 continue
             try:
@@ -93,6 +94,10 @@ def main():
             except Exception as ex:
                 skip("Revit refused the change: %s" % ex)
                 continue
+            # Editing borrows the element from central. A rollback (dry run, Discard) does NOT give it
+            # back (seen live on a cloud model), so report it: teammates cannot edit it until released.
+            if status != DB.CheckoutStatus.OwnedByCurrentUser:
+                borrowed.append(eid_int(el.Id))
             moved.append({"element_id": eid_int(el.Id),
                           "category": el.Category.Name if el.Category else "",
                           "name": el.Name or "",
@@ -111,9 +116,14 @@ def main():
     for m in moved:
         key = "%s -> %s" % (m["from"], m["to"])
         by_target[key] = by_target.get(key, 0) + 1
-    return {"status": "ok", "requested": len(moves), "moved_count": len(moved),
-            "skipped_count": len(skipped), "summary": by_target,
-            "moved": moved, "skipped": skipped}
+    out = {"status": "ok", "requested": len(moves), "moved_count": len(moved),
+           "skipped_count": len(skipped), "summary": by_target,
+           "moved": moved, "skipped": skipped, "borrowed_by_this_run": borrowed}
+    if borrowed:
+        out["borrow_note"] = ("This run borrowed %d element(s) from central. They stay borrowed even after a "
+                              "dry run or Discard. Release them: Collaborate > Relinquish All Mine "
+                              "(or Synchronize with Central after Keep)." % len(borrowed))
+    return out
 
 def ascii_safe(obj):
     r"""IronPython's json encoder in the agent runtime fails on non-ASCII text (for example
