@@ -1,6 +1,6 @@
 # Upstream issue draft: `pyrevit run` cannot detect the version of a Revit 2026.3 model
 
-Status: DRAFT. Not filed. File it at https://github.com/pyrevitlabs/pyRevit/issues/new after the user says yes.
+Status: FILED on 2026-10-22 as https://github.com/pyrevitlabs/pyRevit/issues/3816.
 
 ## Summary
 
