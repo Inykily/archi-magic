@@ -40,9 +40,11 @@ def eid_int(element_id):
         return int(element_id.IntegerValue)
 
 
-def find_workset(worksets, wanted, hints):
+def find_workset(worksets, wanted, hints, prefer=None):
     """wanted may be a workset id (int) or an exact, case-insensitive name; with no wanted,
-    guess by hint substrings. Returns (workset or None, list of candidate names)."""
+    guess by hint substrings. When several match, a single one that also matches a `prefer`
+    substring wins (for example "2_RVT Links" over "3_CAD Links" for Revit links).
+    Returns (workset or None, list of candidate names)."""
     if isinstance(wanted, int) and not isinstance(wanted, bool):
         for ws in worksets:
             if ws.Id.IntegerValue == wanted:
@@ -56,6 +58,10 @@ def find_workset(worksets, wanted, hints):
     cands = [ws for ws in worksets if any(h in ws.Name.lower() for h in hints)]
     if len(cands) == 1:
         return cands[0], [cands[0].Name]
+    if len(cands) > 1 and prefer:
+        best = [ws for ws in cands if any(p in ws.Name.lower() for p in prefer)]
+        if len(best) == 1:
+            return best[0], [c.Name for c in cands]
     return None, [c.Name for c in cands]
 
 
@@ -135,8 +141,8 @@ def main():
             "reason": why if not ok else ("" if target else "no target workset chosen"),
         }
 
-    def rule_by_class(rule, cls_list, wanted, hints):
-        target, cands = find_workset(worksets, wanted, hints)
+    def rule_by_class(rule, cls_list, wanted, hints, prefer=None):
+        target, cands = find_workset(worksets, wanted, hints, prefer)
         targets[rule] = {"target": target.Name if target else None, "candidates": cands}
         if target is None:
             notes.append("%s: no single target workset found. Candidates: %s. Pass the exact name."
@@ -148,7 +154,7 @@ def main():
                     add(el, rule, target)
 
     if "links" in rules:
-        rule_by_class("links", [DB.RevitLinkInstance], inputs.get("links_workset"), ["link"])
+        rule_by_class("links", [DB.RevitLinkInstance], inputs.get("links_workset"), ["link"], ["rvt", "revit"])
     if "levels_grids" in rules:
         rule_by_class("levels_grids", [DB.Level, DB.Grid],
                       inputs.get("levels_grids_workset"), ["level", "grid"])
