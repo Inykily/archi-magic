@@ -58,6 +58,7 @@ Every feature the user asked for in the build session, with its status. **Shippe
 | 52 | Help popup too sensitive: open only when hovering the "?" | ? hit area only, 150 ms intent delay, no open during drags, tests | Shipped (PR #4, f8cdd7c) |
 | 53 | Gumball supports precise typed input | click-to-type per axis, ft / ft-in / mm / m parser, side-panel numeric fields, tests | Shipped (PR #4, f8cdd7c) |
 | 54 | View control must reach Back and other directions: use a view cube | ViewCube (6 faces, edges, corners, compass ring, home) replaces the view buttons and axis gizmo; per-face direction tests | Shipped (PR #4, f8cdd7c) |
+| 55 | Session start/end hook that prompts users to update to the latest version | SessionStart (startup) hook `hooks/update-check.ps1`: compares the installed commit with the latest release, at most one API call per day, shows a one-line notice with the update steps, opt-out env var, 14 offline tests in CI, 2 mutants killed. SessionEnd not used: its output is not shown in the session. Also fixed the update advice in README and release notes (`/plugin marketplace update` alone does not update the plugin) | Shipped (this PR) |
 
 ## To finish before the v0.4.0 release
 

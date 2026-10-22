@@ -3,7 +3,7 @@
   archi-magic uses commit-derived versions: no plugin.json and no marketplace entry for a
   relative-path plugin may pin "version". Claude Code then uses the commit SHA as the version,
   so every merge to main reaches users as a new version automatically (auto-update on, or
-  /plugin marketplace update archi-magic). A pinned "version" would freeze every user on the
+  /plugin > Marketplaces > archi-magic > Update marketplace). A pinned "version" would freeze every user on the
   cached copy until someone changed the string. This check fails (exit 1) if one is pinned.
   Source: https://code.claude.com/docs/en/plugins/loading.md ("How Claude Code computes the version").
 
