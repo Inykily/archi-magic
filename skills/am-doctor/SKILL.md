@@ -48,6 +48,7 @@ Diagnose archi-magic problems with the tested script `scripts/doctor.ps1` in thi
 | MCP_WRONG_PATH | The `pyrevit` MCP command is not the full pyRevit 7 path. | am-pyrevit7-setup `-EnableAgent`, then a new Claude Code session. |
 | POLICY_AUTO | The agent policy is `auto`, so model changes skip the Keep/Discard approval. | `pyrevit configs agent policy ask`. |
 | DOCS_OFFLINE | The pyRevit docs search could not refresh. It uses the cached copy. | None needed. |
+| HEADLESS_OLD_PYREVIT (info) | A machine-wide manifest (installed by IT) still loads an older pyRevit, for example 6.4 in `C:\Program Files\pyRevit-Master`. Revit opened by hand and the archi-magic skills are fine (per-user fix, `pyrevit agent run`), but `pyrevit run` batch or CI scripts load the old pyRevit. | No automatic fix. Tell the user only if they run `pyrevit run` scripts: IT must uninstall the machine-wide pyRevit (admin). |
 | DEPS_MISSING | archi-magic is installed, but `superpowers@archi-magic` or `frontend-design@archi-magic` is missing, or its install folder or `.claude-plugin\plugin.json` is gone ("failed to load"). This happened after `claude plugin update` from 0.1.0 to 0.4.1. The doctor only reads `%USERPROFILE%\.claude\plugins\installed_plugins.json` (no network). | `claude plugin install <name>@archi-magic` for each missing one. Then the user quits and restarts the Claude app. |
 
 If Revit stays busy (a command or a dialog is open), the agent check shows `AGENT_STATUS | unchecked`. Ask the user to finish the command, then run the doctor again.

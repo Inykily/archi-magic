@@ -35,6 +35,7 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
    - Every model change needs their **Keep/Discard** approval in Revit.
    - Anything the agent reads from the model is sent to the AI provider (see step 0), so only use it on projects where that's allowed.
    - Re-run this skill after any pyRevit update.
+   - If IT installed an older pyRevit for all users, the setup fixes Revit when you open it yourself, and the archi-magic skills use pyRevit 7. A `pyrevit run` batch or CI script still loads the old pyRevit, because it reads the machine-wide manifest. To fix that, IT must uninstall the old pyRevit (admin rights). `am-doctor` reports this as HEADLESS_OLD_PYREVIT. Offer the IT request template in `IT-REQUEST.md` (this skill's folder).
 
 ## Undo a setup run
 

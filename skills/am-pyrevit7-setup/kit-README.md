@@ -36,6 +36,7 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 - **Installer check:** the script downloads the latest pyRevit release from GitHub. It runs the installer only when the file matches the SHA256 checksum from GitHub and the signature is valid and comes from the known pyRevit signer (Jean-Marc Couffin, through Microsoft ID Verified signing). If one check fails, the script stops with exit code 3 and does not run the installer.
 - **Logs and backups:** each run writes a log to `%TEMP%\pyrevit7-setup\<timestamp>\`. Backups and the undo journal go to `%LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\<timestamp>\`, because cleanup tools can empty `%TEMP%`.
 - **Clean long-term fix (IT, needs admin):** uninstall the machine-wide pyRevit 6.x, or delete `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. The per-user setup keeps working after that.
+- **`pyrevit run` scripts still use the old pyRevit until IT does that.** Batch or CI runs with `pyrevit run` read the machine-wide manifest, not the per-user fix. A test with CLI 7.0 loaded pyRevit 6.4 from `C:\Program Files\pyRevit-Master`. Revit opened by hand and the archi-magic skills (`pyrevit agent run`) are not affected. `am-doctor` shows this as HEADLESS_OLD_PYREVIT. A ready-to-send IT request is in `IT-REQUEST.md`.
 
 ## Undo
 
