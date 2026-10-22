@@ -102,7 +102,8 @@ Every feature the user asked for in the build session, with its status. **Shippe
   - A stdio probe (initialize + tools/list, no tool called) returned router 0.3.0 with 32 tools. Two router tools that start or close a Rhino instance, `spawn_slot` and `close_slot`, had no ask rule. They are added now: 28 tools, 56 rules.
   - Fixed: `-Verify` named the `win-arm64` router on an x64 PC. It now picks the router for this CPU.
   - Live tool calls (2026-10-21, user approved starting Rhino): `spawn_slot` started Rhino 8 (slot `aardvark`), `get_context` and `run_python` worked, and the runtime is .NET 8.0.31 (NETCore). `close_slot` closed it.
-  - Not proved: that the ask prompt appears. This session ran in bypass-permissions mode, so no prompt was expected. Check it once in a normal-mode session.
+  - Ask prompt verified 2026-10-22 in Manual (default) mode: the first `spawn_slot` call became a permission request (the app quit before an answer, and no Rhino started). A retry ran only after the user approved the prompt. `close_slot` behaved the same way. Earlier calls in bypass-permissions mode did not prompt, as that mode is designed to do.
+  - `SetDotNetRuntime` is covered by the runtime read inside Rhino (.NET 8.0.31 = NETCore).
 - Workset move on a workshared model: **verified live 2026-10-21** on a scratch copy of Snowdon in Revit 2026.3. The repo scripts ran unchanged through `exec`.
   - Audit (defaults): 2 worksets, 6 Revit links on Workset1 with no links workset (correctly reported as "no target"), levels and grids already correct, and 14,830 model elements on Workset1.
   - Audit with `links_workset: 189` (a test target): 6 movable moves.
