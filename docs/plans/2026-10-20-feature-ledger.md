@@ -108,4 +108,5 @@ Every feature the user asked for in the build session, with its status. **Shippe
   - Audit with `links_workset: 189` (a test target): 6 movable moves.
   - `workset_fix.py` dry run: 6 moved, 1 duplicate skipped ("already on ..."), `rolled_back`. A follow-up query confirmed that all links were still on Workset1.
   - Limit found: `EnableWorksharing` fails in the agent runtime ("open transaction phase"). The user turned on worksharing with Collaborate. SKILL.md now says this.
-  - Side discovery: `pyrevit run` cannot detect the version of a Revit 2026.3 model (build `1515` is not in its table). Draft: `docs/upstream/2026-10-21-pyrevit-cli-run-build-detection.md`, not filed.
+  - Side discovery: `pyrevit run` cannot detect the version of a Revit 2026.3 model (build `1515` is not in its table). Filed 2026-10-22 as pyrevitlabs/pyRevit#3816 (`docs/upstream/2026-10-21-pyrevit-cli-run-build-detection.md`).
+- pyrevitlabs/pyRevit#3812 (non-ASCII results) was closed as completed on 2026-10-21, with no comment. When a pyRevit release includes the fix, check whether `ascii_safe` in the workset scripts is still needed.
