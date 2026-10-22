@@ -33,7 +33,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
-        'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING')]
+        'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
     [string]$Fix = '',
     [switch]$Report,
     [switch]$OpenIssue,
@@ -219,7 +219,8 @@ $FixMap = @{
     AGENT_NOT_RESPONDING = @{ Kind = 'manual'; Text = 'User: in Revit, click pyRevit tab > Reload (it can need two reloads), or restart Revit. Then run the doctor again.' }
     NO_MODEL_OPEN        = @{ Kind = 'manual'; Text = 'User: open a model in Revit (an Autodesk sample such as Snowdon Towers is fine).' }
     DOCS_OFFLINE         = @{ Kind = 'manual'; Text = 'No action needed. The cached docs copy is in use. Check the network later.' }
-    DEPS_MISSING         = @{ Kind = 'deps'; Text = 'claude plugin install <name>@archi-magic for each missing one (superpowers, frontend-design), then quit and restart the Claude app.' }
+    HEADLESS_OLD_PYREVIT = @{ Kind = 'manual'; Text = 'Interactive Revit and the archi-magic skills are not affected. For your own pyrevit run scripts (batch, CI): ask IT to uninstall the machine-wide pyRevit in Program Files.' }
+    DEPS_MISSING         = @{ Kind = 'deps'; Text ='claude plugin install <name>@archi-magic for each missing one (superpowers, frontend-design), then quit and restart the Claude app.' }
 }
 
 if ($Fix -eq 'DEPS_MISSING') {
@@ -307,6 +308,26 @@ if (Test-Want 'repoint') {
             }
             if ($good) { Add-Finding 'REPOINT' 'ok' "Revit ${year}: per-user manifest loads $(Redact $good)" '-' }
             else { Add-Finding 'REPOINT_NEEDED' 'error' "Revit ${year}: per-user manifest does not point at an existing 7.x loader ($($bad -join '; '))" $FixMap.REPOINT_NEEDED.Text }
+        }
+        # Headless 'pyrevit run' does not read the per-user override: it uses the machine-wide (AllUsers)
+        # attachment, so it loads whatever install the machine manifest names (seen live: pyRevit 6.4 in
+        # Program Files while interactive Revit loaded 7.0). Info only: archi-magic uses 'pyrevit agent run'.
+        $old = @{}
+        foreach ($src in $machine) {
+            $asm = [regex]::Match([IO.File]::ReadAllText($src.FullName), '<Assembly>\s*(.*?)\s*</Assembly>').Groups[1].Value
+            if (-not $asm -or $asm.StartsWith($Py7Root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { continue }
+            if (-not (Test-Path -LiteralPath $asm)) { continue }
+            # Group by install folder (netfx and netcore loaders are one install); its pyrevit.exe has the pyRevit version.
+            $i = $asm.IndexOf('\bin\', [StringComparison]::OrdinalIgnoreCase)
+            $root = if ($i -gt 0) { $asm.Substring(0, $i) } else { Split-Path -Parent $asm }
+            $exe = Join-Path $root 'bin\pyrevit.exe'
+            $ver = if (Test-Path -LiteralPath $exe) { ([string](Get-Item -LiteralPath $exe).VersionInfo.ProductVersion) -replace '^([^+]*\+[^.]*)\..*$', '$1' } else { '' }
+            $key = "$(Redact $root)$(if ($ver) { " (pyRevit $ver)" })"
+            if (-not $old.ContainsKey($key)) { $old[$key] = @() }
+            $old[$key] += $src.Directory.Name
+        }
+        foreach ($k in $old.Keys) {
+            Add-Finding 'HEADLESS_OLD_PYREVIT' 'info' "pyrevit run (headless) uses the machine-wide manifest for Revit $(($old[$k] | Sort-Object) -join ', '), which loads the install at $k, not your pyRevit 7" $FixMap.HEADLESS_OLD_PYREVIT.Text
         }
     } catch { Add-Finding 'REPOINT' 'unchecked' "could not read manifests: $($_.Exception.Message)" 'Run: am-pyrevit7-setup -Verify' }
 }
