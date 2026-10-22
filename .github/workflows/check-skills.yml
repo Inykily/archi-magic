@@ -51,6 +51,10 @@ jobs:
         run: |
           .\scripts\check-skills.ps1
           exit $LASTEXITCODE
+      - name: SessionStart update check (offline tests)
+        run: |
+          .\hooks\tests\test-update-check.ps1
+          exit $LASTEXITCODE
       - name: am-welcome list-skills prints every sibling skill
         run: |
           $out = @(& .\skills\am-welcome\scripts\list-skills.ps1)

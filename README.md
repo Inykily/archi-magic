@@ -56,7 +56,7 @@ Read this whole section before you act. The user is usually an architect, not a 
    ```
    This also installs two pinned dependencies: `superpowers` (planning, debugging, test-driven development, code review) and `frontend-design`.
    **Check:** `claude plugin list` shows `archi-magic@archi-magic`, `superpowers@archi-magic` and `frontend-design@archi-magic` as enabled.
-2. Ask the user to turn on auto-update. Third-party marketplaces have it off by default: type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, choose **Enable auto-update**. Without it, updates arrive only through `/plugin marketplace update archi-magic`.
+2. Ask the user to turn on auto-update. Third-party marketplaces have it off by default: type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, choose **Enable auto-update**. Without it, update by hand: in the same place choose **Update marketplace**, then start a new session. (`/plugin marketplace update archi-magic` alone refreshes the listing only; it does not update the installed plugin.) Each new session also shows a one-line notice when a newer archi-magic release exists; set `ARCHI_MAGIC_NO_UPDATE_CHECK=1` to turn the notice off.
 3. Ask the user to restart the Claude desktop app. Skills, hooks and MCP servers load only in a new session.
 4. In the new session, run the `am-welcome` skill.
 
@@ -172,7 +172,7 @@ A SessionStart hook (`hooks/hooks.json`) adds the short rules block in `hooks/se
 ### Checks
 
 - `scripts/check-skills.ps1`: the `am-` prefix, name equals folder, a README row, house rules identical to `HOUSE-RULES.md`, and the rules hook present (at most 12 lines).
-- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin marketplace update archi-magic`.
+- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin` > Marketplaces > archi-magic > **Update marketplace**. `hooks/update-check.ps1` (SessionStart, one GitHub API call per day at most, cached in `%LOCALAPPDATA%\archi-magic\update-check.json`) tells users on an older release; its tests are `hooks/tests/test-update-check.ps1`.
 - **Release workflow** (`.github/workflows/release.yml`): each merge to `main` gets a dated tag and a GitHub Release that lists the changes.
 - **Weekly check** (`.github/workflows/weekly-check.yml`, Mondays): runs the drift checks and compares every pinned dependency (superpowers, frontend-design, rhino-mcp) with its upstream. It reports the latest pyRevit release. The results go to one issue, "Weekly archi-magic check".
 

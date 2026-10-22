@@ -31,7 +31,7 @@ jobs:
           {
             echo "Plugin version for users: \`${short}\` (commit-derived)."
             echo
-            echo "Update: turn on auto-update for archi-magic in \`/plugin\` > Marketplaces, or run \`/plugin marketplace update archi-magic\`."
+            echo "Update: in \`/plugin\` > Marketplaces > archi-magic, choose **Update marketplace** (or **Enable auto-update**), then start a new session."
             echo
             echo "## Changes"
             git log --first-parent --format='- %s (%h)' "${log_args[@]}"

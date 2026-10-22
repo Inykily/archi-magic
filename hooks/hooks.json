@@ -1,5 +1,5 @@
 {
-  "description": "archi-magic: add the short archi-magic rules block (hooks/session-rules.md) to every session. Local file read only, no network. Windows PowerShell, no Git Bash needed. Never blocks the session.",
+  "description": "archi-magic: (1) add the short archi-magic rules block (hooks/session-rules.md) to every session, local file read only; (2) at startup, show a one-line notice when a newer archi-magic release exists (hooks/update-check.ps1: at most one GitHub API call per day, cached; opt out with ARCHI_MAGIC_NO_UPDATE_CHECK=1). Windows PowerShell, no Git Bash needed. Never blocks the session.",
   "hooks": {
     "SessionStart": [
       {
@@ -14,6 +14,24 @@
               "Bypass",
               "-Command",
               "try { [Console]::Out.Write([IO.File]::ReadAllText([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'session-rules.md'))) } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'update-check.ps1')) } catch { }; exit 0"
             ],
             "timeout": 10
           }
