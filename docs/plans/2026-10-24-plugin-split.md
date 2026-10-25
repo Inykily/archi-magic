@@ -145,6 +145,12 @@ Built in worktree branch `feat/split-prep`. It works with today's flat layout; n
 
 Not in PR 1, by design: G1 (the guard hook ships with the meta in PR 2) and `claude plugin validate` in CI (no CLI in CI; run in step 4).
 
+## Soak
+
+- Starts when PR 1 is released (merge of PR #19); ends **2026-11-08**, after 2 weeks.
+- During the soak: merge the Rhino skills PR (flat layout, step 2), then run the isolated trial (step 4) on the branch `split/trial`.
+- At the end: the decision gate (step 3). The user decides whether PR 2 ships.
+
 ## Announcement draft for the soak (user sends it; non-developer wording)
 
 > **archi-magic update: please do these 3 steps once**
