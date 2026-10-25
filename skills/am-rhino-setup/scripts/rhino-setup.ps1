@@ -39,7 +39,8 @@ param(
     [switch]$Verify,
     [switch]$Force,
     [ValidateSet('8', '9')][string]$RhinoVersion = '8',
-    [string]$SettingsPath = (Join-Path $env:USERPROFILE '.claude\settings.json')
+    # Claude Code's config folder: CLAUDE_CONFIG_DIR when set, else %USERPROFILE%\.claude.
+    [string]$SettingsPath = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'settings.json')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -125,7 +126,7 @@ function Get-Node {
 }
 
 function Test-PluginInstalled {
-    $f = Join-Path $env:USERPROFILE '.claude\plugins\installed_plugins.json'
+    $f = Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'plugins\installed_plugins.json'
     if (-not (Test-Path $f)) { return @() }
     try { $j = [IO.File]::ReadAllText($f) | ConvertFrom-Json } catch { return @() }
     if (-not $j.plugins) { return @() }

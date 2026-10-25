@@ -1,6 +1,6 @@
 # Plan: split archi-magic into core, revit and rhino plugins
 
-Status: REVISED after review (rev 2), 2026-10-24. No code changes yet. PR 1 needs the user's go-ahead, and PR 2 needs a second go-ahead at the decision gate (section 3, step 3).
+Status: rev 2 reviewed. **PR 1 (prep) built 2026-10-24** (user go-ahead), see "PR 1 record" at the end. PR 2 needs a second go-ahead at the decision gate (section 3, step 3).
 Owner repo: zsenarchitect/archi-magic. Base: main `398ce25`.
 
 ## Review record
@@ -128,3 +128,28 @@ The split is justified by structure and opt-in, not tokens.
 - **No independent per-plugin versions or release tags** in this change.
 - **No symlinks for shared files** (Windows authors need Developer Mode); copies plus the S1 check are used instead.
 - **Existing users gain nothing in tokens.** The benefit is structure and opt-in for new or Rhino-only installs.
+
+## PR 1 record (2026-10-24)
+
+Built in worktree branch `feat/split-prep`. It works with today's flat layout; nothing moves.
+
+| Plan item | Done | Evidence |
+|---|---|---|
+| Shared installed-plugins lib, `CLAUDE_CONFIG_DIR` | `scripts/lib/am-plugins.ps1`, used by doctor, the update hook and list-skills. The rhino-setup paths follow `CLAUDE_CONFIG_DIR` too | test-deps 14/14, including meta → core → superpowers, missing core, half-swapped core, core + rhino only, and the default path reading a throwaway `CLAUDE_CONFIG_DIR`. A grep finds 0 hard-coded `%USERPROFILE%\.claude` paths; the same grep on the old file finds 2 |
+| U1 notice | Names each stale installed archi-magic* plugin, says `/reload-plugins`, uses qualified names, and keys its cache on the installed set | test-update-check 21/21. Live on this PC: "installed: archi-magic 398ce25dd445; latest 3e01797167cc" |
+| am-log | `archi-magic-*@<commit>` for the split plugins; bare commit for archi-magic (log format unchanged) | doctor tests |
+| list-skills | Sibling skills plus every installed archi-magic* plugin's skills, each once | test-list-skills 5/5. Live: the same 16 skills as before |
+| am-grill-me | Bare `am-grilling` | check-skills rejects `archi-magic:am-` (mutation case 3) |
+| S1 shared files | `scripts/lib/shared-files.ps1` and `sync-shared-files.ps1`. am-bim-viewer reads its own `viewer/` copy | 4/4 copies in sync. A demo page built from the skill copy equals the mod build (127,929 chars) |
+| Checks, both layouts | check-skills, sync-house-rules (fails on 0 matches) and check-version-bump (`plugins/*` manifests) | `scripts/tests/test-checks.ps1` 14/14: 8 break cases red, the control green, and a full simulated split green on all 3 checks |
+
+Not in PR 1, by design: G1 (the guard hook ships with the meta in PR 2) and `claude plugin validate` in CI (no CLI in CI; run in step 4).
+
+## Announcement draft for the soak (user sends it; non-developer wording)
+
+> **archi-magic update: please do these 3 steps once**
+> 1. In Claude, type `/plugin`. Open the **Marketplaces** tab, select **archi-magic**, and choose **Update marketplace**.
+> 2. Type `/reload-plugins`, or close Claude and open it again.
+> 3. Optional: in the same place, choose **Enable auto-update**, so future updates come by themselves.
+>
+> If Claude says something is "not installed" or "failed to load", ask Claude to "run am-doctor". It shows the exact fix.

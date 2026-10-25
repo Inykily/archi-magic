@@ -4,11 +4,11 @@ description: User command /am-grill-me that starts a relentless interview to sha
 disable-model-invocation: true
 ---
 
-Call the Skill tool with "archi-magic:am-grilling".
+Call the Skill tool with "am-grilling".
 
 ## Source and license
 
-Adapted from `grill-me` in [mattpocock/skills](https://github.com/mattpocock/skills/tree/49dd158d1076134a641b33efb035946536778336/skills/productivity/grill-me) at commit `49dd158d1076134a641b33efb035946536778336`, by Matt Pocock, MIT License (see `LICENSE-mattpocock.txt` in this folder). Changes in archi-magic: renamed to `am-grill-me` to follow the `am-` prefix rule, pointed it at `archi-magic:am-grilling`, and added the archi-magic house rules below.
+Adapted from `grill-me` in [mattpocock/skills](https://github.com/mattpocock/skills/tree/49dd158d1076134a641b33efb035946536778336/skills/productivity/grill-me) at commit `49dd158d1076134a641b33efb035946536778336`, by Matt Pocock, MIT License (see `LICENSE-mattpocock.txt` in this folder). Changes in archi-magic: renamed to `am-grill-me` to follow the `am-` prefix rule, pointed it at `am-grilling` (bare name, so it works whichever archi-magic plugin ships it), and added the archi-magic house rules below.
 
 ## House rules (all am-* skills)
 

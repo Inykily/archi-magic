@@ -7,7 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const viewerDir = resolve(here, '../../../mods/am-bim-viewer/viewer');
+// The skill's own copy (scripts/sync-shared-files.ps1 writes it from mods/am-bim-viewer/viewer),
+// so the installed skill never reads above its plugin folder.
+const viewerDir = resolve(here, '../viewer');
 const { buildViewerHtml } = await import(pathToFileURL(resolve(viewerDir, 'build.mjs')).href);
 
 const input = resolve(process.argv[2] || resolve(viewerDir, 'demo.json'));
