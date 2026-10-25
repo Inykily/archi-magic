@@ -121,8 +121,8 @@ def main():
            "moved": moved, "skipped": skipped, "borrowed_by_this_run": borrowed}
     if borrowed:
         out["borrow_note"] = ("This run borrowed %d element(s) from central. They stay borrowed even after a "
-                              "dry run or Discard. Release them: Collaborate > Relinquish All Mine "
-                              "(or Synchronize with Central after Keep)." % len(borrowed))
+                              "dry run or Discard. Release them with relinquish_borrowed.py (user's OK) or "
+                              "Collaborate > Relinquish All Mine (or Synchronize with Central after Keep)." % len(borrowed))
     return out
 
 def ascii_safe(obj):

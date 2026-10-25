@@ -13,6 +13,7 @@ Two scripts in this skill's `scripts/` folder do the work. Read the file and pas
 |---|---|---|
 | `scripts/workset_audit.py` | `run_query` | No (read-only) |
 | `scripts/workset_fix.py` | `run_modify`, `dry_run=true` first | Yes, only after Keep in Revit |
+| `scripts/relinquish_borrowed.py` | `run_query`, only with the user's OK | No. It gives borrowed elements back to central |
 
 ## Before you start
 
@@ -46,10 +47,10 @@ Do this step only when the user asks for it and `moves` is not empty.
    - `readonly`: stop. Tell the user that the model cannot be changed under this policy.
 2. Run `workset_fix.py` with `run_modify`, `dry_run=true`, a clear `title` (for example "Move 6 links to Links workset"), and `inputs = {"moves": <moves from the audit, unchanged>}`.
 3. Show the dry run: `summary` (from -> to counts), each moved element, and each skipped element with its reason.
-   - If `borrowed_by_this_run` is not empty, tell the user now. In a team model, the dry run borrowed these elements from central. The rollback does not give them back, so teammates cannot edit them. If the user does not want the real run, ask them to click Collaborate > **Relinquish All Mine** in Revit. The agent cannot do this step.
+   - If `borrowed_by_this_run` is not empty, tell the user now. In a team model, the dry run borrowed these elements from central. The rollback does not give them back, so teammates cannot edit them. If the user does not want the real run, offer to release them. Ask with AskUserQuestion ("Release now (Recommended)" / "I will click Relinquish All Mine"). To release, run `scripts/relinquish_borrowed.py` with `run_query` and `inputs = {"element_ids": <borrowed_by_this_run>}`. Show `listed_after`: every id must be `NotOwned`. The script does not change the model. Like Relinquish All Mine, it releases every element the user borrowed and did not change, not only the listed ones.
 4. Ask the user if they want the real run. A "yes" in chat only starts the real run. It does not replace the approval in Revit.
 5. Run `workset_fix.py` again with `run_modify`, `dry_run=false`, and the **same** inputs. Tell the user to look at Revit and click **Keep** or **Discard**.
-6. Report the result: `status`, the moved and skipped lists, and any `failures`, `dialogs` or `blocked` entries in the run response. Borrowing conflicts in a team model show up there. Status `rejected` means the user clicked Discard, and nothing changed. A kept run is one undo step named "Agent: <title>". After Keep, the user must **Synchronize with Central** to share the change and release the borrowed elements. After Discard, they must click **Relinquish All Mine**.
+6. Report the result: `status`, the moved and skipped lists, and any `failures`, `dialogs` or `blocked` entries in the run response. Borrowing conflicts in a team model show up there. Status `rejected` means the user clicked Discard, and nothing changed. A kept run is one undo step named "Agent: <title>". After Keep, the user must **Synchronize with Central** to share the change and release the borrowed elements. After Discard, release the borrowed elements as in step 3 (with the user's OK), or the user clicks **Relinquish All Mine**.
 
 ## Rules
 
