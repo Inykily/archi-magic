@@ -88,6 +88,49 @@ try {
     Write-Installed $all $json
     $r = Invoke-Doctor $json $noSettings @('-Fix', 'DEPS_MISSING')
     Assert-Case 'fix with nothing missing -> no-op' $r 0 'Nothing to fix'
+
+    # Split layout (docs/plans/2026-10-24-plugin-split.md): meta -> core/revit/rhino -> core -> superpowers.
+    $meta  = New-Plugin 'meta' @('archi-magic-core', 'archi-magic-revit', 'archi-magic-rhino')
+    $core  = New-Plugin 'core' @('superpowers', 'frontend-design')
+    $revit = New-Plugin 'revit' @('archi-magic-core')
+    $rhino = New-Plugin 'rhino' @('archi-magic-core')
+    $split = @{ 'archi-magic@archi-magic' = $meta; 'archi-magic-core@archi-magic' = $core; 'archi-magic-revit@archi-magic' = $revit
+                'archi-magic-rhino@archi-magic' = $rhino; 'superpowers@archi-magic' = $sp; 'frontend-design@archi-magic' = $fd }
+    Write-Installed $split $json
+    $r = Invoke-Doctor $json $noSettings
+    Assert-Case 'split, all present -> GREEN' $r 0 '(?m)^DEPS \| ok \|.*archi-magic-core@archi-magic.*superpowers@archi-magic'
+
+    # RED: the meta updated but its new dependency was never installed (update without /reload-plugins).
+    $c = $split.Clone(); $c.Remove('archi-magic-core@archi-magic'); Write-Installed $c $json
+    $r = Invoke-Doctor $json $noSettings
+    Assert-Case 'split, core missing -> RED' $r 1 '(?m)^DEPS_MISSING \| error \|.*archi-magic-core@archi-magic not installed'
+
+    # RED: transitive - core present but its own dependency gone.
+    $c = $split.Clone(); $c.Remove('superpowers@archi-magic'); Write-Installed $c $json
+    $r = Invoke-Doctor $json $noSettings
+    Assert-Case 'split, transitive dep missing -> RED' $r 1 '(?m)^DEPS_MISSING \| error \|.*superpowers@archi-magic not installed'
+
+    # RED: half-swapped cache - core's folder exists but lost its manifest during an interrupted update.
+    $half = Join-Path $Root 'cache\half-core'; New-Item -ItemType Directory -Force (Join-Path $half 'skills') | Out-Null
+    $c = $split.Clone(); $c['archi-magic-core@archi-magic'] = $half; Write-Installed $c $json
+    $r = Invoke-Doctor $json $noSettings
+    Assert-Case 'split, half-swapped core -> RED' $r 1 '(?m)^DEPS_MISSING \| error \|.*archi-magic-core@archi-magic has no'
+
+    # Only core + rhino installed (opt-out of revit), no meta: checked from core and rhino.
+    $c = @{ 'archi-magic-core@archi-magic' = $core; 'archi-magic-rhino@archi-magic' = $rhino; 'superpowers@archi-magic' = $sp; 'frontend-design@archi-magic' = $fd }
+    Write-Installed $c $json
+    $r = Invoke-Doctor $json $noSettings
+    Assert-Case 'core+rhino only -> GREEN' $r 0 '(?m)^DEPS \| ok \|'
+
+    # Default path follows CLAUDE_CONFIG_DIR (no -InstalledPluginsJson): the throwaway config is read, not the real one.
+    $cfg = Join-Path $Root 'cfg'; New-Item -ItemType Directory -Force (Join-Path $cfg 'plugins') | Out-Null
+    $c = $split.Clone(); $c.Remove('archi-magic-rhino@archi-magic'); Write-Installed $c (Join-Path $cfg 'plugins\installed_plugins.json')
+    $env:CLAUDE_CONFIG_DIR = $cfg
+    try {
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Doctor -Only deps -LogDir (Join-Path $Root 'logs') 2>&1 | Out-String
+        $r = @{ Code = $LASTEXITCODE; Out = $out }
+    } finally { Remove-Item Env:\CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue }
+    Assert-Case 'CLAUDE_CONFIG_DIR default path -> reads the throwaway config' $r 1 '(?m)^DEPS_MISSING \| error \|.*archi-magic-rhino@archi-magic not installed'
 } finally {
     Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
 }

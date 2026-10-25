@@ -46,7 +46,10 @@ function Get-AmPluginVersion {
                 # the plugin under ...\plugins\cache\<marketplace>\archi-magic\<version>\. Use that folder name.
                 $pluginRoot = [IO.Path]::GetFullPath((Join-Path $AmLogHelperDir '..\..'))
                 $parent = Split-Path -Leaf (Split-Path -Parent $pluginRoot)
+                # archi-magic today; archi-magic-core/-revit/-rhino after the planned split.
+                # Bare commit for archi-magic (unchanged log format); "<plugin>@<commit>" for the split plugins.
                 if ($parent -eq 'archi-magic') { $v = Split-Path -Leaf $pluginRoot }
+                elseif ($parent -like 'archi-magic-*') { $v = "$parent@" + (Split-Path -Leaf $pluginRoot) }
                 else { $v = 'source-checkout' }
             }
         }

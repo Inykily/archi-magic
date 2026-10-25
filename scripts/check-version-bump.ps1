@@ -18,7 +18,9 @@ $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 
 $problems = New-Object System.Collections.Generic.List[string]
-$manifests = @('.claude-plugin/plugin.json') + @(Get-ChildItem 'mods/*/.claude-plugin/plugin.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+$manifests = @('.claude-plugin/plugin.json') +
+    @(Get-ChildItem 'mods/*/.claude-plugin/plugin.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }) +
+    @(Get-ChildItem 'plugins/*/.claude-plugin/plugin.json' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
 foreach ($m in $manifests) {
     $j = Get-Content -LiteralPath $m -Raw | ConvertFrom-Json
     if ($j.PSObject.Properties.Name -contains 'version') {

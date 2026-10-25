@@ -14,7 +14,12 @@ $block = ([IO.File]::ReadAllText((Join-Path $root 'HOUSE-RULES.md'), $utf8) -rep
 $marker = '## House rules (all am-* skills)'
 if (-not $block.StartsWith($marker)) { Write-Host "FAIL: HOUSE-RULES.md must start with '$marker'"; exit 1 }
 
-foreach ($md in Get-ChildItem (Join-Path $root 'skills\*\SKILL.md')) {
+# Flat layout (skills/) and split layout (plugins/*/skills/). Zero matches is a failure, not a pass:
+# a wrong glob after a move must not report success while updating nothing.
+$mds = @(Get-ChildItem (Join-Path $root 'skills\*\SKILL.md') -ErrorAction SilentlyContinue) +
+       @(Get-ChildItem (Join-Path $root 'plugins\*\skills\*\SKILL.md') -ErrorAction SilentlyContinue)
+if ($mds.Count -eq 0) { Write-Host 'FAIL: no SKILL.md found under skills/ or plugins/*/skills/'; exit 1 }
+foreach ($md in $mds) {
     $text = [IO.File]::ReadAllText($md.FullName, $utf8) -replace "`r`n", "`n"
     $at = $text.IndexOf($marker)
     $head = if ($at -ge 0) { $text.Substring(0, $at).TrimEnd() } else { $text.TrimEnd() }

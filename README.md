@@ -171,8 +171,15 @@ A SessionStart hook (`hooks/hooks.json`) adds the short rules block in `hooks/se
 
 ### Checks
 
-- `scripts/check-skills.ps1`: the `am-` prefix, name equals folder, a README row, house rules identical to `HOUSE-RULES.md`, and the rules hook present (at most 12 lines).
-- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin` > Marketplaces > archi-magic > **Update marketplace**. `hooks/update-check.ps1` (SessionStart, one GitHub API call per day at most, cached in `%LOCALAPPDATA%\archi-magic\update-check.json`) tells users on an older release; its tests are `hooks/tests/test-update-check.ps1`.
+- `scripts/check-skills.ps1` checks every skill folder, in `skills/` today and in `plugins/*/skills/` after the planned split. It checks:
+  - the `am-` prefix, the name equals the folder, a README row, and house rules identical to `HOUSE-RULES.md`;
+  - the rules hook is in exactly one `hooks.json` (at most 12 lines);
+  - no skill refers to another as `archi-magic:am-...` (use the bare name);
+  - each shared-file copy equals its source.
+- **Shared files:** some files are needed in more than one place, for example the 3D viewer files that the `am-bim-viewer` skill reads. They are listed in `scripts/lib/shared-files.ps1`. Edit only the source, then run `scripts/sync-shared-files.ps1` (after `scripts/sync-design-tokens.ps1`). An installed plugin cannot read files outside its own folder, so each user needs a copy.
+- `scripts/lib/am-plugins.ps1` reads Claude Code's installed-plugin records for `am-doctor`, the update notice and `am-welcome`. It follows `CLAUDE_CONFIG_DIR`, so tests and trials can use a throwaway config folder.
+- `scripts/tests/test-checks.ps1` is the mutation table for the checks above. Each break must turn a check red, and a simulated split must stay green. CI runs it with the other tests.
+- `scripts/check-version-bump.ps1`: fails if any `plugin.json` (or a relative-path marketplace entry) pins a `"version"`. archi-magic has no pinned version: Claude Code uses the commit as the version, so **every merge to `main` is a new version** that reaches users through auto-update or `/plugin` > Marketplaces > archi-magic > **Update marketplace**. `hooks/update-check.ps1` (SessionStart, one GitHub API call per day at most, cached in `%LOCALAPPDATA%\archi-magic\update-check.json`) tells users on an older release. It names every installed archi-magic plugin that is behind, and it tells the user to type `/reload-plugins` after updating. Its tests are `hooks/tests/test-update-check.ps1`.
 - **Release workflow** (`.github/workflows/release.yml`): each merge to `main` gets a dated tag and a GitHub Release that lists the changes.
 - **Weekly check** (`.github/workflows/weekly-check.yml`, Mondays): runs the drift checks and compares every pinned dependency (superpowers, frontend-design, rhino-mcp) with its upstream. It reports the latest pyRevit release. The results go to one issue, "Weekly archi-magic check".
 

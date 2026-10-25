@@ -61,6 +61,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\skills\am-doctor\tests\test-deps.ps1
           exit $LASTEXITCODE
+      - name: Repo checks mutation table (every break red, simulated split green)
+        run: |
+          .\scripts\tests\test-checks.ps1
+          exit $LASTEXITCODE
+      - name: am-welcome list-skills (fixture installed_plugins.json)
+        run: |
+          .\skills\am-welcome\tests\test-list-skills.ps1
+          exit $LASTEXITCODE
       - name: am-welcome list-skills prints every sibling skill
         run: |
           $out = @(& .\skills\am-welcome\scripts\list-skills.ps1)

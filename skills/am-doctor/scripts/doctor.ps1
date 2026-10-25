@@ -44,8 +44,9 @@ param(
     [string]$LogDir = '',
     [string]$SetupLogRoot = (Join-Path $env:TEMP 'pyrevit7-setup'),
     [string]$McpName = 'pyrevit',
-    [string]$InstalledPluginsJson = (Join-Path $env:USERPROFILE '.claude\plugins\installed_plugins.json'),
-    [string]$ClaudeSettingsJson = (Join-Path $env:USERPROFILE '.claude\settings.json'),
+    # Claude Code's config folder: CLAUDE_CONFIG_DIR when set, else %USERPROFILE%\.claude.
+    [string]$InstalledPluginsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'plugins\installed_plugins.json'),
+    [string]$ClaudeSettingsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'settings.json'),
     [int]$BusyWaitSec = 25,
     [string[]]$Only = @()
 )
@@ -75,6 +76,11 @@ if (-not $script:AmLogLoaded) {
     }
 }
 if (-not $LogDir) { $LogDir = Get-AmLogDir }
+$amPluginsPath = Join-Path $PluginRoot 'scripts\lib\am-plugins.ps1'
+$script:AmPluginsLoaded = $false
+if (Test-Path -LiteralPath $amPluginsPath) {
+    try { . $amPluginsPath; $script:AmPluginsLoaded = $true } catch { Write-Warning "archi-magic plugin reader not loaded: $($_.Exception.Message)" }
+}
 
 $script:Findings = New-Object System.Collections.Generic.List[object]
 function Add-Finding($code, $severity, $evidence, $fixText) {
@@ -157,54 +163,14 @@ function Get-LogEntries {
 
 function Redact([string]$s) { return (ConvertTo-AmRedacted $s) }
 
-# Plugin dependencies (read-only, offline). Reads installed_plugins.json (and settings.json for the
-# enabled flag). A dependency counts as missing ("failed to load") when its entry is absent, or its
-# installPath or installPath\.claude-plugin\plugin.json is missing on disk.
+# Plugin dependencies (read-only, offline): scripts\lib\am-plugins.ps1 walks the dependency tree of
+# every installed archi-magic* plugin. A plugin counts as missing ("failed to load") when its entry is
+# absent, or its installPath or installPath\.claude-plugin\plugin.json is missing on disk.
 # Returns @{ State = ok|missing|unchecked|notinstalled|disabled; Missing = @('<name>@<market>'); Evidence }.
 function Get-DepsState {
-    $r = @{ State = 'unchecked'; Missing = @(); Evidence = '' }
-    if (-not (Test-Path -LiteralPath $InstalledPluginsJson)) {
-        $r.State = 'notinstalled'; $r.Evidence = "$(Redact $InstalledPluginsJson) not found; archi-magic is not installed from a marketplace"; return $r
-    }
-    try { $j = [IO.File]::ReadAllText($InstalledPluginsJson) | ConvertFrom-Json } catch {
-        $r.Evidence = "could not read $(Redact $InstalledPluginsJson): $($_.Exception.Message)"; return $r
-    }
-    if (-not $j -or -not $j.plugins) { $r.Evidence = "$(Redact $InstalledPluginsJson) has no 'plugins' object"; return $r }
-    $amKey = @($j.plugins.PSObject.Properties | Where-Object { $_.Name -like 'archi-magic@*' } | ForEach-Object Name) | Select-Object -First 1
-    if (-not $amKey) { $r.State = 'notinstalled'; $r.Evidence = 'archi-magic is not in installed_plugins.json (not installed from a marketplace)'; return $r }
-    $market = $amKey.Substring($amKey.IndexOf('@') + 1)
-    if (Test-Path -LiteralPath $ClaudeSettingsJson) {
-        try {
-            $set = [IO.File]::ReadAllText($ClaudeSettingsJson) | ConvertFrom-Json
-            $en = if ($set.enabledPlugins) { $set.enabledPlugins.PSObject.Properties[$amKey] } else { $null }
-            if ($en -and $en.Value -eq $false) { $r.State = 'disabled'; $r.Evidence = "$amKey is installed but disabled in settings.json"; return $r }
-        } catch { }   # An unreadable settings.json does not block the dependency check.
-    }
-    # Dependency names: the installed archi-magic manifest, else this copy's manifest, else the known two.
-    $names = @()
-    $amEntry = @($j.plugins.PSObject.Properties[$amKey].Value) | Select-Object -Last 1
-    foreach ($m in @($(if ($amEntry -and $amEntry.installPath) { Join-Path $amEntry.installPath '.claude-plugin\plugin.json' }), (Join-Path $PluginRoot '.claude-plugin\plugin.json'))) {
-        if (-not $m -or -not (Test-Path -LiteralPath $m)) { continue }
-        try {
-            $man = [IO.File]::ReadAllText($m) | ConvertFrom-Json
-            $names = @(@($man.dependencies) | ForEach-Object { if ($_ -is [string]) { $_ } elseif ($_.name) { [string]$_.name } } | Where-Object { $_ })
-            break
-        } catch { }
-    }
-    if ($names.Count -eq 0) { $names = @('superpowers', 'frontend-design') }
-    $missing = @(); $why = @()
-    foreach ($n in $names) {
-        $key = if ($n -match '@') { $n } else { "$n@$market" }
-        $prop = $j.plugins.PSObject.Properties[$key]
-        $entry = if ($prop) { @($prop.Value) | Select-Object -Last 1 } else { $null }
-        if (-not $entry) { $missing += $key; $why += "$key not installed"; continue }
-        $ip = [string]$entry.installPath
-        if (-not $ip -or -not (Test-Path -LiteralPath $ip)) { $missing += $key; $why += "$key install folder missing ($(Redact $ip))"; continue }
-        if (-not (Test-Path -LiteralPath (Join-Path $ip '.claude-plugin\plugin.json'))) { $missing += $key; $why += "$key has no .claude-plugin\plugin.json (fails to load)"; continue }
-    }
-    $r.Missing = $missing
-    if ($missing.Count) { $r.State = 'missing'; $r.Evidence = "$amKey needs: $($why -join '; ')" }
-    else { $r.State = 'ok'; $r.Evidence = "$amKey dependencies installed: $((@($names | ForEach-Object { if ($_ -match '@') { $_ } else { "$_@$market" } })) -join ', ')" }
+    if (-not $script:AmPluginsLoaded) { return @{ State = 'unchecked'; Missing = @(); Evidence = 'scripts\lib\am-plugins.ps1 not found in this copy' } }
+    $r = Get-AmDepsState -InstalledPluginsJson $InstalledPluginsJson -SettingsJson $ClaudeSettingsJson -FallbackManifest (Join-Path $PluginRoot '.claude-plugin\plugin.json')
+    $r.Evidence = Redact $r.Evidence
     return $r
 }
 
@@ -220,7 +186,7 @@ $FixMap = @{
     NO_MODEL_OPEN        = @{ Kind = 'manual'; Text = 'User: open a model in Revit (an Autodesk sample such as Snowdon Towers is fine).' }
     DOCS_OFFLINE         = @{ Kind = 'manual'; Text = 'No action needed. The cached docs copy is in use. Check the network later.' }
     HEADLESS_OLD_PYREVIT = @{ Kind = 'manual'; Text = 'Interactive Revit and the archi-magic skills are not affected. For your own pyrevit run scripts (batch, CI): ask IT to uninstall the machine-wide pyRevit in Program Files.' }
-    DEPS_MISSING         = @{ Kind = 'deps'; Text ='claude plugin install <name>@archi-magic for each missing one (superpowers, frontend-design), then quit and restart the Claude app.' }
+    DEPS_MISSING         = @{ Kind = 'deps'; Text = 'claude plugin install <name>@archi-magic for each missing one named in the evidence (in a session: /reload-plugins first, it installs missing dependencies), then quit and restart the Claude app.' }
 }
 
 if ($Fix -eq 'DEPS_MISSING') {

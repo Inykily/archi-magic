@@ -1,7 +1,11 @@
-# list-skills.ps1 - print "name<TAB>description<TAB>mode" for every sibling am-* skill.
+# list-skills.ps1 - print "name<TAB>description<TAB>mode" for every am-* skill archi-magic ships.
 # Read-only. Windows PowerShell 5.1. ASCII only.
-# Reads the YAML frontmatter between the first two "---" lines of each
-# skills\am-*\SKILL.md next to this skill. Skips am-welcome itself.
+# Reads the YAML frontmatter between the first two "---" lines of each skills\am-*\SKILL.md:
+#   - next to this skill (this plugin), and
+#   - in every other installed archi-magic / archi-magic-* plugin (installed_plugins.json, read
+#     through scripts\lib\am-plugins.ps1, which follows CLAUDE_CONFIG_DIR). After the planned split
+#     am-welcome lives in archi-magic-core and the Revit and Rhino skills in their own plugins.
+# Skips am-welcome itself. A skill name found twice is listed once.
 # mode is "user-only" when the frontmatter has "disable-model-invocation: true"
 # (the user must type /<name>; Claude never picks it), otherwise "auto".
 # This is the offline source; am-welcome merges in the pyrevit MCP list_skills when present.
@@ -9,7 +13,9 @@
 
 [CmdletBinding()]
 param(
-    [switch]$IncludeSelf
+    [switch]$IncludeSelf,
+    # Test parameter: a fixture installed_plugins.json. '' = the real one.
+    [string]$InstalledPluginsJson = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,9 +24,29 @@ $skillDir  = Split-Path -Parent $PSScriptRoot      # ...\skills\am-welcome
 $skillsDir = Split-Path -Parent $skillDir          # ...\skills
 $selfName  = Split-Path -Leaf $skillDir
 
+$skillRoots = @($skillsDir)
+$lib = Join-Path (Split-Path -Parent $skillsDir) 'scripts\lib\am-plugins.ps1'
+if (Test-Path -LiteralPath $lib) {
+    try {
+        . $lib
+        if (-not $InstalledPluginsJson) { $InstalledPluginsJson = Get-AmInstalledPluginsPath }
+        $inst = Read-AmInstalledPlugins $InstalledPluginsJson
+        if ($inst.Ok) {
+            $entries = Get-AmArchiMagicEntries $inst
+            foreach ($e in $entries) {
+                $d = Join-Path $e.InstallPath 'skills'
+                if ($e.InstallPath -and (Test-Path -LiteralPath $d)) { $skillRoots += $d }
+            }
+        }
+    } catch { Write-Warning "installed archi-magic plugins not read: $($_.Exception.Message)" }
+}
+
 $found = 0
-$folders = Get-ChildItem -LiteralPath $skillsDir -Directory -Filter 'am-*' | Sort-Object Name
+$seenNames = @{}
+$folders = @($skillRoots | Select-Object -Unique | ForEach-Object { Get-ChildItem -LiteralPath $_ -Directory -Filter 'am-*' }) | Sort-Object Name
 foreach ($folder in $folders) {
+    if ($seenNames.ContainsKey($folder.Name)) { continue }
+    $seenNames[$folder.Name] = $true
     if (-not $IncludeSelf -and $folder.Name -eq $selfName) { continue }
     $file = Join-Path $folder.FullName 'SKILL.md'
     if (-not (Test-Path -LiteralPath $file)) {
@@ -73,7 +99,7 @@ foreach ($folder in $folders) {
 }
 
 if ($found -eq 0) {
-    Write-Warning "No sibling am-* skills found under $skillsDir"
+    Write-Warning "No am-* skills found under: $($skillRoots -join '; ')"
     exit 2
 }
 exit 0
