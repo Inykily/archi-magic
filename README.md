@@ -86,6 +86,9 @@ Optional add-ons, installed only when the user needs them:
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
+| "check my Rhino model", Rhino tolerance, bad objects | `am-rhino-model-health` | Read-only script via `run_python` |
+| Rhino areas by layer, area takeoff, CSV | `am-rhino-area-report` | Read-only script; ask before narrowing layers or keys |
+| "clean up my Rhino layers", empty layers | `am-rhino-layer-cleanup` | Read-only plan, then "Apply" question, then one-Undo apply |
 | Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | If connected to that Revit year, `lookup_revit_api`; else search the installed `RevitAPI.xml` for the user's year |
 | pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
@@ -137,6 +140,9 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-schedule-view` | Shows a Revit schedule as Revit displays it, in an interactive table: search, sort, filter, copy, export CSV, compare. It also shows the `am-safe-change` preview. Ask "show me the door schedule". |
 | `am-bim-viewer` | Shows the model in 3D with Rhino mouse controls, element data on click, category filters, and Top, Front, Right and Perspective views. Ask "show this model in 3D". |
 | `am-rhino-setup` | Connects Claude Code to Rhino 8 **without admin rights**, using McNeel's official `rhino-mcp` plugin. It checks Rhino and Node.js, installs the Rhino package, and makes Claude ask before any tool that changes a file or the model. It also documents the RhinoCode CLI fallback. Ask Claude to "set up Rhino". |
+| `am-rhino-model-health` | Read-only health check of the open Rhino document: units and tolerance, invalid geometry, small strays, open polysurfaces, objects on Default, empty layers, unused blocks. Ask Claude to "check my Rhino model". |
+| `am-rhino-area-report` | Read-only areas by layer (and by a user text key such as "Room") from closed planar curves, planar surfaces and hatches, in m2 and ft2, with a CSV option. Ask for "Rhino areas by layer". |
+| `am-rhino-layer-cleanup` | Deletes empty layers and moves objects off the Default layer, only after a preview and your "Apply"; one Undo reverses it. Ask Claude to "clean up my Rhino layers". |
 | `am-revit-api-docs` | Looks up the Revit API in the documentation installed with **your** Revit version, and compares years. Ask "does Revit 2024 have ElementId.Value?" |
 | `am-pyrevit-docs` | Searches the official pyRevit documentation and the installed pyRevit source. Ask "how do I show a table in the pyRevit output window?" |
 | `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
