@@ -17,6 +17,8 @@
     - a plugins/*/.claude-plugin/plugin.json "name" differs from its marketplace.json entry name
     - plugins/*/skills exists and a root skills/ folder still exists (the meta plugin must ship no skills)
     - a shared-file copy (scripts/lib/shared-files.ps1) differs from its source
+    - a Rhino skill script does not print its result as one RESULT_PREFIX ("AM_RESULT ") line
+    - a skill script calls open() outside a "with" statement
   Runs on Windows PowerShell 5.1 and PowerShell 7 (GitHub Actions ubuntu: pwsh).
 
 .EXAMPLE
@@ -161,9 +163,36 @@ foreach ($pm in $splitManifests) {
     elseif ($entry.name -ne $man.name) { $problems.Add("plugins/$folder : plugin.json name '$($man.name)' differs from marketplace entry name '$($entry.name)'") }
 }
 
+# Skill Python scripts (2026-10-26 session lessons):
+#  - A Rhino script (it reads __rhino_doc__) must print every result as one RESULT_PREFIX line.
+#    Rhino writes its own lines ("Creating meshes...") to run_python stdout, so a bare JSON print
+#    does not parse.
+#  - A file open must use "with". Revit-hosted IronPython keeps an unclosed handle until GC, and
+#    the locked file blocked "git pull" on the user's checkout.
+$pyChecked = 0
+foreach ($d in $dirs) {
+    foreach ($py in @(Get-ChildItem (Join-Path $d.FullName 'scripts') -Filter *.py -File -ErrorAction SilentlyContinue)) {
+        $pyChecked++
+        $rel = "$($d.Name)/scripts/$($py.Name)"
+        $lines = @([IO.File]::ReadAllLines($py.FullName) | Where-Object { $_ -notmatch '^\s*#' })
+        if (@($lines | Where-Object { $_ -match '__rhino_doc__' }).Count -gt 0) {
+            if (@($lines | Where-Object { $_ -match '^RESULT_PREFIX = "AM_RESULT "\s*$' }).Count -ne 1) {
+                $problems.Add("$rel : Rhino script must define RESULT_PREFIX = `"AM_RESULT `" once")
+            }
+            foreach ($l in @($lines | Where-Object { $_ -match '(^|[^\w.])print\(' -and $_ -notmatch 'print\(RESULT_PREFIX \+' })) {
+                $problems.Add("$rel : Rhino script prints without RESULT_PREFIX: $($l.Trim())")
+            }
+        }
+        foreach ($l in @($lines | Where-Object { $_ -match '(^|[^\w.])((io|codecs)\.)?open\(' -and $_ -notmatch '^\s*with\s' })) {
+            $problems.Add("$rel : open() without 'with' (an unclosed handle locks the file in Revit): $($l.Trim())")
+        }
+    }
+}
+
 Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach-Object Name) -join ', '))
 Write-Host ("Checked trigger phrases: {0} unique, {1} shared by two or more skills" -f $triggerOwners.Count, $dupTriggers)
 Write-Host ("Checked design tokens: {0} page template(s) in sync" -f $designOk)
+Write-Host ("Checked skill Python scripts: {0}" -f $pyChecked)
 Write-Host ("Checked shared files: {0} of {1} copies in sync" -f $sharedOk, @($AmSharedFiles).Count)
 Write-Host ("Checked split plugin manifests: {0}; rules hook in {1} hooks.json" -f $splitManifests.Count, $rulesOwners.Count)
 Write-Host ("Checked SessionStart rules hook: {0}" -f $(if (Test-Path -LiteralPath $rulesMd) { "$(@(([IO.File]::ReadAllText($rulesMd) -replace "`r`n", "`n").Trim() -split "`n").Count) line(s)" } else { 'missing' }))
