@@ -96,6 +96,31 @@ try {
     Remove-Item -Recurse -Force (Join-Path $t 'skills')
     Expect 'break: sync-house-rules zero matches -> red' (Invoke-Check 'sync-house-rules.ps1' $t) $true 'no SKILL.md found'
 
+    # 8b. Break: a Rhino script prints bare JSON (Rhino noise lines make it unparseable).
+    $t = New-Tree 'm8b'
+    $py = Join-Path $t 'skills\am-rhino-model-health\scripts\rhino_health.py'
+    Set-Text $py (([IO.File]::ReadAllText($py)) -replace 'print\(RESULT_PREFIX \+ json\.dumps\(main', 'print(json.dumps(main')
+    Expect 'break: Rhino print without prefix -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $true 'prints without RESULT_PREFIX'
+
+    # 8c. Break: a Rhino script loses its RESULT_PREFIX constant.
+    $t = New-Tree 'm8c'
+    $py = Join-Path $t 'skills\am-rhino-area-report\scripts\rhino_area_report.py'
+    Set-Text $py (([IO.File]::ReadAllText($py)) -replace 'RESULT_PREFIX = "AM_RESULT "', 'RESULT_PREFIX = "RESULT "')
+    Expect 'break: wrong RESULT_PREFIX -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $true 'must define RESULT_PREFIX'
+
+    # 8d. Break: a skill script opens a file outside "with" (locks the file in Revit).
+    $t = New-Tree 'm8d'
+    $py = Join-Path $t 'skills\am-safe-change\scripts\read_elements.py'
+    Set-Text $py (([IO.File]::ReadAllText($py)) -replace 'with io\.open\(path, "r", encoding="utf-8-sig"\) as f:', 'f = io.open(path, "r", encoding="utf-8-sig")
+    if True:')
+    Expect 'break: open() without with -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $true "open\(\) without 'with'"
+
+    # 8e. Legitimate: a comment that mentions print( and open( stays green.
+    $t = New-Tree 'm8e'
+    $py = Join-Path $t 'skills\am-rhino-model-health\scripts\rhino_health.py'
+    Add-Content -LiteralPath $py -Value '# Never print(json.dumps(x)) or f = open(p) here.'
+    Expect 'legitimate: comment mentions print/open -> green' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $false 'Checked skill Python scripts: [1-9]'
+
     # 9. Legitimate: a full simulated split stays green for every check.
     $t = New-Tree 'split'
     $groups = @{
