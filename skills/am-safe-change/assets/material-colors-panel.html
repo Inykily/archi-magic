@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en" class="am-surface">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Material colors</title>
+<!-- archi-magic am-safe-change material-colors panel template.
+     scripts/render-panel.ps1 replaces the PANEL_DATA token below with the read result.
+     No server: the user tunes colors here, clicks "Copy changes for Revit", and pastes
+     the JSON back in chat. The page cannot talk to Revit.
+     Design system: "Visual Research" (design/DESIGN-SYSTEM.md). The block between the am-tokens markers is a verbatim copy
+     of design/tokens.css; edit it there, not here. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2248%22%20r%3D%2230%22%20fill%3D%22none%22%20stroke%3D%22%230a0a0a%22%20stroke-width%3D%229%22%2F%3E%3Ccircle%20cx%3D%2284%22%20cy%3D%2282%22%20r%3D%2211%22%20fill%3D%22%230a0a0a%22%2F%3E%3C/svg%3E">
+<script>
+// am-theme:start
+// archi-magic time-of-day theme (see design/DESIGN-SYSTEM.md). Single source: copied between the
+// am-theme markers into every page template by scripts/sync-design-tokens.ps1. Edit only here.
+// Day (paper) 07:00-19:00 local time, night otherwise; re-checked every minute. A manual choice
+// (window.amTheme.set('night'|'paper'|'auto')) holds until the next day/night boundary.
+// Without JavaScript the page follows the OS light/dark setting through the CSS tokens.
+(function () {
+  var DAY_START = 7, NIGHT_START = 19, KEY = 'am-theme-override';
+  var root = document.documentElement, current = null;
+  function timeTheme(d) { var h = d.getHours(); return (h >= DAY_START && h < NIGHT_START) ? 'paper' : 'night'; }
+  function nextBoundary(d) {
+    var b = new Date(d); var h = d.getHours();
+    if (h < DAY_START) b.setHours(DAY_START, 0, 0, 0);
+    else if (h < NIGHT_START) b.setHours(NIGHT_START, 0, 0, 0);
+    else { b.setDate(b.getDate() + 1); b.setHours(DAY_START, 0, 0, 0); }
+    return b.getTime();
+  }
+  function readOverride() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && (o.theme === 'night' || o.theme === 'paper') && Date.now() < o.until) return o.theme;
+      if (o) localStorage.removeItem(KEY);
+    } catch (e) { /* storage blocked: time of day only */ }
+    return null;
+  }
+  function show(theme) {   // the one place that changes the page theme, so every path sends the event
+    if (theme === current) return;
+    current = theme;
+    root.classList.toggle('am-night', theme === 'night');
+    root.classList.toggle('am-paper', theme === 'paper');
+    root.setAttribute('data-am-theme', theme);
+    try { document.dispatchEvent(new CustomEvent('am-theme-change', { detail: { theme: theme } })); } catch (e) { /* old browsers */ }
+  }
+  var pinned = null;   // manual choice kept in memory when storage is blocked
+  function apply() {
+    var now = new Date();
+    if (pinned && Date.now() >= pinned.until) pinned = null;
+    show((pinned && pinned.theme) || readOverride() || timeTheme(now));
+  }
+  window.amTheme = {
+    get: function () { return current; },
+    set: function (t) {
+      try {
+        if (t === 'auto') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, JSON.stringify({ theme: t, until: nextBoundary(new Date()) }));
+      } catch (e) { /* storage blocked: keep the choice in memory for this page view */ }
+      pinned = (t === 'auto') ? null : { theme: t, until: nextBoundary(new Date()) };
+      apply();
+    },
+    toggle: function () { this.set(current === 'night' ? 'paper' : 'night'); },
+    _timeTheme: timeTheme, _nextBoundary: nextBoundary
+  };
+  apply();
+  setInterval(apply, 60000);
+})();
+// am-theme:end
+</script>
+<style>
+/* am-tokens:start
+   archi-magic design tokens: "Visual Research" (see design/DESIGN-SYSTEM.md).
+   Single source. Copied between the am-tokens markers into every page template by
+   scripts/sync-design-tokens.ps1; check-skills fails if a copy drifts. Edit only here. */
+:root {
+  /* value scale: black to paper, no hue */
+  --v0: #0a0a0a;  /* ink, the dot */
+  --v1: #1c1c1b;
+  --v2: #3a3a38;
+  --v3: #6b6b68;  /* secondary text (the "is the clay" gray) */
+  --v4: #9a9a96;
+  --v5: #c9c9c4;
+  --v6: #e7e7e3;
+  --v7: #f4f4f1;  /* paper */
+
+  /* paper theme (tables, dashboards) */
+  --bg: var(--v7);
+  --surface: #fbfbf9;
+  --ink: var(--v0);
+  --ink-2: var(--v3);
+  --ink-3: var(--v4);
+  --line: rgba(10, 10, 10, .14);      /* hairline */
+  --line-strong: rgba(10, 10, 10, .42);
+  --beam: radial-gradient(ellipse 22% 70% at 50% 45%, rgba(255,255,255,.95), rgba(255,255,255,0) 70%);
+  --vignette: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.10) 100%);
+  /* strong beam (hero, empty states, viewport backdrop): a bright column, soft edges, haze at the top */
+  --beam-hero: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.55) 22%, rgba(244,244,241,.0) 34%, rgba(244,244,241,0) 66%, rgba(10,10,10,.55) 78%, rgba(10,10,10,.9) 100%),
+               radial-gradient(ellipse 60% 30% at 50% 0%, rgba(244,244,241,.95), rgba(244,244,241,0) 70%),
+               linear-gradient(var(--v7), var(--v6));
+  --on-beam: var(--v0);   /* text and the dot that sit on the bright beam */
+
+  /* type: one monospace family; hierarchy by tone, not size */
+  --font: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-micro: 10.5px;  /* uppercase tracked labels, the "VISUAL RESEARCH 13 / 30" header */
+  --fs-body: 12.5px;
+  --fs-lead: 14px;     /* the one emphasized line ("future") */
+  --track-micro: .18em;
+  --w-light: 300; --w-regular: 400; --w-medium: 500;
+
+  /* geometry */
+  --hair: 1px;
+  --radius: 0px;       /* rectangles stay square ... */
+  --round: 999px;      /* ... round things are fully round (dots, rings, pills) */
+  --dot: 9px;          /* the focal dot */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 20px; --space-5: 32px; --space-6: 56px;
+
+  /* grain: fixed SVG luminance noise (gray = the noise's red channel, alpha 1), tiled; opacity per theme.
+     It must vary in brightness: flat 50% gray is neutral under mix-blend-mode overlay and shows nothing. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 1'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-opacity: .16;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --slow: 420ms;
+}
+
+/* night theme (3D viewport, and every page when the OS is dark) */
+.am-night, :root.am-night {
+  --bg: var(--v0);
+  --surface: #121211;
+  --ink: var(--v7);
+  --ink-2: var(--v4);
+  --ink-3: var(--v3);
+  --line: rgba(244, 244, 241, .22);
+  --line-strong: rgba(244, 244, 241, .7);
+  --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+  --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+  --grain-opacity: .22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.am-paper) {
+    --bg: var(--v0); --surface: #121211; --ink: var(--v7); --ink-2: var(--v4); --ink-3: var(--v3);
+    --line: rgba(244, 244, 241, .22); --line-strong: rgba(244, 244, 241, .7);
+    --beam: radial-gradient(ellipse 20% 75% at 50% 45%, rgba(244,244,241,.22), rgba(244,244,241,0) 70%);
+    --vignette: radial-gradient(ellipse 80% 70% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.65) 100%);
+    --grain-opacity: .22;
+  }
+}
+
+/* shared primitives */
+.am-surface { background: var(--bg); color: var(--ink); font: var(--w-regular) var(--fs-body)/1.6 var(--font); position: relative; }
+.am-surface::after { /* grain over everything, never blocks input */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background-image: var(--grain); opacity: var(--grain-opacity); mix-blend-mode: overlay;
+}
+.am-micro { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink); }
+.am-index { font-size: var(--fs-micro); letter-spacing: var(--track-micro); color: var(--ink); word-spacing: .6em; } /* "13 / 30" */
+.am-lead  { font-size: var(--fs-lead); color: var(--ink); text-transform: lowercase; }
+.am-quiet { color: var(--ink-2); }
+.am-hair  { border: var(--hair) solid var(--line); border-radius: var(--radius); }
+.am-dot   { display: inline-block; width: var(--dot); height: var(--dot); border-radius: var(--round); background: var(--ink); }
+/* status by shape, not color: ok = ring, warn = half, bad = solid dot */
+.am-status { display: inline-block; width: 9px; height: 9px; border-radius: var(--round); border: var(--hair) solid var(--ink); vertical-align: -1px; }
+.am-status.warn { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.am-status.bad  { background: var(--ink); }
+/* am-tokens:end */
+
+/* page: only design tokens below this line */
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: var(--hair) solid var(--ink); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--space-4) var(--space-6); }
+.num { font-variant-numeric: tabular-nums; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: var(--hair) solid var(--line); vertical-align: middle; }
+th { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); }
+.swatch { display: inline-block; width: 28px; height: 28px; border: var(--hair) solid var(--line-strong); vertical-align: middle; }
+input[type=color] { width: 36px; height: 28px; padding: 0; border: var(--hair) solid var(--line-strong); background: none; vertical-align: middle; cursor: pointer; }
+input[type=number] { width: 56px; padding: 2px 4px; border: var(--hair) solid var(--line); background: var(--surface); }
+.rowbtn { padding: 2px 8px; border: var(--hair) solid var(--line-strong); background: var(--surface); cursor: pointer; }
+.rowbtn:hover { background: var(--v6); }
+.bigbtn { padding: 6px 14px; border: var(--hair) solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+.bigbtn:hover { opacity: .85; }
+.ghostbtn { padding: 6px 14px; border: var(--hair) solid var(--line-strong); background: var(--surface); cursor: pointer; }
+.changed { font-weight: var(--w-medium); }
+.grey { display: inline-block; margin: 4px 8px 4px 0; padding: 4px 8px; border: var(--hair) solid var(--line-strong); cursor: pointer; background: var(--surface); }
+.grey .sw { display: inline-block; width: 18px; height: 18px; border: var(--hair) solid var(--line-strong); vertical-align: middle; margin-right: 6px; }
+textarea { width: 100%; min-height: 90px; border: var(--hair) solid var(--line); background: var(--surface); font: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="am-micro">archi-magic &middot; am-safe-change &middot; material colors</p>
+  <h1 class="am-lead">Tune material colors, then apply them in one flow</h1>
+  <p class="am-quiet">Pick a color by eye for each material. The page cannot talk to Revit: click
+  <b>Copy changes for Revit</b>, paste the text back in chat, and the agent shows a
+  before/after preview, runs a dry run, and asks you to click Keep or Discard in Revit.</p>
+  <p id="meta" class="num am-quiet"></p>
+
+  <h2 class="am-micro">Palette helper: light greys that stay readable</h2>
+  <p class="am-quiet">Pick a material, ask for N light greys, and click one to use it as that
+  material's shading. Each grey states its WCAG contrast ratio against black text and
+  against the material's pattern color. Greys stop at the darkest grey that still
+  keeps black text at 4.5:1 (WCAG AA).</p>
+  <p>
+    <label>Material <select id="pal-mat"></select></label>
+    <label>How many <input id="pal-n" type="number" value="5" min="1" max="12"></label>
+    <button class="ghostbtn" id="pal-go" type="button">Suggest greys</button>
+  </p>
+  <p id="pal-out"></p>
+
+  <h2 class="am-micro">Materials <span id="changed-count" class="num"></span></h2>
+  <p><button class="ghostbtn" id="reset-all" type="button">Reset all</button></p>
+  <table>
+    <thead><tr><th>Material</th><th>Shading</th><th>Surface pattern</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <h2 class="am-micro">Apply</h2>
+  <p><button class="bigbtn" id="copy" type="button">Copy changes for Revit</button>
+  <span id="copy-status" class="am-quiet"></span></p>
+  <p class="am-quiet">If copy fails, the JSON appears below. Select it and copy it by hand.</p>
+  <textarea id="fallback" readonly hidden></textarea>
+</div>
+<script>
+var PANEL_DATA = /*__PANEL_DATA__*/null;
+
+/* WCAG 2.1 contrast, same math as scripts/lib/material_colors.py. */
+function lin(c) { var v = c / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+function lum(rgb) { return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]); }
+function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+function hex(rgb) { function h(n) { var s = n.toString(16); return s.length === 1 ? "0" + s : s; } return "#" + h(rgb[0]) + h(rgb[1]) + h(rgb[2]); }
+function suggestGreys(count, fg) {
+  var darkest = 0, g;
+  for (g = 255; g >= 0; g--) { if (ratio([g, g, g], [0, 0, 0]) >= 4.5) { darkest = g; } else { break; } }
+  var levels = [], i;
+  if (count === 1) { levels = [255]; }
+  else { var step = (255 - darkest) / (count - 1); for (i = 0; i < count; i++) { levels.push(Math.round(255 - step * i)); } }
+  return levels.map(function (v) { var rgb = [v, v, v]; return { rgb: rgb, text: ratio(rgb, [0, 0, 0]), pattern: ratio(rgb, fg) }; });
+}
+
+var mats = (PANEL_DATA && PANEL_DATA.current && PANEL_DATA.current.materials) || [];
+var state = {}; /* id -> {shading, pattern, shadingTouched, patternTouched} */
+mats.forEach(function (m) {
+  state[m.id] = { shading: m.shading ? m.shading.slice() : null,
+                  pattern: m.surface_pattern_color ? m.surface_pattern_color.slice() : null,
+                  shadingTouched: false, patternTouched: false };
+});
+
+function el(tag, text) { var e = document.createElement(tag); if (text !== undefined) { e.textContent = text; } return e; }
+function rgbInputs(cell, initial, onChange) {
+  var picker = el("input"); picker.type = "color";
+  picker.value = initial ? hex(initial) : "#ffffff";
+  var boxes = [0, 1, 2].map(function (i) {
+    var n = el("input"); n.type = "number"; n.min = 0; n.max = 255;
+    n.value = initial ? initial[i] : 255; n.setAttribute("aria-label", ["Red", "Green", "Blue"][i]);
+    return n;
+  });
+  function read() { return boxes.map(function (b) { return Math.max(0, Math.min(255, parseInt(b.value, 10) || 0)); }); }
+  function syncFromPicker() { var v = readHex(picker.value); boxes.forEach(function (b, i) { b.value = v[i]; }); onChange(v); }
+  function syncFromBoxes() { var v = read(); picker.value = hex(v); onChange(v); }
+  function readHex(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  picker.addEventListener("input", syncFromPicker);
+  boxes.forEach(function (b) { b.addEventListener("change", syncFromBoxes); });
+  cell.appendChild(picker);
+  cell.appendChild(document.createTextNode(" "));
+  boxes.forEach(function (b) { cell.appendChild(b); });
+  return { set: function (rgb) { picker.value = hex(rgb); boxes.forEach(function (b, i) { b.value = rgb[i]; }); } };
+}
+
+var tbody = document.getElementById("rows");
+var controls = {}; /* id -> {shadingSet, patternSet, swShading, swPattern, nameCell} */
+mats.forEach(function (m) {
+  var st = state[m.id];
+  var tr = el("tr");
+  var nameTd = el("td"); nameTd.textContent = m.name; tr.appendChild(nameTd);
+  var swS = el("span"); swS.className = "swatch";
+  if (m.shading) { swS.style.background = hex(m.shading); }
+  var shTd = el("td"); shTd.appendChild(swS); shTd.appendChild(document.createTextNode(" "));
+  var shCtl = rgbInputs(shTd, m.shading, function (v) { st.shading = v; st.shadingTouched = true; swS.style.background = hex(v); refresh(); });
+  tr.appendChild(shTd);
+  var patTd = el("td");
+  var swP = null, patCtl = null;
+  if (m.surface_pattern_id) {
+    swP = el("span"); swP.className = "swatch";
+    if (m.surface_pattern_color) { swP.style.background = hex(m.surface_pattern_color); }
+    patTd.appendChild(swP); patTd.appendChild(document.createTextNode(" "));
+    patTd.appendChild(document.createTextNode(m.surface_pattern_name ? m.surface_pattern_name + " " : ""));
+    patCtl = rgbInputs(patTd, m.surface_pattern_color, function (v) { st.pattern = v; st.patternTouched = true; if (swP) { swP.style.background = hex(v); } refresh(); });
+  } else {
+    patTd.textContent = "—";
+  }
+  tr.appendChild(patTd);
+  var resetTd = el("td");
+  var rb = el("button", "Reset"); rb.className = "rowbtn"; rb.type = "button";
+  rb.addEventListener("click", function () {
+    st.shading = m.shading ? m.shading.slice() : null; st.shadingTouched = false;
+    st.pattern = m.surface_pattern_color ? m.surface_pattern_color.slice() : null; st.patternTouched = false;
+    shCtl.set(m.shading || [255, 255, 255]); swS.style.background = m.shading ? hex(m.shading) : "";
+    if (patCtl) { patCtl.set(m.surface_pattern_color || [0, 0, 0]); if (swP) { swP.style.background = m.surface_pattern_color ? hex(m.surface_pattern_color) : ""; } }
+    refresh();
+  });
+  resetTd.appendChild(rb); tr.appendChild(resetTd);
+  tbody.appendChild(tr);
+  controls[m.id] = { shCtl: shCtl, patCtl: patCtl, swS: swS, swP: swP, nameCell: nameTd };
+});
+
+function changedRows() {
+  return mats.filter(function (m) { var st = state[m.id]; return st.shadingTouched || st.patternTouched; });
+}
+function refresh() {
+  var n = changedRows().length;
+  document.getElementById("changed-count").textContent = n ? "(" + n + " changed)" : "";
+  mats.forEach(function (m) {
+    var st = state[m.id];
+    controls[m.id].nameCell.className = (st.shadingTouched || st.patternTouched) ? "changed" : "";
+  });
+}
+document.getElementById("reset-all").addEventListener("click", function () {
+  mats.forEach(function (m) {
+    var st = state[m.id];
+    st.shading = m.shading ? m.shading.slice() : null; st.shadingTouched = false;
+    st.pattern = m.surface_pattern_color ? m.surface_pattern_color.slice() : null; st.patternTouched = false;
+    controls[m.id].shCtl.set(m.shading || [255, 255, 255]);
+    controls[m.id].swS.style.background = m.shading ? hex(m.shading) : "";
+    if (controls[m.id].patCtl) {
+      controls[m.id].patCtl.set(m.surface_pattern_color || [0, 0, 0]);
+      if (controls[m.id].swP) { controls[m.id].swP.style.background = m.surface_pattern_color ? hex(m.surface_pattern_color) : ""; }
+    }
+  });
+  refresh();
+});
+
+/* Palette helper. */
+var palSel = document.getElementById("pal-mat");
+mats.forEach(function (m) { var o = el("option", m.name); o.value = m.id; palSel.appendChild(o); });
+document.getElementById("pal-go").addEventListener("click", function () {
+  var id = parseInt(palSel.value, 10);
+  var m = mats.filter(function (x) { return x.id === id; })[0];
+  var n = Math.max(1, Math.min(12, parseInt(document.getElementById("pal-n").value, 10) || 5));
+  var fg = (m && m.surface_pattern_color) ? m.surface_pattern_color : [0, 0, 0];
+  var greys = suggestGreys(n, fg);
+  var out = document.getElementById("pal-out");
+  out.textContent = "";
+  greys.forEach(function (g) {
+    var b = el("button", "");
+    b.className = "grey"; b.type = "button";
+    b.title = "Use as shading for " + (m ? m.name : "");
+    var sw = el("span"); sw.className = "sw"; sw.style.background = hex(g.rgb);
+    b.appendChild(sw);
+    b.appendChild(document.createTextNode(hex(g.rgb) + "  text " + g.text.toFixed(2) + ":1  pattern " + g.pattern.toFixed(2) + ":1"));
+    b.addEventListener("click", function () {
+      var st = state[id];
+      st.shading = g.rgb.slice(); st.shadingTouched = true;
+      controls[id].shCtl.set(g.rgb);
+      controls[id].swS.style.background = hex(g.rgb);
+      refresh();
+    });
+    out.appendChild(b);
+  });
+});
+
+/* Copy the changed rows back as a prompt. */
+document.getElementById("copy").addEventListener("click", function () {
+  var items = changedRows().map(function (m) {
+    var st = state[m.id];
+    var it = { id: m.id };
+    if (st.shadingTouched) { it.shading = st.shading; }
+    if (st.patternTouched) { it.surface_pattern_color = st.pattern; }
+    return it;
+  });
+  var payload = JSON.stringify({ kind: "material-colors", source: "am-safe-change", items: items });
+  var status = document.getElementById("copy-status");
+  var fb = document.getElementById("fallback");
+  if (items.length === 0) { status.textContent = "Nothing changed yet."; return; }
+  fb.value = payload; fb.hidden = false;
+  function done(msg) { status.textContent = msg; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(payload).then(function () { done("Copied " + items.length + " changed row(s). Paste it in chat."); },
+      function () { done("Copy failed. Select the text below and copy it by hand."); });
+  } else {
+    fb.select(); done("Select the text below and copy it by hand.");
+  }
+});
+
+document.getElementById("meta").textContent =
+  (PANEL_DATA && PANEL_DATA.current ? PANEL_DATA.current.count + " materials" : "") +
+  (PANEL_DATA && PANEL_DATA.rendered ? " · rendered " + PANEL_DATA.rendered : "");
+refresh();
+</script>
+</body>
+</html>

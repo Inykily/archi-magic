@@ -62,7 +62,10 @@ How the computation works (`scripts/lib/sheet_shift.py`):
 2. Compare:
    `python "<skill dir>\scripts\sheet_preview.py" compare --preview preview.json --actual dryrun.json`
    It must print `MATCHES PREVIEW`. If it prints `DIFFERENT`, stop.
-3. `run_modify` with the same script and inputs, without dry run. The user clicks Keep or Discard in Revit.
+3. Show the side-effect counts:
+   `python "<skill dir>\scripts\sheet_preview.py" side-effects --preview preview.json --dryrun dryrun.json`
+   Show the two numbers in chat: sheets the script edited on purpose, and dependent elements Revit regenerated (views on the sheets show the new number, so they redraw). Say in one sentence why dependents change (the command prints it). If the command warns about an unexpected category, tell the user and ask whether to continue before you apply.
+4. `run_modify` with the same script and inputs, without dry run. The user clicks Keep or Discard in Revit.
 
 The apply script first checks that every sheet still has its "before" number and that no sheet was added. Then it replays the preview's `steps` in one transaction. It returns the number of every sheet after the steps.
 

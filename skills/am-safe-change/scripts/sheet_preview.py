@@ -9,6 +9,9 @@ Compute a preview from a read_sheets.py result:
 Compare a later result (apply dry run, or a fresh read) with the preview:
     python sheet_preview.py compare --preview preview.json --actual run.json
 
+Show the side-effect counts of a dry run (issue #28):
+    python sheet_preview.py side-effects --preview preview.json --dryrun dryrun.json
+
 Input files may be the bare `result` object or the whole run JSON that
 `pyrevit agent run` prints. Exit codes: 0 ok, 1 differences or blocked, 2 bad input.
 """
@@ -20,6 +23,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 import sheet_shift as ss  # noqa: E402
+import side_effects as se  # noqa: E402
 
 
 def load_json(path):
@@ -56,6 +60,9 @@ def main(argv=None):
     v = sub.add_parser("compare")
     v.add_argument("--preview", required=True)
     v.add_argument("--actual", required=True)
+    s = sub.add_parser("side-effects")
+    s.add_argument("--preview", required=True)
+    s.add_argument("--dryrun", required=True)
     a = ap.parse_args(argv)
 
     if a.cmd == "compute":
@@ -82,6 +89,11 @@ def main(argv=None):
                 print("  " + d)
             return 1
         print("MATCHES PREVIEW: %d sheets checked." % len(rows))
+        return 0
+    if a.cmd == "side-effects":
+        preview = load_json(a.preview)
+        summary = se.summarize(preview, load_json(a.dryrun), ["Sheets"])
+        print(se.text_table(summary))
         return 0
     ap.print_help()
     return 2

@@ -3,5 +3,6 @@
 $AmDesignTemplates = @(
     'mods/am-bim-viewer/viewer/template.html',
     'skills/am-schedule-view/assets/viewer-template.html',
-    'skills/am-model-health/assets/report.html'
+    'skills/am-model-health/assets/report.html',
+    'skills/am-safe-change/assets/material-colors-panel.html'
 )

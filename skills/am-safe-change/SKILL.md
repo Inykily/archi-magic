@@ -1,6 +1,6 @@
 ---
 name: am-safe-change
-description: "Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, \"make room for a new sheet\"). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. Recipes: sheet renumbering (\"shift all sheet numbers from A301 up by one\"), and move or rotate elements, including changes copied from the 3D viewer (element-transforms JSON from am-bim-viewer). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view)."
+description: "Use before ANY change to a Revit model (renumber, rename, set parameters, move to workset, shift sheet numbers, \"make room for a new sheet\", material colors, patterns, graphics overrides, view templates, filters). Enforces read, compute, preview, confirm, dry run, apply with Revit Keep/Discard, then verify, so the user sees a before/after table and approves it before Revit changes. Recipes: sheet renumbering (\"shift all sheet numbers from A301 up by one\"), move or rotate elements, including changes copied from the 3D viewer (element-transforms JSON from am-bim-viewer), and material colors (\"pick the colors for the floor materials by eye\"). NOT for read-only questions (answer directly) or schedule viewing (am-schedule-view)."
 ---
 
 # am-safe-change
@@ -11,6 +11,7 @@ Recipes (the task-specific parts):
 
 - Sheet renumbering: [recipes/sheet-renumber.md](recipes/sheet-renumber.md). Use it for "shift sheet numbers", "insert a sheet at A301", "renumber the A3xx sheets".
 - Element transforms: [recipes/element-transforms.md](recipes/element-transforms.md). Use it to move or rotate elements, including changes copied from the 3D viewer (JSON with `"kind": "element-transforms"`), or "move this column 2 ft east and turn it 15 degrees".
+- Material colors: [recipes/material-colors.md](recipes/material-colors.md). Use it to let the user tune Shading and Surface Pattern colors by eye in a panel, then write them to Revit ("pick the colors for the floor materials by eye").
 
 For a change with no recipe yet, follow the same 8 steps. Write the read query, the pure compute function and the apply script in the recipe style: one transaction, a stale-state guard, and a result that lists the values after the change.
 
@@ -24,17 +25,20 @@ For a change with no recipe yet, follow the same 8 steps. Write the read query, 
    - Render it as a web page with the schedule viewer, then open the page:
      `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\..\am-schedule-view\scripts\render-table.ps1" -Json <preview.json> -Out <preview.html>`
      If that script is missing or fails, say so in one line, and continue with the chat table.
-   - Always also print a compact table in chat: the first 10 and last 10 changed rows, the counts (changed, unchanged, warnings) and every warning. The recipe's compute command prints this table.
+   - Always also print a compact table in chat: the first 10 and last 10 changed rows, the counts (changed, unchanged, warnings) and every warning. The recipe's compute command prints this table. The preview table shows the planned change. The dry run in step 7 adds the side-effect counts: elements edited on purpose, and dependent elements Revit regenerated.
 6. **Confirm.** Ask with AskUserQuestion: **Apply (Recommended)** / **Change scope** / **Cancel**. If the preview has a blocking warning, do not offer Apply. Explain the warning and offer Change scope or Cancel.
 7. **Execute.**
    - First run the apply script with `run_modify` and `dry_run: true`. Compare the dry-run result with the preview. It must match exactly. If it does not match, stop, show the differences, and do not run the real change.
+   - Then show the side-effect counts. Run the recipe's `<preview>.py side-effects --preview <preview.json> --dryrun <dryrun.json` command. Show two numbers in chat: elements the script edited on purpose, and dependent elements Revit regenerated. Say in one sentence why dependents change. If the command warns about an unexpected category, tell the user and ask whether to continue before you apply.
    - Then run the same script with `run_modify` (not dry run). Revit shows the user a Keep/Discard prompt. Tell the user to check the isolated elements and click Keep or Discard. The change is one undo entry named "Agent: <title>".
+   - The dry run is mandatory for every model write. A preview shown in chat, or the user saying "apply" after a preview, does not skip it. When the user asks for a second group after the first (for example a second material group), run the full flow again from step 3, with its own dry run. A dry run from an earlier group never covers a later group.
    - Status `rejected` means the user clicked Discard. The model did not change. Stop there.
 8. **Verify.** Run the read script again with `run_query`. Compare the new values with the preview's "after" rows. Report "Matches preview" or list each difference.
 
 ## Rules
 
 - Never skip steps 5, 6 and 7. A user's "just do it" does not remove the preview. It only makes the questions shorter.
+- Never skip the dry run. A preview in chat or an earlier "apply" does not replace it. Every model write gets its own dry run, even the second group after the first.
 - Never change the model without the Revit Keep/Discard prompt. Never set the agent policy to `auto` for this skill. If the policy is `auto`, stop and tell the user that this skill needs `ask`.
 - Never use an AskUserQuestion answer in place of Keep/Discard. The answer in step 6 approves the plan. Keep/Discard approves the actual model change.
 - If the model changed between the read and the apply, the apply script stops with "Model changed since the preview". Start again at step 3.
@@ -63,7 +67,7 @@ For a change with no recipe yet, follow the same 8 steps. Write the read query, 
 
 - `before` and `after` have the same rows in the same order. Row N of `after` is row N of `before` after the change.
 - `warnings[].row` is the key column value, as text.
-- This skill adds extra keys. The renderer ignores them: `blocked` (true when a blocking warning exists), `params` (the chosen scope), and `steps` (the exact ordered list of assignments that the apply script replays).
+- This skill adds extra keys. The renderer ignores them: `blocked` (true when a blocking warning exists), `params` (the chosen scope), `steps` (the exact ordered list of assignments that the apply script replays), and `expected_dependent_categories` (categories Revit may regenerate as a side effect of this change, for example the categories that use a changed material). The `side-effects` command warns when the dry run lists a category that is neither edited nor expected.
 - A real example is in [assets/fixtures/snowdon-sheet-shift.preview.json](assets/fixtures/snowdon-sheet-shift.preview.json).
 
 ## Running the scripts from a terminal

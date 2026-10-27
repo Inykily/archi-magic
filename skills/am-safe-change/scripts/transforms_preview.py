@@ -11,6 +11,9 @@ Compute a preview from the request and a read_elements.py result:
 Compare a later result (apply dry run, or a fresh read) with the preview:
     python transforms_preview.py compare --preview preview.json --actual run.json
 
+Show the side-effect counts of a dry run (issue #28):
+    python transforms_preview.py side-effects --preview preview.json --dryrun dryrun.json
+
 Input files may be the bare `result` object or the whole run JSON that
 `pyrevit agent run` prints. Exit codes: 0 ok, 1 differences or blocked, 2 bad input.
 """
@@ -22,6 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 import transforms as tf  # noqa: E402
+import side_effects as se  # noqa: E402
 
 
 def load_json(path):
@@ -48,6 +52,9 @@ def main(argv=None):
     m = sub.add_parser("compare")
     m.add_argument("--preview", required=True)
     m.add_argument("--actual", required=True)
+    s = sub.add_parser("side-effects")
+    s.add_argument("--preview", required=True)
+    s.add_argument("--dryrun", required=True)
     a = ap.parse_args(argv)
 
     if a.cmd == "validate":
@@ -90,6 +97,14 @@ def main(argv=None):
                 print("  " + d)
             return 1
         print("MATCHES PREVIEW: %d elements checked." % len(preview.get("steps") or []))
+        return 0
+    if a.cmd == "side-effects":
+        preview = load_json(a.preview)
+        stepped = set(st["id"] for st in preview.get("steps") or [])
+        edited_cats = sorted(set(b[2] for b in preview.get("before") or []
+                                 if b[0] in stepped and len(b) > 2))
+        summary = se.summarize(preview, load_json(a.dryrun), edited_cats)
+        print(se.text_table(summary))
         return 0
     ap.print_help()
     return 2

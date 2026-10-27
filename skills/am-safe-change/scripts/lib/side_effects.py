@@ -1,0 +1,123 @@
+# -*- coding: utf-8 -*-
+"""Side-effect counts after a dry run for the am-safe-change skill.
+
+Issue #28: a change to 10 materials reported modified_count 1143 (292
+floors, 831 keynote tags, legend components). That is normal: dependent
+elements regenerate. But the number is large and can alarm the user.
+
+This module turns a change preview and a dry-run result into two
+numbers: elements the script edited on purpose, and dependent elements
+Revit regenerated. It also warns when a category appears that the
+preview did not expect.
+
+Pure computation. Runs under CPython 3 and IronPython 2.7: no f-strings,
+no type annotations, no nonlocal. No Revit imports.
+
+Dry-run result shape (what run_modify returns, bare or inside the run
+envelope under "result"):
+    {"modified_count": 1143,
+     "modified_by_category": {"Floors": 292, "Keynote Tags": 831, ...}}
+"modified_count" is the number of elements Revit lists as changed by
+the transaction. "modified_by_category" groups that count by category.
+The apply scripts return only the elements they touched, so these two
+keys come from the agent runtime, not from the apply script.
+"""
+
+
+def unwrap_dryrun(data):
+    """The dry-run result dict, bare or inside the run envelope."""
+    if "result" in data and "modified_count" not in data:
+        data = data["result"]
+    if data is None:
+        raise ValueError("The dry run has no result (check status and error).")
+    return data
+
+
+def summarize(preview, dryrun, edited_categories):
+    """Two numbers plus a warning list for one dry run.
+
+    preview            : the change-preview dict (has "steps" and the
+                         optional "expected_dependent_categories").
+    dryrun             : the dry-run result dict (see module docstring).
+    edited_categories  : categories of the elements the preview edits
+                         on purpose (for example ["Sheets"]).
+
+    Returns a dict with keys: available, edited, modified_count,
+    regenerated, by_category ([(category, count, kind)] sorted by
+    count, largest first), unexpected ([category, ...]),
+    explanation (one sentence), warnings ([text, ...]).
+    kind is "edited", "expected" or "unexpected".
+    """
+    edited = len(preview.get("steps") or [])
+    expected = set(preview.get("expected_dependent_categories") or [])
+    edited_cats = set(edited_categories or [])
+    dry = unwrap_dryrun(dryrun)
+    modified = dry.get("modified_count")
+    if modified is None:
+        return {"available": False, "edited": edited, "modified_count": None,
+                "regenerated": None, "by_category": [], "unexpected": [],
+                "explanation": "",
+                "warnings": ["The dry-run result has no modified_count, "
+                             "so the regenerated count is unknown."]}
+    by_cat = dry.get("modified_by_category") or {}
+    regenerated = modified - edited
+    warnings = []
+    if regenerated < 0:
+        warnings.append("The dry run reports %d changed elements, fewer "
+                        "than the %d preview steps. Treat the dry run as "
+                        "stale and read the model again." % (modified, edited))
+        regenerated = 0
+    rows = []
+    for cat in sorted(by_cat, key=lambda c: -by_cat[c]):
+        if cat in edited_cats:
+            kind = "edited"
+        elif cat in expected:
+            kind = "expected"
+        else:
+            kind = "unexpected"
+        rows.append((cat, by_cat[cat], kind))
+    unexpected = [cat for cat, _n, kind in rows if kind == "unexpected"]
+    for cat in unexpected:
+        warnings.append("Unexpected category in the dry run: %s (%d). The "
+                        "change does not target it. Check it before you "
+                        "apply." % (cat, by_cat[cat]))
+    dependents = [cat for cat, _n, kind in rows if kind in ("expected", "unexpected")]
+    if dependents:
+        explanation = ("%s use or show the changed elements, so Revit "
+                       "redraws them when the change applies."
+                       % _join_names(dependents))
+    else:
+        explanation = "No dependent elements changed."
+    return {"available": True, "edited": edited, "modified_count": modified,
+            "regenerated": regenerated, "by_category": rows,
+            "unexpected": unexpected, "explanation": explanation,
+            "warnings": warnings}
+
+
+def _join_names(names):
+    """'A, B and C' for a short list of names."""
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return "%s and %s" % (names[0], names[1])
+    return "%s and %s" % (", ".join(names[:-1]), names[-1])
+
+
+def text_table(summary):
+    """Compact text of the side-effect counts, for chat."""
+    if not summary["available"]:
+        return "Side effects: unknown. " + " ".join(summary["warnings"])
+    out = ["Side effects of this dry run:",
+           "Edited on purpose: %d." % summary["edited"],
+           "Regenerated by Revit: %d of %d changed in total."
+           % (summary["regenerated"], summary["modified_count"])]
+    if summary["by_category"]:
+        parts = ["%s %d%s" % (cat, n, " (edited)" if kind == "edited"
+                              else (" (expected)" if kind == "expected"
+                                    else " (unexpected)"))
+                 for cat, n, kind in summary["by_category"]]
+        out.append("By category: %s." % ", ".join(parts))
+    out.append("Why: %s" % summary["explanation"])
+    for w in summary["warnings"]:
+        out.append("WARN: %s" % w)
+    return "\n".join(out)

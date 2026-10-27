@@ -89,7 +89,10 @@ While a blocking warning exists, `blocked` is true, the preview has no `steps`, 
 2. Compare:
    `python "<skill dir>\scripts\transforms_preview.py" compare --preview preview.json --actual dryrun.json`
    It must print `MATCHES PREVIEW`. Locations must agree within 1e-6 ft, rotations within 1e-4 degrees. If it prints `DIFFERENT`, stop.
-3. `run_modify` with the same script and inputs, without dry run. The user clicks Keep or Discard in Revit.
+3. Show the side-effect counts:
+   `python "<skill dir>\scripts\transforms_preview.py" side-effects --preview preview.json --dryrun dryrun.json`
+   Show the two numbers in chat: elements the script moved or rotated on purpose, and dependent elements Revit regenerated (joins, room boundaries and dimensions that touch the moved elements redraw). Say in one sentence why dependents change (the command prints it). If the command warns about an unexpected category, tell the user and ask whether to continue before you apply.
+4. `run_modify` with the same script and inputs, without dry run. The user clicks Keep or Discard in Revit.
 
 The apply script first checks that every element still has its "before" location (within 1e-6 ft) and rotation. If not, it stops with "Model changed since the preview" and nothing changes. Then, in one transaction, for each element it calls `ElementTransformUtils.RotateElement` about a vertical line through the pivot, then `ElementTransformUtils.MoveElement`. It returns the location and rotation of each element after the change.
 
