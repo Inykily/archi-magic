@@ -72,7 +72,7 @@ For a change with no recipe yet, follow the same 8 steps. Write the read query, 
 
 ## Running the scripts from a terminal
 
-The MCP tools (`run_query`, `run_modify`) are the normal path. The pyRevit CLI runs the same scripts:
+The MCP tools (`run_query`, `run_modify`) are the normal path. For the exact `run_query` argument names, see the sample query skeleton in `am-revit-api-docs`. `run_query` takes `script`, not `code`. The pyRevit CLI runs the same scripts:
 
 ```powershell
 $pr = "$env:APPDATA\pyRevit-Master\bin\pyrevit.exe"
