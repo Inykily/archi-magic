@@ -57,6 +57,11 @@ Read this whole section before you act. The user is usually an architect, not a 
    This also installs two pinned dependencies: `superpowers` (planning, debugging, test-driven development, code review) and `frontend-design`.
    **Check:** `claude plugin list` shows `archi-magic@archi-magic`, `superpowers@archi-magic` and `frontend-design@archi-magic` as enabled.
 2. Ask the user to turn on auto-update. Third-party marketplaces have it off by default: type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, choose **Enable auto-update**. Without it, update by hand: in the same place choose **Update marketplace**, then start a new session. (`/plugin marketplace update archi-magic` alone refreshes the listing only; it does not update the installed plugin.) Each new session also shows a one-line notice when a newer archi-magic release exists; set `ARCHI_MAGIC_NO_UPDATE_CHECK=1` to turn the notice off.
+   You can also turn it on in the settings file. Add this entry to `~/.claude/settings.json`. Merge it with the settings that are already there; do not replace the whole file.
+   ```json
+   {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
+   ```
+   An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
 3. Ask the user to restart the Claude desktop app. Skills, hooks and MCP servers load only in a new session.
 4. In the new session, run the `am-welcome` skill.
 
