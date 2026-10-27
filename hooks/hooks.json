@@ -1,5 +1,5 @@
 {
-  "description": "archi-magic: (1) add the short archi-magic rules block (hooks/session-rules.md) to every session, local file read only; (2) at startup, show a one-line notice when a newer archi-magic release exists (hooks/update-check.ps1: at most one GitHub API call per day, cached; opt out with ARCHI_MAGIC_NO_UPDATE_CHECK=1). Windows PowerShell, no Git Bash needed. Never blocks the session.",
+  "description": "archi-magic: (1) add the short archi-magic rules block (hooks/session-rules.md) to every session, local file read only; (2) at startup, show a one-line notice when a newer archi-magic release exists (hooks/update-check.ps1: at most one GitHub API call per day, cached; opt out with ARCHI_MAGIC_NO_UPDATE_CHECK=1); (3) at session end, scan the transcript tail for trouble (hooks/session-end-feedback.ps1: Revit connection errors, failed tool calls, the user saying something is broken) and save a one-line note; at the next session start, show it once and offer to file it as a GitHub issue (hooks/session-start-feedback.ps1). Quiet sessions stay quiet; opt out with ARCHI_MAGIC_NO_FEEDBACK_NUDGE=1. Windows PowerShell, no Git Bash needed. Never blocks the session.",
   "hooks": {
     "SessionStart": [
       {
@@ -32,6 +32,42 @@
               "Bypass",
               "-Command",
               "try { & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'update-check.ps1')) } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'session-start-feedback.ps1')) } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { $in = [Console]::In.ReadToEnd(); & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'session-end-feedback.ps1')) -HookInputJson $in } catch { }; exit 0"
             ],
             "timeout": 10
           }
