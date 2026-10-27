@@ -48,7 +48,7 @@ def main():
 
     user_ws = {}
     for ws in DB.FilteredWorksetCollector(doc).OfKind(DB.WorksetKind.UserWorkset):
-        user_ws[ws.Id.IntegerValue] = ws.Name
+        user_ws[eid_int(ws.Id)] = ws.Name
 
     moved = []
     skipped = []
@@ -71,7 +71,7 @@ def main():
             if el is None:
                 skip("element no longer exists")
                 continue
-            cur = el.WorksetId.IntegerValue
+            cur = eid_int(el.WorksetId)
             if cur == to_id:
                 skip("already on %s" % user_ws[to_id])
                 continue

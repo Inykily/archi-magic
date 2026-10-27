@@ -57,6 +57,11 @@ Read this whole section before you act. The user is usually an architect, not a 
    This also installs two pinned dependencies: `superpowers` (planning, debugging, test-driven development, code review) and `frontend-design`.
    **Check:** `claude plugin list` shows `archi-magic@archi-magic`, `superpowers@archi-magic` and `frontend-design@archi-magic` as enabled.
 2. Ask the user to turn on auto-update. Third-party marketplaces have it off by default: type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, choose **Enable auto-update**. Without it, update by hand: in the same place choose **Update marketplace**, then start a new session. (`/plugin marketplace update archi-magic` alone refreshes the listing only; it does not update the installed plugin.) Each new session also shows a one-line notice when a newer archi-magic release exists; set `ARCHI_MAGIC_NO_UPDATE_CHECK=1` to turn the notice off.
+   You can also turn it on in the settings file. Add this entry to `~/.claude/settings.json`. Merge it with the settings that are already there; do not replace the whole file.
+   ```json
+   {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
+   ```
+   An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
 3. Ask the user to restart the Claude desktop app. Skills, hooks and MCP servers load only in a new session.
 4. In the new session, run the `am-welcome` skill.
 
@@ -119,6 +124,8 @@ API lookups: when connected to Revit, use the `pyrevit` MCP tools `lookup_revit_
 | A schedule or viewer page does not open | The page is outside the project folder | Write it inside the project folder, or serve it over local http |
 | After `/plugin update`: archi-magic "failed to load ... Dependency superpowers@archi-magic is not installed" | Updating from an older version does not install new dependencies (a fresh install does) | `/plugin install superpowers@archi-magic` and `/plugin install frontend-design@archi-magic`, then restart the app. To check from PowerShell without Claude: `powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\cache\archi-magic\archi-magic\<version>\skills\am-doctor\scripts\doctor.ps1" -Only deps` |
 | Revit crashed | Anything | `am-revit-crash-doctor` |
+| `run_query` returns `invalid_params` | The call passed `code` instead of `script` | Pass the script text as `script`. See the sample query skeleton in `am-revit-api-docs`. |
+| `AttributeError` on `ElementId.IntegerValue` | The script uses a member removed in Revit 2026 | Use `ElementId.Value` (Revit 2024+). See "Revit 2026 differences" in `am-revit-api-docs`. |
 
 Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\logs\<yyyy-MM>.jsonl`. The setup script also writes a transcript and backups under `%TEMP%\pyrevit7-setup\<timestamp>\`. Exit-code tables are in each skill's `kit-README.md` or `SKILL.md`.
 
