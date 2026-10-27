@@ -80,6 +80,7 @@ Optional add-ons, installed only when the user needs them:
 | Paste 3D-viewer changes, or move or rotate elements | `am-safe-change` (element-transforms recipe) | Check the JSON, show the before/after preview, dry run, then Keep/Discard |
 | "check my model", "model health", "dashboard" | `am-model-health` | Read-only query; offer the dashboard |
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
+| "which materials are unused", "list materials", "material colors" | `am-material-audit` | Read-only query; lists materials by name prefix with colors and patterns, flags duplicates and low contrast |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
@@ -134,6 +135,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-safe-change` | Shows a before/after preview of any Revit model change and asks you to confirm before Revit changes. It then does a dry run, applies the change with your Keep/Discard in Revit, and checks the result. Recipes: sheet renumbering, and moving or rotating elements, including changes copied from the 3D viewer. Ask "shift all sheet numbers from A301 up by one" or paste the viewer's "Copy changes for Revit" JSON. |
 | `am-model-health` | Checks the open Revit model without changing it: warnings, links, in-place families, rooms, duplicate Marks, CAD, views and file size. You get a short ranked report or an HTML dashboard with trends. Ask "check my model health". Adapted from [Utopia5327](https://github.com/Utopia5327/claude-plugin-for-revit-bim) (MIT). |
 | `am-param-qa` | Finds elements whose required parameters are missing or empty (for example door Fire Rating, Mark, or your BEP list). Ask "are my door parameters filled in?". Adapted from Utopia5327 (MIT). |
+| `am-material-audit` | Lists materials whose names start with a prefix you give, with Shading color, Transparency, Surface Pattern foreground and background, and Cut pattern, all in RGB. It flags duplicates and low pattern contrast, and finds unused materials with a scoped check. Ask "which Floor Finish materials are unused?". |
 | `am-workset-audit` | Checks the worksets of a team model and moves elements only after a dry run and your Keep/Discard. Ask "audit my worksets". Adapted from Utopia5327 (MIT). |
 | `am-area-report` | Reports room areas by level and department, gross totals from area plans, and unplaced or unenclosed rooms; compares against a program you paste. Ask for "a room area report". Adapted from Utopia5327 (MIT). |
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
