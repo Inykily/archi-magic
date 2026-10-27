@@ -17,9 +17,9 @@
       "source": {
         "source": "url",
         "url": "https://github.com/obra/superpowers.git",
-        "sha": "bb92a77741419a4ab5f06e711a283343f1ada0c3"
+        "sha": "2ce8aa15d05bd57213e6f746f953aafb7ded7a8b"
       },
-      "description": "General work skills by Jesse Vincent (obra), MIT: brainstorming, writing and executing plans, systematic debugging, test-driven development, code review, verification before completion. Pinned to v7.0.0."
+      "description": "General work skills by Jesse Vincent (obra), MIT: brainstorming, writing and executing plans, systematic debugging, test-driven development, code review, verification before completion. Pinned to v7.0.1."
     },
     {
       "name": "frontend-design",
