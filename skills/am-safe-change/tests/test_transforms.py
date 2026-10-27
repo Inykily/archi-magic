@@ -235,6 +235,7 @@ def test_preview_shape_deep_equality():
                    "kind": "point",
                    "expect": {"point": [10.0, 0.0, 0.0], "rotation": 0.0},
                    "expectAfter": {"point": [2.0, 10.0, 0.0], "rotation": 90.0}}],
+        "expected_dependent_categories": ["Dimensions"],
     }
 
 

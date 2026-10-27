@@ -308,6 +308,9 @@ def compute_shift(sheets, start, step=1, scope="series", keep_gaps=True,
         "blocked": blocked,
         "params": params,
         "steps": steps,
+        # Views on a sheet show the sheet number, so they regenerate when
+        # a sheet number changes (issue #28).
+        "expected_dependent_categories": ["Views"],
     }
 
 

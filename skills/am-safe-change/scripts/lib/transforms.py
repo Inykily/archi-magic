@@ -360,6 +360,9 @@ def compute_preview(request, elements, unit_type="", skip_ids=None, accept=None,
                    "skip": sorted(skip), "accept": sorted(accepted),
                    "lengthUnit": unit_type or ""},
         "steps": [] if blocked else steps,
+        # A move also changes what touches the moved elements (joins, room
+        # boundaries, dimensions), so dimensions regenerate (issue #28).
+        "expected_dependent_categories": ["Dimensions"],
     }
 
 
