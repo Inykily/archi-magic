@@ -11,6 +11,8 @@
     - %LOCALAPPDATA%\Autodesk\CER (Autodesk crash reports) and %LOCALAPPDATA%\CrashDumps, listed only
     - Add-in manifests (*.addin) per user and per machine, to map a faulting module to an add-in
     - pyRevit logs under %APPDATA%\pyRevit\<year>, listed only
+    - pyRevit agent run records under %APPDATA%\pyRevit\agent\runs and instance files under
+      %APPDATA%\pyRevit\agent\instances (newest runs only, listed, never the script text)
   Works with Revit closed. Never kills or touches Revit. Never uploads anything.
   A journal that belongs to a Revit process that is still running is reported as IN_PROGRESS.
 
@@ -38,6 +40,7 @@ param(
     [string]$CerRoot,
     [string]$CrashDumpRoot,
     [string]$PyRevitRoot,
+    [string]$AgentRoot,
     [string]$EventsFile,
     [string[]]$RunningRevit,   # "<year>=<yyyy-MM-ddTHH:mm:ss>" replaces Get-Process; "none" = no Revit running
     [switch]$NoRedact          # test only: proves the redaction test can fail
@@ -60,6 +63,7 @@ if (-not $AddinRoot)     { $AddinRoot = @((Join-Path $env:APPDATA 'Autodesk\Revi
 if (-not $CerRoot)       { $CerRoot = Join-Path $env:LOCALAPPDATA 'Autodesk\CER' }
 if (-not $CrashDumpRoot) { $CrashDumpRoot = Join-Path $env:LOCALAPPDATA 'CrashDumps' }
 if (-not $PyRevitRoot)   { $PyRevitRoot = Join-Path $env:APPDATA 'pyRevit' }
+if (-not $AgentRoot)     { $AgentRoot = Join-Path $env:APPDATA 'pyRevit\agent' }
 
 $Sources = New-Object System.Collections.Generic.List[object]
 function Add-Source($name, $state, $detail) {
@@ -531,6 +535,45 @@ if (Test-Path -LiteralPath $PyRevitRoot) {
     } catch { Add-Source 'pyRevit logs' 'could-not-read' $_.Exception.Message }
 }
 
+# ---------------------------------------------------------------- pyRevit agent runs
+# The agent writes one response.json per run under runs\<date>-<time>-<run_id>. Read only the
+# newest records, and only their status, error and run name. Never print script text: a record
+# may carry the full script, so a script field is used only when it looks like a short path.
+$AgentRuns = New-Object System.Collections.Generic.List[object]
+$AgentInstances = 0
+if (-not (Test-Path -LiteralPath $AgentRoot)) {
+    Add-Source 'pyRevit agent runs' 'not-present' 'no pyRevit agent folder'
+} else {
+    try {
+        $runsDir = Join-Path $AgentRoot 'runs'
+        $recs = @()
+        if (Test-Path -LiteralPath $runsDir) {
+            $recs = @(Get-ChildItem -LiteralPath $runsDir -Filter 'response.json' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $Since } | Sort-Object LastWriteTime -Descending)
+        }
+        foreach ($rec in @($recs | Select-Object -First 5)) {
+            $runId = (Split-Path -Parent $rec.FullName | Split-Path -Leaf)
+            $status = ''; $err = ''; $scriptName = ''
+            try {
+                $rj = [IO.File]::ReadAllText($rec.FullName) | ConvertFrom-Json
+                $status = "$($rj.status)"
+                $err = "$($rj.error)"
+                foreach ($k in 'tool', 'name') { if ($rj.$k) { $scriptName = "$($rj.$k)"; break } }
+                if (-not $scriptName -and $rj.script) {
+                    $sv = "$($rj.script)"
+                    if ($sv -notmatch "`n" -and $sv.Length -le 200 -and $sv -match '(?i)\.py$|\\|/') { $scriptName = Leaf $sv }
+                }
+            } catch { $status = 'unreadable' }
+            $AgentRuns.Add([pscustomobject]@{ Time = $rec.LastWriteTime; Run = $runId; Status = $status; Error = $err; Script = $scriptName })
+        }
+        Add-Source 'pyRevit agent runs' 'read' "$($AgentRuns.Count) run record(s) in the last $Days days"
+        $instDir = Join-Path $AgentRoot 'instances'
+        if (Test-Path -LiteralPath $instDir) {
+            $AgentInstances = @(Get-ChildItem -LiteralPath $instDir -Filter '*.json' -ErrorAction SilentlyContinue).Count
+        }
+        Add-Source 'pyRevit agent instance files' 'read' "$AgentInstances instance file(s)"
+    } catch { Add-Source 'pyRevit agent runs' 'could-not-read' $_.Exception.Message }
+}
+
 # ---------------------------------------------------------------- parse journals
 $Sessions = New-Object System.Collections.Generic.List[object]
 foreach ($jf in ($JournalFiles | Sort-Object Path)) {
@@ -704,6 +747,14 @@ foreach ($s in ($Sessions | Sort-Object { $_.Start })) {
 }
 foreach ($s in ($Sessions | Where-Object { $_.Status -eq 'IN_PROGRESS' })) { O "  NOTE $($s.Journal): $($s.StatusNote)" }
 O ''
+if ($AgentRuns.Count) {
+    O 'AGENT RUNS (newest first, run records only)'
+    foreach ($a in $AgentRuns) {
+        $what = if ($a.Script) { $a.Script } else { $a.Run }
+        O ("  {0}  {1}  status={2}{3}" -f $a.Time.ToString('yyyy-MM-dd HH:mm:ss'), $what, $a.Status, $(if ($a.Error) { " error=$($a.Error)" } else { '' }))
+    }
+    O ''
+}
 if ($Events.Count) {
     O "WINDOWS EVENTS FOR REVIT ($($Events.Count))"
     foreach ($e in $Events) {
@@ -734,6 +785,11 @@ foreach ($s in ($Problem | Sort-Object { $_.Start })) {
     if ($s.Worksharing.Count) { O "  Model type: $($s.Worksharing -join '; ')" }
     $when = if ($s.CrashTime) { $s.CrashTime } else { $s.End }
     if ($when) { O "  Stopped at: $($when.ToString('yyyy-MM-dd HH:mm:ss'))" }
+    $lastRun = @($AgentRuns | Where-Object { $s.Start -and $_.Time -ge $s.Start.AddMinutes(-1) -and $when -and $_.Time -le $when.AddMinutes(3) } | Sort-Object Time | Select-Object -Last 1)
+    if ($lastRun) {
+        $lrWhat = if ($lastRun.Script) { $lastRun.Script } else { $lastRun.Run }
+        O ("  Last agent run before the end: {0} {1} (status {2}{3})" -f $lastRun.Time.ToString('yyyy-MM-dd HH:mm:ss'), $lrWhat, $lastRun.Status, $(if ($lastRun.Error) { ", error $($lastRun.Error)" } else { '' }))
+    }
     if ($s.Antecedent) { O "  Active tool at the crash: $($s.Antecedent)" }
     if ($s.UndoAfterCrash.Count) { O "  Revit rolled back: $($s.UndoAfterCrash -join '; ')" }
     if ($s.ExceptionCode) { O "  Exception code: $($s.ExceptionCode)" }
@@ -806,6 +862,7 @@ if ($Json) {
             dumps = @($JournalDumps | ForEach-Object { [ordered]@{ name = $_.Name; time = $_.Time.ToString('s'); sizeMB = $_.SizeMB } })
             otherDumps = @($OtherDumps | ForEach-Object { [ordered]@{ name = $_.Name; time = $_.Time.ToString('s'); sizeMB = $_.SizeMB } })
             cerReports = @($CerReports | ForEach-Object { [ordered]@{ report = $_.Report; time = $_.Time.ToString('s') } })
+            agentRuns = @($AgentRuns | ForEach-Object { [ordered]@{ time = $_.Time.ToString('s'); run = $_.Run; status = $_.Status; error = (Redact "$($_.Error)"); script = (Redact "$($_.Script)") } })
         }
         $text = $obj | ConvertTo-Json -Depth 8
         [IO.File]::WriteAllText($Json, $text, (New-Object Text.UTF8Encoding $false))

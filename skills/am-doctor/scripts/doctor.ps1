@@ -33,7 +33,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
-        'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
+        'AGENT_BLOCKED_DIALOG', 'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
     [string]$Fix = '',
     [switch]$Report,
     [switch]$OpenIssue,
@@ -48,6 +48,10 @@ param(
     [string]$InstalledPluginsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'plugins\installed_plugins.json'),
     [string]$ClaudeSettingsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'settings.json'),
     [int]$BusyWaitSec = 25,
+    # Pass -RevitWasRunning when Revit answered earlier in this session (a get_context or run
+    # succeeded) or the user says Revit just closed. Without it, "no Revit process" is only an
+    # info line: the doctor cannot tell a Revit that never started from one that just closed.
+    [switch]$RevitWasRunning,
     [string[]]$Only = @()
 )
 # -Only accepts 'a,b' as one string too (powershell -File passes it that way).
@@ -183,6 +187,7 @@ $FixMap = @{
     MCP_WRONG_PATH       = @{ Kind = 'setup'; Args = @('-EnableAgent'); Text = 'am-pyrevit7-setup -EnableAgent, then start a new Claude Code session.' }
     POLICY_AUTO          = @{ Kind = 'py7'; Args = @('configs', 'agent', 'policy', 'ask'); Text = 'pyrevit configs agent policy ask' }
     AGENT_NOT_RESPONDING = @{ Kind = 'manual'; Text = 'User: in Revit, click pyRevit tab > Reload (it can need two reloads), or restart Revit. Then run the doctor again.' }
+    AGENT_BLOCKED_DIALOG = @{ Kind = 'manual'; Text = 'User: close the dialog in Revit, then run the doctor again.' }
     NO_MODEL_OPEN        = @{ Kind = 'manual'; Text = 'User: open a model in Revit (an Autodesk sample such as Snowdon Towers is fine).' }
     DOCS_OFFLINE         = @{ Kind = 'manual'; Text = 'No action needed. The cached docs copy is in use. Check the network later.' }
     HEADLESS_OLD_PYREVIT = @{ Kind = 'manual'; Text = 'Interactive Revit and the archi-magic skills are not affected. For your own pyrevit run scripts (batch, CI): ask IT to uninstall the machine-wide pyRevit in Program Files.' }
@@ -345,7 +350,11 @@ if (Test-Want 'agent') {
             else { Add-Finding 'AGENT_POLICY' 'unchecked' "unknown policy output: $($pol.Out)" 'Run: pyrevit configs agent policy' }
 
             if ($revit.Count -eq 0) {
-                Add-Finding 'AGENT_STATUS' 'info' 'Revit is not running, so the agent connection was not tested.' 'Open Revit and a model, then run the doctor again.'
+                if ($RevitWasRunning) {
+                    Add-Finding 'AGENT_STATUS' 'warn' 'Revit closed after it answered earlier in this session. Unsaved work may be lost.' 'Run am-revit-crash-doctor for a read-only crash report.'
+                } else {
+                    Add-Finding 'AGENT_STATUS' 'info' 'Revit is not running, so the agent connection was not tested.' 'Open Revit and a model, then run the doctor again.'
+                }
             } else {
                 # 'revit_busy' is transient (Revit is in a command or a dialog): wait and retry before judging.
                 $st = Invoke-Native $Py7 @('agent', 'status') 60
@@ -360,7 +369,17 @@ if (Test-Want 'agent') {
                     Add-Finding 'AGENT_STATUS' 'ok' $line '-'
                 } elseif ($st.Out -match 'revit_busy') {
                     $busy = ((($st.Out -split "`r?`n") | Where-Object { $_ -match 'revit_busy' }) | Select-Object -First 1).Trim()
-                    Add-Finding 'AGENT_STATUS' 'unchecked' "Revit stayed busy for 3 checks: $busy" 'Finish or cancel the open Revit command or dialog, then run the doctor again.'
+                    # The busy line names the open windows when the agent reports them.
+                    # The exact shape is not fixed, so match the common forms loosely.
+                    $names = ''
+                    if ($busy -match '(?i)open windows?\s*[:=]\s*(.+)') { $names = ($Matches[1].Trim() -replace '\)\s*$', '') }
+                    elseif ($busy -match '(?i)dialogs?\s*[:=]\s*(.+)') { $names = ($Matches[1].Trim() -replace '\)\s*$', '') }
+                    elseif ($busy -match '(?i)\(([^)]*dialog[^)]*)\)') { $names = $Matches[1].Trim() }
+                    if ($names) {
+                        Add-Finding 'AGENT_BLOCKED_DIALOG' 'warn' "Revit is blocked by a modal dialog: $names ($busy)" 'Close the dialog in Revit, then run the doctor again.'
+                    } else {
+                        Add-Finding 'AGENT_STATUS' 'unchecked' "Revit stayed busy for 3 checks: $busy" 'Finish or cancel the open Revit command, or close the dialog, then run the doctor again.'
+                    }
                 } else {
                     $inst = foreach ($p in $revit) {
                         $j = Join-Path $env:APPDATA "pyRevit\agent\instances\$($p.Id).json"
