@@ -47,7 +47,7 @@ def find_workset(worksets, wanted, hints, prefer=None):
     Returns (workset or None, list of candidate names)."""
     if isinstance(wanted, int) and not isinstance(wanted, bool):
         for ws in worksets:
-            if ws.Id.IntegerValue == wanted:
+            if eid_int(ws.Id) == wanted:
                 return ws, [ws.Name]
         return None, []
     if wanted:
@@ -99,7 +99,7 @@ def main():
     notes = []
     closed = []
     for ws in worksets:
-        ws_by_int[ws.Id.IntegerValue] = ws
+        ws_by_int[eid_int(ws.Id)] = ws
         count = None  # elements on a closed workset are not loaded, so they cannot be counted
         if ws.IsOpen:
             count = (DB.FilteredElementCollector(doc)
@@ -108,7 +108,7 @@ def main():
                      .GetElementCount())
         else:
             closed.append(ws.Name)
-        ws_rows.append({"workset_id": ws.Id.IntegerValue, "name": ws.Name,
+        ws_rows.append({"workset_id": eid_int(ws.Id), "name": ws.Name,
                         "element_count": count, "is_open": ws.IsOpen,
                         "is_editable": ws.IsEditable, "owner": ws.Owner or ""})
     ws_rows.sort(key=lambda r: -(r["element_count"] or 0))
@@ -128,15 +128,15 @@ def main():
         key = eid_int(el.Id)
         if key in findings:
             return
-        cur = ws_by_int.get(el.WorksetId.IntegerValue)
+        cur = ws_by_int.get(eid_int(el.WorksetId))
         ok, why = movable(el)
         cat = el.Category.Name if el.Category else ""
         findings[key] = {
             "element_id": key, "category": cat, "name": el.Name or "", "rule": rule,
             "from_workset": cur.Name if cur else "(not a user workset)",
-            "from_workset_id": el.WorksetId.IntegerValue,
+            "from_workset_id": eid_int(el.WorksetId),
             "to_workset": target.Name if target else "",
-            "to_workset_id": target.Id.IntegerValue if target else None,
+            "to_workset_id": eid_int(target.Id) if target else None,
             "movable": ok and target is not None,
             "reason": why if not ok else ("" if target else "no target workset chosen"),
         }

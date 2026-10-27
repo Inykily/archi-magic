@@ -118,6 +118,8 @@ API lookups: when connected to Revit, use the `pyrevit` MCP tools `lookup_revit_
 | A schedule or viewer page does not open | The page is outside the project folder | Write it inside the project folder, or serve it over local http |
 | After `/plugin update`: archi-magic "failed to load ... Dependency superpowers@archi-magic is not installed" | Updating from an older version does not install new dependencies (a fresh install does) | `/plugin install superpowers@archi-magic` and `/plugin install frontend-design@archi-magic`, then restart the app. To check from PowerShell without Claude: `powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\cache\archi-magic\archi-magic\<version>\skills\am-doctor\scripts\doctor.ps1" -Only deps` |
 | Revit crashed | Anything | `am-revit-crash-doctor` |
+| `run_query` returns `invalid_params` | The call passed `code` instead of `script` | Pass the script text as `script`. See the sample query skeleton in `am-revit-api-docs`. |
+| `AttributeError` on `ElementId.IntegerValue` | The script uses a member removed in Revit 2026 | Use `ElementId.Value` (Revit 2024+). See "Revit 2026 differences" in `am-revit-api-docs`. |
 
 Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\logs\<yyyy-MM>.jsonl`. The setup script also writes a transcript and backups under `%TEMP%\pyrevit7-setup\<timestamp>\`. Exit-code tables are in each skill's `kit-README.md` or `SKILL.md`.
 
