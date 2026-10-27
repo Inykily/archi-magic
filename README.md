@@ -57,6 +57,11 @@ Read this whole section before you act. The user is usually an architect, not a 
    This also installs two pinned dependencies: `superpowers` (planning, debugging, test-driven development, code review) and `frontend-design`.
    **Check:** `claude plugin list` shows `archi-magic@archi-magic`, `superpowers@archi-magic` and `frontend-design@archi-magic` as enabled.
 2. Ask the user to turn on auto-update. Third-party marketplaces have it off by default: type `/plugin`, open the **Marketplaces** tab, select **archi-magic**, choose **Enable auto-update**. Without it, update by hand: in the same place choose **Update marketplace**, then start a new session. (`/plugin marketplace update archi-magic` alone refreshes the listing only; it does not update the installed plugin.) Each new session also shows a one-line notice when a newer archi-magic release exists; set `ARCHI_MAGIC_NO_UPDATE_CHECK=1` to turn the notice off.
+   You can also turn it on in the settings file. Add this entry to `~/.claude/settings.json`. Merge it with the settings that are already there; do not replace the whole file.
+   ```json
+   {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
+   ```
+   An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
 3. Ask the user to restart the Claude desktop app. Skills, hooks and MCP servers load only in a new session.
 4. In the new session, run the `am-welcome` skill.
 
@@ -80,6 +85,7 @@ Optional add-ons, installed only when the user needs them:
 | Paste 3D-viewer changes, or move or rotate elements | `am-safe-change` (element-transforms recipe) | Check the JSON, show the before/after preview, dry run, then Keep/Discard |
 | "check my model", "model health", "dashboard" | `am-model-health` | Read-only query; offer the dashboard |
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
+| "which materials are unused", "list materials", "material colors" | `am-material-audit` | Read-only query; lists materials by name prefix with colors and patterns, flags duplicates and low contrast |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
@@ -118,6 +124,8 @@ API lookups: when connected to Revit, use the `pyrevit` MCP tools `lookup_revit_
 | A schedule or viewer page does not open | The page is outside the project folder | Write it inside the project folder, or serve it over local http |
 | After `/plugin update`: archi-magic "failed to load ... Dependency superpowers@archi-magic is not installed" | Updating from an older version does not install new dependencies (a fresh install does) | `/plugin install superpowers@archi-magic` and `/plugin install frontend-design@archi-magic`, then restart the app. To check from PowerShell without Claude: `powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\cache\archi-magic\archi-magic\<version>\skills\am-doctor\scripts\doctor.ps1" -Only deps` |
 | Revit crashed | Anything | `am-revit-crash-doctor` |
+| `run_query` returns `invalid_params` | The call passed `code` instead of `script` | Pass the script text as `script`. See the sample query skeleton in `am-revit-api-docs`. |
+| `AttributeError` on `ElementId.IntegerValue` | The script uses a member removed in Revit 2026 | Use `ElementId.Value` (Revit 2024+). See "Revit 2026 differences" in `am-revit-api-docs`. |
 
 Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\logs\<yyyy-MM>.jsonl`. The setup script also writes a transcript and backups under `%TEMP%\pyrevit7-setup\<timestamp>\`. Exit-code tables are in each skill's `kit-README.md` or `SKILL.md`.
 
@@ -134,6 +142,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-safe-change` | Shows a before/after preview of any Revit model change and asks you to confirm before Revit changes. It then does a dry run, applies the change with your Keep/Discard in Revit, and checks the result. Recipes: sheet renumbering, and moving or rotating elements, including changes copied from the 3D viewer. Ask "shift all sheet numbers from A301 up by one" or paste the viewer's "Copy changes for Revit" JSON. |
 | `am-model-health` | Checks the open Revit model without changing it: warnings, links, in-place families, rooms, duplicate Marks, CAD, views and file size. You get a short ranked report or an HTML dashboard with trends. Ask "check my model health". Adapted from [Utopia5327](https://github.com/Utopia5327/claude-plugin-for-revit-bim) (MIT). |
 | `am-param-qa` | Finds elements whose required parameters are missing or empty (for example door Fire Rating, Mark, or your BEP list). Ask "are my door parameters filled in?". Adapted from Utopia5327 (MIT). |
+| `am-material-audit` | Lists materials whose names start with a prefix you give, with Shading color, Transparency, Surface Pattern foreground and background, and Cut pattern, all in RGB. It flags duplicates and low pattern contrast, and finds unused materials with a scoped check. Ask "which Floor Finish materials are unused?". |
 | `am-workset-audit` | Checks the worksets of a team model and moves elements only after a dry run and your Keep/Discard. Ask "audit my worksets". Adapted from Utopia5327 (MIT). |
 | `am-area-report` | Reports room areas by level and department, gross totals from area plans, and unplaced or unenclosed rooms; compares against a program you paste. Ask for "a room area report". Adapted from Utopia5327 (MIT). |
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
