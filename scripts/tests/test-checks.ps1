@@ -144,7 +144,7 @@ try {
     $sf = Join-Path $t 'scripts\lib\shared-files.ps1'
     Set-Text $sf (([IO.File]::ReadAllText($sf)) -replace "Copy = 'skills/am-bim-viewer/", "Copy = 'plugins/revit/skills/am-bim-viewer/")
     $dt = Join-Path $t 'scripts\lib\design-templates.ps1'
-    Set-Text $dt (([IO.File]::ReadAllText($dt)) -replace "'skills/am-schedule-view/", "'plugins/revit/skills/am-schedule-view/" -replace "'skills/am-model-health/", "'plugins/revit/skills/am-model-health/")
+    Set-Text $dt (([IO.File]::ReadAllText($dt)) -replace "'skills/am-schedule-view/", "'plugins/revit/skills/am-schedule-view/" -replace "'skills/am-model-health/", "'plugins/revit/skills/am-model-health/" -replace "'skills/am-safe-change/", "'plugins/revit/skills/am-safe-change/")
     Expect 'legitimate: simulated split -> check-skills green' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $false 'Checked split plugin manifests: 3; rules hook in 1 hooks.json'
     Expect 'legitimate: simulated split -> check-version-bump green' (Invoke-Check 'check-version-bump.ps1' $t) $false '6 plugin manifest'
     Expect 'legitimate: simulated split -> sync-house-rules green' (Invoke-Check 'sync-house-rules.ps1' $t) $false 'unchanged'
