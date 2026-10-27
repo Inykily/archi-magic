@@ -34,6 +34,11 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 5. Close with these points:
    - Every model change needs their **Keep/Discard** approval in Revit.
    - Anything the agent reads from the model is sent to the AI provider (see step 0), so only use it on projects where that's allowed.
+   - Turn on auto-update for archi-magic, so the user always gets the newest version. Third-party marketplaces have it off by default. Offer the settings route: add this entry to `~/.claude/settings.json`. Merge it with the settings that are already there; do not replace the whole file.
+     ```json
+     {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
+     ```
+     An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
    - Re-run this skill after any pyRevit update.
    - If IT installed an older pyRevit for all users, the setup fixes Revit when you open it yourself, and the archi-magic skills use pyRevit 7. A `pyrevit run` batch or CI script still loads the old pyRevit, because it reads the machine-wide manifest. To fix that, IT must uninstall the old pyRevit (admin rights). `am-doctor` reports this as HEADLESS_OLD_PYREVIT. Offer the IT request template in `IT-REQUEST.md` (this skill's folder).
 
