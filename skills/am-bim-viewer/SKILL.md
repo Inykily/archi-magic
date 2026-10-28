@@ -84,6 +84,17 @@ The viewer never changes the Revit model. When the user pastes "element-transfor
 
 The gumball, selection and view cube are off during a walk. A small label shows the eye height, the speed and the collision state.
 
+## Pet mode: a small figure that walks where you click
+
+1. Click **pet** in the header, or press P. A short message says pet mode is on. Press P again to turn it off.
+2. Click a floor, a roof or any face that points up. The first click puts a small cartoon cat there (an orange tabby that walks on four legs). Each later click sends it to the new spot.
+3. The pet turns toward the spot, then walks straight at about 3 ft/s. It follows the ground height. It stops at a wall, at an edge, or at a step that is too big (up more than 0.8 ft or down more than 1.5 ft).
+4. A click on a wall shows "click a floor or a roof". A click on nothing shows "click a surface".
+5. The pet is not part of the model. You cannot select it, it is not in the element list, and it is not in the exported JSON. It grows with a large model (up to 6 times) so you can still see it.
+6. Pet mode turns off when you start a walk (G). Clicks select elements again when pet mode is off.
+
+The figure is built from simple shapes in `createPetModel` (no image file). Pet logic is in `viewer-core.mjs` (`petStep`, `petSurface`, `petPose`) and is tested in `tests/pet.test.mjs`.
+
 ## Theme and help
 
 - The page follows the time of day: paper (light) from 07:00 to 19:00, night (dark) at other hours. The "paper / night" link switches until the next 07:00 or 19:00.

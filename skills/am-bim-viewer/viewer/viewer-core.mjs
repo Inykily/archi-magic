@@ -960,3 +960,145 @@ export function gumballReadout(handle, result) {
   if (handle === 'rz') return 'rotate ' + (Number.isInteger(result.rotateZ) ? String(result.rotateZ) : result.rotateZ.toFixed(1)) + ' deg';
   return 'move ' + handle + ' ' + signed(result.move[AXIS_INDEX[handle]], 2) + ' ft';
 }
+
+// ---- Pet mode: a small cartoon figure that walks to a clicked surface (Z up) ----
+// The pet is a visual toy and a rough sense of scale. It is not part of the model: it is never
+// picked, listed or exported. All the walking logic is here and takes callbacks for the scene, so
+// node tests run it without three.js. Lengths are feet; the figure is about 1 ft tall at scale 1 (ears included).
+export const PET = {
+  height: 1, speed: 3, turnRate: 7, faceTol: 0.5, arrive: 0.04, stride: 1, stepUp: 0.8, stepDown: 1.5, wallProbe: 0.5,
+  minUpZ: Math.sin(60 * DEG), // a surface counts as standable when its normal is 60+ degrees above horizontal
+  maxScale: 6, scaleDiv: 50,
+};
+
+// A click hit (a three.js intersection) -> world point, outward normal and whether the pet can stand.
+// rayDir is the pick ray direction; a face seen from behind is flipped toward the camera.
+export function petSurface(hit, rayDir) {
+  if (!hit || !hit.face) return null;
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  if (rayDir && n.x * rayDir.x + n.y * rayDir.y + n.z * rayDir.z > 0) n.negate();
+  return { point: [hit.point.x, hit.point.y, hit.point.z], normal: [n.x, n.y, n.z], isStandable: n.z >= PET.minUpZ };
+}
+
+// Grow the pet with the model so it stays visible in a large building (1 for a small model, up to maxScale).
+export function petScale(bounds) {
+  const ext = Math.max(bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], bounds.max[2] - bounds.min[2], 0);
+  return Math.min(PET.maxScale, Math.max(1, ext / PET.scaleDiv));
+}
+
+export function createPet(point, scale = 1) {
+  return { pos: point.slice(), heading: 0, target: null, phase: 0, moving: false, scale };
+}
+
+export function petGo(p, point) { p.target = point.slice(); return p; }
+
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+// One time step. Turns toward the target first, then walks straight at it. env.ground(x, y, zFrom)
+// returns the ground height there or null; env.blocked(x, y, z, dirX, dirY, length) is true when a
+// wall is in the way. The pet stops at a wall, at an edge (no ground, or a drop or climb that is too big).
+// p.moving stays true while it turns or walks, so the page keeps drawing.
+export function petStep(p, dt, env = {}) {
+  p.moving = false;
+  if (!p.target) return p;
+  const s = p.scale || 1;
+  const dx = p.target[0] - p.pos[0], dy = p.target[1] - p.pos[1];
+  const dist = Math.hypot(dx, dy);
+  if (dist < PET.arrive * s) { p.pos = [p.target[0], p.target[1], p.pos[2]]; p.target = null; return p; }
+  const diff = wrapAngle(Math.atan2(dy, dx) - p.heading);
+  const maxTurn = PET.turnRate * dt;
+  p.heading = wrapAngle(p.heading + (Math.abs(diff) <= maxTurn ? diff : Math.sign(diff) * maxTurn));
+  p.moving = true;
+  if (Math.abs(diff) > PET.faceTol) return p; // turn first
+  const step = Math.min(PET.speed * s * dt, dist);
+  const ux = dx / dist, uy = dy / dist;
+  const stop = () => { p.target = null; p.moving = false; return p; };
+  if (env.blocked && env.blocked(p.pos[0], p.pos[1], p.pos[2], ux, uy, step + PET.wallProbe * s)) return stop();
+  const nx = p.pos[0] + ux * step, ny = p.pos[1] + uy * step;
+  const z = env.ground ? env.ground(nx, ny, p.pos[2] + PET.stepUp * s) : p.pos[2];
+  if (z === null || z === undefined || z - p.pos[2] > PET.stepUp * s || p.pos[2] - z > PET.stepDown * s) return stop();
+  p.pos = [nx, ny, z];
+  p.phase += step / (PET.stride * s) * Math.PI;
+  return p;
+}
+
+// Joint angles (radians) and the body bob (ft, before scale) for the walk cycle. Idle is a still pose.
+export function petPose(p) {
+  if (!p.moving) return { legL: 0, legR: 0, bob: 0, tail: 0, ear: 0 };
+  const s = Math.sin(p.phase);
+  return { legL: s * 0.7, legR: -s * 0.7, bob: Math.abs(s) * 0.06, tail: Math.sin(p.phase * 0.5) * 0.35, ear: s * 0.08 };
+}
+
+// The figure: an original cartoon cat (an orange tabby with a cream muzzle, green eyes, pointed ears,
+// whiskers, back stripes and a long curved tail) that walks on four legs. It is not based on any
+// existing character. Local axes: +X forward, +Y left, +Z up, feet at z = 0; about 1 ft tall at scale 1.
+// Built only from spheres, cones, boxes and one tube (no image or model file), so the page stays
+// one file. Returns { group, parts }; petApply() moves it. Legs: legL and legR are the front legs,
+// hindL and hindR the hind legs; in a walk the front-left and hind-right legs swing together.
+export function createPetModel(THREE) {
+  const mat = (c, glow = 0.3) => new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: glow }); // a little glow keeps the colors bright in the dark theme
+  const ORANGE = mat(0xf2a04e), STRIPE = mat(0xd9772c), CREAM = mat(0xfff0da), PINK = mat(0xf4a3ab), EYE = mat(0x86d06a), DARK = mat(0x2a2320, 0), WHITE = mat(0xffffff, 0.6);
+  const group = new THREE.Group();
+  const add = (parent, geo, m, x, y, z, sx = 1, sy = 1, sz = 1) => {
+    const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); parent.add(o); return o;
+  };
+  const ball = new THREE.SphereGeometry(1, 24, 16);
+  const cone = (r, h) => { const g = new THREE.ConeGeometry(r, h, 3); g.rotateX(Math.PI / 2); return g; }; // 3-sided: a pointed triangle ear, tip up (+Z)
+  const post = (r, h) => { const g = new THREE.CylinderGeometry(r, r, h, 12); g.rotateX(Math.PI / 2); return g; };
+  add(group, ball, ORANGE, 0, 0, 0.39, 0.38, 0.17, 0.17);                    // long body
+  add(group, ball, CREAM, 0.27, 0, 0.32, 0.15, 0.12, 0.14);                  // cream chest
+  for (const x of [-0.12, 0, 0.12]) add(group, ball, STRIPE, x, 0, 0.555, 0.022, 0.09, 0.014); // stripes on the back
+  add(group, ball, ORANGE, 0.46, 0, 0.6, 0.2, 0.21, 0.18);                // round head
+  add(group, ball, CREAM, 0.625, 0, 0.55, 0.08, 0.095, 0.065);                  // cream muzzle
+  add(group, ball, PINK, 0.7, 0, 0.58, 0.014, 0.022, 0.015);                // pink nose
+  for (const x of [-0.02, 0, 0.02]) add(group, ball, STRIPE, 0.56 + x * 2, x * 3.5, 0.785, 0.02, 0.012, 0.01); // forehead marks
+  for (const s of [1, -1]) {
+    add(group, ball, EYE, 0.615, s * 0.09, 0.65, 0.034, 0.05, 0.055);        // big green eye
+    add(group, ball, DARK, 0.64, s * 0.09, 0.65, 0.012, 0.015, 0.048);     // tall pupil
+    add(group, ball, WHITE, 0.648, s * 0.098, 0.675, 0.008, 0.011, 0.011);     // eye highlight
+    for (const a of [0.22, -0.12]) {                                         // two whiskers
+      const w = add(group, new THREE.BoxGeometry(0.003, 0.2, 0.003), DARK, 0.68, s * 0.13, 0.55 + a * 0.12);
+      w.rotation.z = s * 0.35; w.rotation.x = a * 0.5;
+    }
+  }
+  add(group, ball, DARK, 0.7, 0, 0.52, 0.01, 0.03, 0.006);                 // tiny mouth line
+  const mkEar = side => {
+    const pivot = new THREE.Group(); pivot.position.set(0.44, side * 0.13, 0.76); pivot.rotation.x = -side * 0.25; pivot.userData.tilt = 0.25;
+    add(pivot, cone(0.095, 0.19), ORANGE, 0, 0, 0.095, 1, 0.45, 1);          // pointed ear
+    add(pivot, cone(0.056, 0.125), PINK, 0.012, 0, 0.08, 1, 0.3, 1);           // pink inside
+    group.add(pivot); return pivot;
+  };
+  const earL = mkEar(1), earR = mkEar(-1);
+  const mkLeg = (x, side) => {
+    const pivot = new THREE.Group(); pivot.position.set(x, side * 0.09, 0.27);
+    add(pivot, post(0.045, 0.23), ORANGE, 0, 0, -0.115);                       // leg
+    add(pivot, ball, CREAM, 0.02, 0, -0.24, 0.065, 0.05, 0.035);            // cream paw
+    group.add(pivot); return pivot;
+  };
+  const legL = mkLeg(0.25, 1), legR = mkLeg(0.25, -1), hindL = mkLeg(-0.25, 1), hindR = mkLeg(-0.25, -1);
+  // Tail: a long, thick curve that rises from the rump, with a darker tip.
+  const curve = new THREE.CatmullRomCurve3([[0, 0, 0], [-0.1, 0, 0.06], [-0.19, 0, 0.2], [-0.2, 0, 0.36], [-0.14, 0, 0.5]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  const tail = new THREE.Group(); tail.position.set(-0.36, 0, 0.41);
+  add(tail, new THREE.TubeGeometry(curve, 16, 0.036, 10, false), ORANGE, 0, 0, 0);
+  add(tail, ball, STRIPE, -0.14, 0, 0.5, 0.04, 0.04, 0.045);                 // darker tail tip
+  add(tail, ball, STRIPE, -0.195, 0, 0.3, 0.04, 0.04, 0.012);                // a tail ring
+  group.add(tail);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.34, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+  shadow.position.z = 0.02; shadow.scale.set(1.5, 0.75, 1); group.add(shadow);
+  return { group, parts: { legL, legR, hindL, hindR, earL, earR, tail, shadow } };
+}
+
+// Put the figure at the pet's position, heading and pose. The shadow stays on the ground (no bob).
+export function petApply(model, p) {
+  const s = p.scale || 1, pose = petPose(p);
+  model.group.position.set(p.pos[0], p.pos[1], p.pos[2] + pose.bob * s);
+  model.group.rotation.set(0, 0, p.heading);
+  model.group.scale.setScalar(s);
+  const { legL, legR, hindL, hindR, earL, earR, tail, shadow } = model.parts;
+  legL.rotation.y = pose.legL; legR.rotation.y = pose.legR;
+  if (hindL) { hindR.rotation.y = pose.legL; hindL.rotation.y = pose.legR; } // diagonal pairs swing together
+  earL.rotation.x = -(earL.userData.tilt || 0.4) - pose.ear; earR.rotation.x = (earR.userData.tilt || 0.4) + pose.ear;
+  tail.rotation.z = pose.tail;
+  shadow.position.z = 0.02 - pose.bob;
+  return model;
+}

@@ -348,6 +348,7 @@
         <button data-proj="perspective">perspective</button>
         <button data-proj="parallel">parallel</button>
         <button id="walkbtn" aria-pressed="false" title="First-person walk (G)">walk</button>
+        <button id="petbtn" aria-pressed="false" title="Pet mode (P): click a floor to send the pet there">pet</button>
       </div>
       <button class="btn" id="fit" title="Zoom extents">zoom extents</button>
       <button class="link" id="theme" title="Switch day / night until the next 07:00 or 19:00">paper / night</button>
@@ -443,6 +444,7 @@ const cams = { persp: new THREE.PerspectiveCamera(40, 1, 0.1, 1e5), ortho: new T
 const state = createViewState();
 let viewName = 'perspective';
 let walk = null, walkDrag = null; // first-person walk state (see the Walk section)
+let petMode = false, pet = null, petModel = null, petRaf = 0, petLast = 0; // pet mode (see the Pet section)
 const SELECTED = toColor(pal.selected, '#f4f4f1');
 const OUTLINE = toColor(pal.outline, '#0a0a0a');
 const EDGE = toColor(pal.edge, '#0a0a0a');
@@ -649,13 +651,15 @@ canvas.addEventListener('pointermove', e => {
 });
 canvas.addEventListener('pointerup', e => {
   if (walk) { walkDrag = null; return; }
-  if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) select(pick(e.clientX, e.clientY));
+  if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) {
+    if (petMode) petClick(e.clientX, e.clientY); else select(pick(e.clientX, e.clientY));
+  }
   drag = null;
   setCursor(hovered ? 'hover' : 'idle');
 });
 // Double-click: Zoom Selected on an element, zoom extents on empty space.
 canvas.addEventListener('dblclick', e => {
-  if (e.button !== 0 || walk) return;
+  if (e.button !== 0 || walk || petMode) return;
   const m = pick(e.clientX, e.clientY);
   select(m);
   frameTo(dblClickView(state, m ? posedEl(m.userData.el) : null, bounds));
@@ -753,7 +757,7 @@ function helpRows() {
     [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag or the typed value'],
     [['Click handle'], 'type a value: 2.5, 2\'6", 750mm, 15'], [['0-9'], 'while dragging: type the value'],
     [['Enter'], 'apply the typed value'], [['Tab'], 'apply, then the next axis'],
-    [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
+    [['P'], 'pet mode: click a floor to send the pet there'], [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
     [['Shift'], 'walk: run'], [['C'], 'walk: collision on / off'], [['Click'], 'walk: look with the mouse (right drag if no lock)'],
   ]);
 }
@@ -1122,6 +1126,7 @@ function walkStepOnce(dt) {
 }
 function enterWalkMode() {
   if (walk) return;
+  if (petMode) setPetMode(false);
   if (anim) { cancelAnimationFrame(anim); anim = null; }
   select(null); setHover(null);
   if (typed) closeTyped();
@@ -1166,6 +1171,7 @@ window.addEventListener('keydown', e => {
   if (e.target && e.target.closest && e.target.closest('input')) return; // typing a value
   const k = e.key.toLowerCase();
   if (k === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (walk) exitWalkMode(); else enterWalkMode(); return; }
+  if (k === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && !gdrag) { e.preventDefault(); setPetMode(!petMode); return; }
   if (!walk) return;
   if (k === 'escape') { e.preventDefault(); exitWalkMode(); return; }
   if (k === 'c') { walk.isCollision = !walk.isCollision; updateWalkInfo(); return; }
@@ -1174,6 +1180,51 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { delete walkKeys[e.key.toLowerCase()]; });
 window.addEventListener('blur', () => { for (const k of Object.keys(walkKeys)) delete walkKeys[k]; });
 walkBtn.addEventListener('click', () => { if (walk) exitWalkMode(); else enterWalkMode(); });
+
+// ---------- Pet mode: click a surface and a small figure walks there (P or the pet button) ----------
+// The pet is not a model element: it is not in `meshes`, so it is never picked, listed or exported.
+// The first click on a floor or roof (a face that points up) places it; later clicks send it there.
+// It follows the ground height, and stops at a wall or an edge. The page draws only while it moves.
+const petBtn = document.getElementById('petbtn');
+const castPetDown = new THREE.Raycaster(), castPetAcross = new THREE.Raycaster();
+const petEnv = {
+  ground(x, y, zFrom) {
+    castPetDown.set(new THREE.Vector3(x, y, zFrom), new THREE.Vector3(0, 0, -1)); castPetDown.far = 1e5;
+    for (const h of castPetDown.intersectObjects(meshes.filter(m => m.visible), false)) {
+      const s = petSurface(h, castPetDown.ray.direction);
+      if (s && s.isStandable) return h.point.z;
+    }
+    return null;
+  },
+  blocked(x, y, z, ux, uy, len) {
+    castPetAcross.set(new THREE.Vector3(x, y, z + 0.5 * PET.height * pet.scale), new THREE.Vector3(ux, uy, 0)); castPetAcross.far = len;
+    return castPetAcross.intersectObjects(meshes.filter(m => m.visible), false)
+      .some(h => { const s = petSurface(h, castPetAcross.ray.direction); return s && !s.isStandable; });
+  },
+};
+function petTick(now) {
+  const dt = Math.min(0.1, Math.max(0, (now - petLast) / 1000)); petLast = now;
+  petStep(pet, dt, petEnv); petApply(petModel, pet); requestRender();
+  petRaf = pet.moving ? requestAnimationFrame(petTick) : 0;
+}
+function startPetLoop() { if (!petRaf) { petLast = performance.now(); petRaf = requestAnimationFrame(petTick); } }
+function petClick(px, py) {
+  raycaster.setFromCamera(ndcAt(px, py), activeCam);
+  const hits = raycaster.intersectObjects(meshes.filter(m => m.visible), false);
+  const s = hits.length ? petSurface(hits[0], raycaster.ray.direction) : null;
+  if (!s) { toast('click a surface'); return; }
+  if (!s.isStandable) { toast('click a floor or a roof'); return; }
+  if (!pet) {
+    pet = createPet(s.point, petScale(bounds)); petModel = createPetModel(THREE);
+    scene.add(petModel.group); petApply(petModel, pet); requestRender();
+  } else { petGo(pet, s.point); startPetLoop(); }
+}
+function setPetMode(on) {
+  if (on && walk) return; // pet mode is for the orbit views; walk mode uses clicks to select
+  petMode = on; petBtn.setAttribute('aria-pressed', String(on));
+  if (on) { select(null); setHover(null); toast(pet ? 'pet mode: click a floor' : 'pet mode: click a floor to place the pet'); }
+}
+petBtn.addEventListener('click', () => setPetMode(!petMode));
 // ---------- Theme: follow am-theme (time of day, or a manual switch) ----------
 // On each am-theme-change, re-read the tokens and recolor the scene: category values,
 // selection, outline, edges, grid and gizmo. The flat backdrop is CSS (--bg).
@@ -1218,6 +1269,12 @@ window.__bim = {
     pause: on => { walkPaused = on; }, step: (dt, keys = {}) => { Object.assign(walkKeys, keys); walkStepOnce(dt); for (const k of Object.keys(keys)) delete walkKeys[k]; },
     get: () => walk && { pos: walk.pos.slice(), yaw: walk.yaw, pitch: walk.pitch, isCollision: walk.isCollision, eyeAboveFloor: walkFloor === null ? null : walk.pos[2] - walkFloor },
     look: (dx, dy) => walkLook(walk, dx, dy),
+  },
+  pet: {
+    mode: on => setPetMode(on), isOn: () => petMode, click: (x, y) => petClick(x, y),
+    get: () => pet && { pos: pet.pos.slice(), heading: pet.heading, moving: pet.moving, scale: pet.scale, target: pet.target && pet.target.slice() },
+    step: dt => { if (pet) { petStep(pet, dt, petEnv); petApply(petModel, pet); render(); } },
+    inScene: () => !!petModel && petModel.group.parent === scene, inPickList: () => !!petModel && meshes.some(m => m === petModel.group),
   },
   gumball: {
     layout: () => { const L = gumballLayout(), r = vp.getBoundingClientRect(); if (!L) return null;
