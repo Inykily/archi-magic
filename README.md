@@ -93,6 +93,7 @@ Optional add-ons, installed only when the user needs them:
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
+| "send feedback to archi-magic", "reflect on this session", "report this to the archi-magic team" | `am-feedback` | Reflect read-only, remove private data, check duplicates, show the draft, post only after the user says yes |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
 | "check my Rhino model", Rhino tolerance, bad objects | `am-rhino-model-health` | Read-only script via `run_python` |
@@ -154,6 +155,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
 | `am-schedule-view` | Shows a Revit schedule as Revit displays it, in an interactive table: search, sort, filter, copy, export CSV, compare. It also shows the `am-safe-change` preview. Ask "show me the door schedule". |
 | `am-bim-viewer` | Shows the model in 3D with Rhino mouse controls, element data on click, category filters, and Top, Front, Right and Perspective views. Ask "show this model in 3D". |
+| `am-feedback` | Looks back over your session, finds what went wrong or cost time, removes private data, and posts it as a GitHub issue on archi-magic after you click Post. Ask "send feedback to archi-magic". |
 | `am-rhino-setup` | Connects Claude Code to Rhino 8 **without admin rights**, using McNeel's official `rhino-mcp` plugin. It checks Rhino and Node.js, installs the Rhino package, and makes Claude ask before any tool that changes a file or the model. It also documents the RhinoCode CLI fallback. Ask Claude to "set up Rhino". |
 | `am-rhino-model-health` | Read-only health check of the open Rhino document: units and tolerance, invalid geometry, small strays, open polysurfaces, objects on Default, empty layers, unused blocks. Ask Claude to "check my Rhino model". |
 | `am-rhino-area-report` | Read-only areas by layer (and by a user text key such as "Room") from closed planar curves, planar surfaces and hatches, in m2 and ft2, with a CSV option. Ask for "Rhino areas by layer". |
