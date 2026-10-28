@@ -78,7 +78,7 @@ The viewer never changes the Revit model. When the user pastes "element-transfor
 ## Walk through the model
 
 1. Click **walk** in the header, or press G. The view goes to a perspective at eye height: 5.5 ft above the floor, stair, ramp or roof under the view center. It looks in the same plan direction as before.
-2. Click the 3D view to look with the mouse (the pointer is hidden). If the browser does not allow this, right drag to look.
+2. Click an element to select it (its data shows in the side panel). Click empty space to look with the mouse (the pointer is hidden). While the pointer is hidden, a click selects the element under the crosshair at the screen center. If the browser does not allow the pointer lock, right drag to look.
 3. Move with W, A, S, D (in plan only, so looking up does not lift you). Q and E lower and raise the eye. Hold Shift to run (3 times 4.5 ft/s). C turns collision on or off. With collision on, you stop 1 ft before walls, columns and doors.
 4. Press Esc to go back to the view from before the walk. In Chrome the first Esc only frees the mouse; press Esc again to leave the walk.
 
