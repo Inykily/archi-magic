@@ -972,11 +972,37 @@ export function gumballReadout(handle, result) {
 export const PET = {
   height: 1, speed: 2, run: 5, runDist: 6, accel: 8, turnRate: 2.5, turnGain: 8, arrive: 0.04,
   stride: 0.27, runStride: 0.6, stepUp: 0.8, stepDown: 1.5, jumpUp: 2.5, jumpDown: 8, wallProbe: 0.5,
-  sitAfter: 1.5, sleepAfter: 14,
+  sitAfter: 1.5, sleepAfter: 14, hopChance: 0.35, // idle timers; the chance of a playful hop at each hop check
+  stuckDist: 2, meows: 3, meowEvery: 5,           // stuck: ending more than stuckDist (x scale) from the goal; calls in all; seconds between calls
+  cell: 0.6, planNodes: 40, planMax: 1500, waypoint: 1, side: 0.5, replans: 3, // routing: cell size (x scale), cells searched per step, search limit, arrival radius at a route point (x cell), room kept from walls (x scale), new searches when blocked
   minUpZ: Math.sin(60 * DEG), // a surface counts as standable when its normal is 60+ degrees above horizontal
   maxScale: 6, scaleDiv: 50,
 };
-export const PET_ACTS = { lick: 3.6, groom: 4.2, yawn: 2.6 }; // idle actions and how long each lasts (s)
+export const PET_ACTS = { lick: 3.6, groom: 4.2, yawn: 2.6, meow: 1.5, purr: 4 }; // idle actions and how long each lasts (s)
+export const PET_IDLE = ['lick', 'groom', 'yawn']; // the actions it picks at random when it has nothing to do (meow is not one: it is a call for help)
+
+// What the cat thinks, shown in a thought cloud. The kind follows what it is doing. Short, and a little silly.
+export const PET_THOUGHTS = {
+  idle: ['nap, then a second nap', 'is that a sunbeam?', 'this needs a cat door', 'a mouse in the ceiling?', 'fish. just fish.', 'load-bearing? asking for a friend',
+    'the 2nd floor is mine', 'who moved my slab?', 'zoning allows naps', 'a tiny ladder would be nice'],
+  run: ['zoomies!', 'gotta go fast', '3 a.m. energy'],
+  jump: ['parkour!', 'nine lives, one jump', 'stairs are for humans'],
+  arrive: ['nice spot', 'mine now', 'good view from here', 'fire rating: nine lives'],
+  sleep: ['zzz...', 'dreaming of tuna', 'chasing laser dots'],
+  lick: ['clean paws, clean plans', 'ready for the review'],
+  groom: ['gotta look good for the review', 'fur is a finish schedule'],
+  yawn: ['long day of site visits', 'this meeting could be a nap'],
+  purr: ['more please', 'best client ever', 'keep going'],
+  stuck: ['who put a wall here?', 'I need a cat door', 'meow? (rude)'],
+};
+// Show a thought of this kind (p.thought = { text, t, dur }; p.thoughtId counts them, so the page can tell a new one).
+export function petThink(p, kind, rand = Math.random) {
+  const list = PET_THOUGHTS[kind];
+  if (!list) return p;
+  p.thoughtId = (p.thoughtId || 0) + 1;
+  p.thought = { text: list[Math.min(list.length - 1, Math.floor(rand() * list.length))], kind, t: 0, dur: 3.6 };
+  return p;
+}
 
 // A click hit (a three.js intersection) -> world point, outward normal and whether the pet can stand.
 // rayDir is the pick ray direction; a face seen from behind is flipped toward the camera.
@@ -1049,6 +1075,8 @@ const IDLE_POSES = {
   lick: withPose({ ...SIT, flHip: -1.2, flKnee: 1.7, headPitch: 0.75, headYaw: 0.3, eyes: 0.5 }),   // a front paw up to the mouth
   groom: withPose({ ...SIT, headPitch: 0.8, headYaw: 0.95, roll: 0.12, eyes: 0.4 }),                  // head turned to lick a flank
   yawn: withPose({ ...SIT, headPitch: -0.05, eyes: 0.1, earBack: 0.6 }),
+  meow: withPose({ ...SIT, headPitch: 0.15, tailPitch: -0.1 }),                                        // sits up, ears forward, calls for help
+  purr: withPose({ ...SIT, headPitch: 0.15, headTilt: 0.18, eyes: 0.05, earBack: 0.25, roll: 0.06, tailPitch: -0.2 }), // eyes shut, head pushed up into the hand
   sleep: withPose({ drop: -0.17, flHip: -1.2, frHip: -1.2, hlHip: -1.2, hrHip: -1.2, flKnee: 2.2, frKnee: 2.2, hlKnee: 2.2, hrKnee: 2.2,
     headPitch: 0.9, headYaw: 0.6, eyes: 0, earBack: 0.3, tail: 0.9, tailPitch: -1.3 }),                                // curled up, legs tucked, nose on the paws
 };
@@ -1059,6 +1087,8 @@ function idleOsc(p) {
   if (p.act === 'groom') return { headPitch: 0.1 * w(3), headYaw: 0.05 * w(1.5), tongue: Math.max(0, w(3)) };
   if (p.act === 'yawn') { const m = Math.min(1, 1.6 * Math.sin(Math.PI * Math.min(1, t / PET_ACTS.yawn))); return { mouth: m, headPitch: -0.3 * m }; }
   if (p.act === 'sleep') return { breath: w(1 / 2.6) };
+  if (p.act === 'purr') return { breath: 0.7 * w(11), tail: 0.25 * w(0.6), headTilt: 0.04 * w(1.2) }; // a purr: the body trembles a little
+  if (p.act === 'meow') { const m = Math.sin(Math.PI * Math.min(1, (t % 0.75) / 0.7)); return { mouth: Math.max(0, m), headPitch: -0.25 * Math.max(0, m), tail: 0.3 * w(1.2) }; } // two calls, the head tips up with each
   return { tail: 0.18 * Math.sin(1.6 * t), ear: 0.04 * Math.sin(0.9 * t + 1) }; // stand or sit: a slow tail sway
 }
 
@@ -1075,23 +1105,142 @@ export function petPose(p) {
 
 // How often the page should redraw for this pet: full speed while it moves, a little slower for a lick,
 // groom or yawn, and rarely while it sits or sleeps (it only needs to advance its timers).
-export function petFps(p) { return p.moving || p.jump ? 60 : PET_ACTS[p.act] !== undefined ? 30 : 8; }
+export function petFps(p) { return p.moving || p.jump || p.planning ? 60 : PET_ACTS[p.act] !== undefined ? 30 : 8; }
 
 // ---- State ----
 export function createPet(point, scale = 1) {
-  return { pos: point.slice(), heading: 0, target: null, phase: 0, moving: false, scale, speed: 0, run: false, jump: null,
-    act: 'stand', actT: 0, idleT: 0, w: 0, ib: IDLE_POSES.stand };
+  return { pos: point.slice(), heading: 0, target: null, goal: null, path: [], planning: null, route: null, routeId: 0,
+    phase: 0, moving: false, scale, speed: 0, run: false, playful: false, hopIn: 4, replans: 0, jump: null, act: 'stand', actT: 0, idleT: 0, w: 0, ib: IDLE_POSES.stand };
 }
 
-// Send the pet to a point. A far target means a run. Any idle action ends.
-export function petGo(p, point) {
-  p.target = point.slice();
-  p.run = Math.hypot(point[0] - p.pos[0], point[1] - p.pos[1]) > PET.runDist * (p.scale || 1);
+// ---- Routing ----
+// Can the pet walk from (x, y, z) to (nx, ny)? Returns the ground height there, or null. The same checks the
+// walk uses: ground there, a step it can walk, and no wall ahead (with the wall probe as clearance).
+function walkEdge(env, s, x, y, z, nx, ny) {
+  const dx = nx - x, dy = ny - y, d = Math.hypot(dx, dy);
+  if (d < 1e-9) return z;
+  const gz = env.ground(nx, ny, z + PET.stepUp * s);
+  if (gz === null || gz === undefined || gz - z > PET.stepUp * s || z - gz > PET.stepDown * s) return null;
+  if (env.blocked && env.blocked(x, y, z, dx / d, dy / d, d + PET.wallProbe * s)) return null;
+  return gz;
+}
+// Room to stand: no wall within PET.side * scale ft in the four directions. A route keeps this distance from walls,
+// so a turning pet does not clip a corner.
+function roomAround(env, s, x, y, z) {
+  if (!env.blocked) return true;
+  const r = PET.side * s;
+  return !(env.blocked(x, y, z, 1, 0, r) || env.blocked(x, y, z, -1, 0, r) || env.blocked(x, y, z, 0, 1, r) || env.blocked(x, y, z, 0, -1, r));
+}
+// Is the straight line from a to b walkable all the way, with room around? (Checked in steps of one routing cell;
+// the last point, where the pet stops, needs no room.)
+function lineClear(env, s, a, b) {
+  const c = PET.cell * s, d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / c));
+  let x = a[0], y = a[1], z = a[2];
+  for (let i = 1; i <= n; i++) {
+    const nx = a[0] + (b[0] - a[0]) * i / n, ny = a[1] + (b[1] - a[1]) * i / n, gz = walkEdge(env, s, x, y, z, nx, ny);
+    if (gz === null || (i < n && !roomAround(env, s, nx, ny, gz))) return false;
+    x = nx; y = ny; z = gz;
+  }
+  return true;
+}
+
+// A route search (A*) on a grid of cells (PET.cell * scale ft, 8 neighbors) around the start. A step to a neighbor
+// must be walkable (see walkEdge); if it is not, a jump to a landing 1 to 3 cells ahead is allowed at 3 times the
+// cost, so the pet goes around when it can and jumps when it must. step(n) expands up to n cells and returns
+// { status: 'searching' } or { status: 'found' | 'partial' | 'failed', path }. 'partial' is a route to the reachable
+// cell nearest the goal. The path is a list of [x, y, z] points, string-pulled (points that a straight walk can skip
+// are dropped), and for 'found' it ends at the goal.
+export function createPlanner(start, goal, scale, env) {
+  const s = scale || 1, c = PET.cell * s, gx = goal[0], gy = goal[1];
+  const h = (x, y) => Math.hypot(gx - x, gy - y);
+  const nodes = new Map(), open = [], key = (ix, iy) => ix + ',' + iy, roomCache = new Map();
+  const roomAt = (ix, iy, x, y, z) => { const k = key(ix, iy); let r = roomCache.get(k); if (r === undefined) { r = roomAround(env, s, x, y, z); roomCache.set(k, r); } return r; };
+  const first = { ix: 0, iy: 0, x: start[0], y: start[1], z: start[2], g: 0, f: h(start[0], start[1]), parent: null, closed: false };
+  nodes.set(key(0, 0), first); open.push(first);
+  const R = Math.ceil(1.6 * h(start[0], start[1]) / c) + 10, DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  let expanded = 0, best = first, done = null;
+  const smooth = pts => {
+    const out = []; let a = start.slice(), i = 0;
+    while (i < pts.length) {
+      let j = pts.length - 1;
+      while (j > i && !lineClear(env, s, a, pts[j])) j--;
+      out.push(pts[j]); a = pts[j]; i = j + 1;
+    }
+    return out;
+  };
+  const pathTo = (n, tail) => {
+    const pts = []; for (let q = n; q && q.parent; q = q.parent) pts.push([q.x, q.y, q.z]);
+    pts.reverse(); if (tail) pts.push(tail);
+    return smooth(pts);
+  };
+  const expand = () => {
+    let bi = 0; for (let k = 1; k < open.length; k++) if (open[k].f < open[bi].f) bi = k;
+    const n = open.splice(bi, 1)[0];
+    if (n.closed) return;
+    n.closed = true; expanded++;
+    if (h(n.x, n.y) < h(best.x, best.y)) best = n;
+    if (h(n.x, n.y) <= 0.8 * c || (h(n.x, n.y) <= 1.6 * c && lineClear(env, s, [n.x, n.y, n.z], goal))) { done = { status: 'found', path: pathTo(n, goal.slice()) }; return; }
+    for (const [dx, dy] of DIRS) {
+      const ix = n.ix + dx, iy = n.iy + dy;
+      if (Math.abs(ix) > R || Math.abs(iy) > R) continue;
+      const len = Math.hypot(dx, dy) * c, ux = dx / Math.hypot(dx, dy), uy = dy / Math.hypot(dx, dy);
+      let tx = n.x + dx * c, ty = n.y + dy * c, ex = ix, ey = iy, cost = len, gz = walkEdge(env, s, n.x, n.y, n.z, tx, ty);
+      if (gz !== null && !roomAt(ix, iy, tx, ty, gz)) continue; // walkable, but too close to a wall
+      for (let k = 1; gz === null && k <= 3; k++) { // not walkable: look for a landing a jump can reach
+        if (env.blocked && env.blocked(n.x, n.y, n.z, ux, uy, len * k, PET.jumpUp * s)) break; // a wall too high to jump
+        const px = n.x + dx * c * k, py = n.y + dy * c * k, z2 = env.ground(px, py, n.z + PET.jumpUp * s);
+        if (z2 === null || z2 === undefined || z2 - n.z > PET.jumpUp * s || n.z - z2 > PET.jumpDown * s) continue;
+        gz = z2; tx = px; ty = py; ex = n.ix + dx * k; ey = n.iy + dy * k; cost = len * k * 3;
+      }
+      if (gz === null) continue;
+      const kk = key(ex, ey), old = nodes.get(kk), g2 = n.g + cost;
+      if (old && old.g <= g2) continue;
+      const m = { ix: ex, iy: ey, x: tx, y: ty, z: gz, g: g2, f: g2 + h(tx, ty), parent: n, closed: false };
+      nodes.set(kk, m); open.push(m);
+    }
+  };
+  const bestResult = () => (best !== first && h(best.x, best.y) < h(start[0], start[1]) - c ? { status: 'partial', path: pathTo(best, null) } : { status: 'failed', path: null });
+  return {
+    step(maxN) {
+      for (let i = 0; i < maxN && !done; i++) {
+        if (!open.length || expanded >= PET.planMax) { done = bestResult(); break; }
+        expand();
+      }
+      return done || { status: 'searching' };
+    },
+  };
+}
+
+// Send the pet to a point. A far target means a run. Any idle action ends. With env, a straight line that is not
+// walkable starts a route search (the pet turns toward the goal while it searches); without env it goes straight.
+export function petGo(p, point, env) {
+  const s = p.scale || 1;
+  p.goal = point.slice(); p.dest = point.slice(); p.target = point.slice(); p.path = []; p.planning = null; p.route = null; p.routeId = (p.routeId || 0) + 1; p.replans = 0; p.meowsLeft = 0;
+  // Walk or run is a mood, not a rule: the farther the target, the more likely a run (env.rand() gives 0..1).
+  const d = Math.hypot(point[0] - p.pos[0], point[1] - p.pos[1]) / s, rand = (env && env.rand) || Math.random;
+  p.run = rand() < (d < PET.runDist / 2 ? 0.1 : d < PET.runDist ? 0.35 : 0.85);
   p.act = 'stand'; p.actT = 0; p.idleT = 0;
+  if (p.run && rand() < 0.6) petThink(p, 'run', rand);
+  if (env && env.ground && env.blocked && !lineClear(env, s, p.pos, point)) { p.planning = createPlanner(p.pos, point, s, env); p.target = null; }
   return p;
 }
 
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+// The user clicked the cat: it stops what it is doing and enjoys being petted (eyes shut, a purr). Each click
+// restarts the purr and counts in p.petCount, so the page can show hearts and play a purr.
+export function petPetted(p) {
+  p.target = null; p.goal = null; p.dest = null; p.path = []; p.planning = null; p.route = null; p.routeId = (p.routeId || 0) + 1;
+  p.speed = 0; p.meowsLeft = 0; p.meowIn = undefined;
+  p.act = 'purr'; p.actT = 0; p.idleT = 0;
+  p.petCount = (p.petCount || 0) + 1;
+  petThink(p, 'purr');
+  return p;
+}
+
+// The pet cannot get to where it was sent: it sits up and meows for attention (p.meowCount counts the calls, so the
+// page can show a bubble and play a sound), and calls again after a pause, PET.meows times in all.
+function startMeow(p, more) { p.act = 'meow'; p.actT = 0; p.idleT = 0; p.meowCount = (p.meowCount || 0) + 1; p.meowsLeft = more; }
 
 // Look for a landing ahead (along the heading) in reach of a jump: not more than jumpUp higher or jumpDown
 // lower, with no wall in the way at the jump height. Returns true when a jump has started.
@@ -1104,23 +1253,47 @@ function tryJump(p, ux, uy, env, s) {
     const dz = gz - p.pos[2];
     if (dz > PET.jumpUp * s || -dz > PET.jumpDown * s) continue;
     p.jump = { from: p.pos.slice(), to: [x, y, gz], t: 0, dur: 0.4 + 0.08 * d, h: (0.35 + 0.25 * Math.max(0, dz / s)) * s };
+    if ((env.rand || Math.random)() < 0.5) petThink(p, 'jump', env.rand);
     return true;
   }
   return false;
 }
 
+// A small playful hop forward (a short, low jump) when the ground ahead is walkable and clear.
+function hop(p, ux, uy, env, s) {
+  const d = 0.9 * s, x = p.pos[0] + ux * d, y = p.pos[1] + uy * d;
+  const gz = env.ground ? env.ground(x, y, p.pos[2] + PET.stepUp * s) : p.pos[2];
+  if (gz === null || gz === undefined || Math.abs(gz - p.pos[2]) > PET.stepUp * s) return false;
+  if (env.blocked && env.blocked(p.pos[0], p.pos[1], p.pos[2], ux, uy, d + PET.wallProbe * s)) return false;
+  p.jump = { from: p.pos.slice(), to: [x, y, gz], t: 0, dur: 0.38, h: 0.3 * s };
+  return true;
+}
+
 // One time step. env.ground(x, y, zFrom) returns the ground height there or null; env.blocked(x, y, z,
 // dirX, dirY, length, height) is true when a wall is in the way (height defaults to half the pet);
 // env.rand() gives 0..1 for the idle choices (default Math.random).
-//  - With a target, the pet walks along its heading and turns toward the target as it goes, so a turn is
-//    an arc, not a spin: the heading eases toward the target direction (at most turnRate rad/s), and the
-//    further it is from facing the target, the slower it walks. It slows down when it is close.
+//  - While a route search runs (p.planning) the pet turns toward the goal; each step expands PET.planNodes cells.
+//  - With a target (the goal, or the next point of the route), the pet walks along its heading and turns toward the
+//    target as it goes, so a turn is an arc, not a spin: the heading eases toward the target direction (at most
+//    turnRate rad/s), and the further it is from facing the target, the slower it walks. Passing a route point is
+//    smooth (a wide arrival radius, no stop); it slows down only at the goal.
 //  - At a wall, an edge or a step it cannot walk, it jumps if a landing is in reach; else it stops.
 //  - With no target it idles: stand, sit, then an action, and in the end it sleeps.
 // p.moving stays true while it turns, walks, runs or jumps.
 export function petStep(p, dt, env = {}) {
   const s = p.scale || 1, rand = env.rand || Math.random;
   p.moving = false;
+  if (p.planning && !p.jump) {
+    const g = p.goal, dg = wrapAngle(Math.atan2(g[1] - p.pos[1], g[0] - p.pos[0]) - p.heading), maxT = PET.turnRate * dt;
+    const turn = Math.max(-maxT, Math.min(maxT, dg * Math.min(1, PET.turnGain * dt)));
+    p.heading = wrapAngle(p.heading + turn); p.phase += Math.abs(turn) * 1.2; p.moving = Math.abs(turn) > 1e-4;
+    const r = p.planning.step(PET.planNodes);
+    if (r.status !== 'searching') {
+      p.planning = null; p.routeId++;
+      if (r.path && r.path.length) { p.path = r.path.map(q => q.slice()); p.target = p.path.shift(); p.route = [p.pos.slice(), ...r.path]; }
+      else p.target = p.goal.slice(); // no route found: try the straight line (it will jump or stop)
+    }
+  }
   if (p.jump) {
     const j = p.jump; j.t = Math.min(1, j.t + dt / j.dur);
     const u = j.t;
@@ -1129,8 +1302,17 @@ export function petStep(p, dt, env = {}) {
     if (u >= 1) { p.pos = j.to.slice(); p.jump = null; }
   } else if (p.target) {
     const dx = p.target[0] - p.pos[0], dy = p.target[1] - p.pos[1], dist = Math.hypot(dx, dy);
-    if (dist < PET.arrive * s) { p.pos = [p.target[0], p.target[1], p.pos[2]]; p.target = null; p.speed = 0; }
-    else {
+    const last = !p.path || p.path.length === 0, reach = last ? PET.arrive * s : PET.waypoint * PET.cell * s;
+    const finish = () => { // arrived, or gave up: a pet that ends far from where it was sent is stuck, and calls for help
+      const stuck = p.dest && Math.hypot(p.pos[0] - p.dest[0], p.pos[1] - p.dest[1]) > PET.stuckDist * s;
+      p.target = null; p.goal = null; p.dest = null; p.path = []; p.speed = 0; p.route = null; p.routeId++;
+      if (stuck) startMeow(p, PET.meows - 1);
+      else if (rand() < 0.4) petThink(p, 'arrive', rand);
+    };
+    if (dist < reach) {
+      if (last) { p.pos = [p.target[0], p.target[1], p.pos[2]]; finish(); }
+      else p.target = p.path.shift();
+    } else {
       const diff = wrapAngle(Math.atan2(dy, dx) - p.heading), maxTurn = PET.turnRate * dt;
       const turn = Math.max(-maxTurn, Math.min(maxTurn, diff * Math.min(1, PET.turnGain * dt))); // eases out: no overshoot
       p.heading = wrapAngle(p.heading + turn);
@@ -1139,31 +1321,49 @@ export function petStep(p, dt, env = {}) {
       const want = p.run ? PET.run : PET.speed;
       p.speed += Math.max(-PET.accel * dt, Math.min(PET.accel * dt, want - p.speed));
       const facing = 0.25 + 0.75 * Math.max(0, Math.cos(diff)); // 1 when facing the target, 0.25 when facing away
-      const near = Math.min(1, 0.4 + dist / (2.5 * s));         // slow down on arrival
+      const near = last ? Math.min(1, 0.4 + dist / (2.5 * s)) : 1; // slow down on arrival at the goal only
       const step = Math.min(p.speed * s * facing * near * dt, dist);
       const ux = Math.cos(p.heading), uy = Math.sin(p.heading);
-      const stop = () => { p.target = null; p.moving = false; p.speed = 0; };
+      const stop = () => { finish(); p.moving = false; };
       const nx = p.pos[0] + ux * step, ny = p.pos[1] + uy * step;
       const wall = env.blocked && env.blocked(p.pos[0], p.pos[1], p.pos[2], ux, uy, step + PET.wallProbe * s);
       const z = wall ? null : (env.ground ? env.ground(nx, ny, p.pos[2] + PET.stepUp * s) : p.pos[2]);
       if (wall || z === null || z === undefined || z - p.pos[2] > PET.stepUp * s || p.pos[2] - z > PET.stepDown * s) {
         if (Math.abs(diff) > 0.5) { /* still turning toward the target: wait here, do not stop */ }
-        else if (!tryJump(p, ux, uy, env, s)) stop();
+        else if (tryJump(p, ux, uy, env, s)) { /* jumping */ }
+        else if (p.goal && env.ground && env.blocked && (p.replans || 0) < PET.replans) { // blocked: search for a new route from here
+          p.replans = (p.replans || 0) + 1; p.planning = createPlanner(p.pos, p.goal, s, env); p.path = []; p.target = null; p.moving = false;
+        } else stop();
       } else {
         p.pos = [nx, ny, z];
         p.phase += step / ((p.run ? PET.runStride : PET.stride) * s) * Math.PI;
+        if (p.playful) { // now and then, a playful hop forward on flat ground
+          p.hopIn = (p.hopIn === undefined ? 4 : p.hopIn) - dt;
+          if (p.hopIn <= 0) {
+            p.hopIn = 3 + rand() * 6;
+            if (rand() < PET.hopChance && dist > 3 * s && Math.abs(diff) < 0.2) hop(p, ux, uy, env, s);
+          }
+        }
       }
     }
   }
-  if (!p.moving && !p.jump) { // idle
+  if (!p.moving && !p.jump && !p.planning) { // idle
     p.speed = 0; p.idleT += dt; p.actT += dt;
+    p.thinkIn = (p.thinkIn === undefined ? 5 : p.thinkIn) - dt; // every 7 to 15 s, a thought that fits what it is doing
+    if (p.thinkIn <= 0) {
+      p.thinkIn = 7 + rand() * 8;
+      if (!p.thought && p.act !== 'meow') petThink(p, p.meowsLeft > 0 ? 'stuck' : ({ sit: 'idle', stand: 'idle' }[p.act] || p.act), rand);
+    }
+    const waiting = p.meowsLeft > 0; // stuck: it waits and calls again instead of picking an idle action
     if (p.act === 'stand' && p.idleT > PET.sitAfter) { p.act = 'sit'; p.actT = 0; }
+    else if (p.act === 'sit' && waiting) { p.meowIn = (p.meowIn === undefined ? PET.meowEvery : p.meowIn) - dt; if (p.meowIn <= 0) { p.meowIn = undefined; startMeow(p, p.meowsLeft - 1); } }
     else if (p.act === 'sit' && p.actT > 1) {
       if (p.idleT > PET.sleepAfter) p.act = 'sleep';
-      else { const names = Object.keys(PET_ACTS); p.act = names[Math.min(names.length - 1, Math.floor(rand() * names.length))]; }
+      else p.act = PET_IDLE[Math.min(PET_IDLE.length - 1, Math.floor(rand() * PET_IDLE.length))];
       p.actT = 0;
     } else if (PET_ACTS[p.act] !== undefined && p.actT > PET_ACTS[p.act]) { p.act = 'sit'; p.actT = 0; }
   }
+  if (p.thought) { p.thought.t += dt; if (p.thought.t > p.thought.dur) p.thought = null; }
   // Smooth the idle pose and the blend weight (the walk, run and jump poses repeat fast, so they are never smoothed).
   const busy = p.moving || !!p.jump;
   p.w = (p.w || 0) + ((busy ? 1 : 0) - (p.w || 0)) * (1 - Math.exp(-(busy ? 12 : 8) * dt));

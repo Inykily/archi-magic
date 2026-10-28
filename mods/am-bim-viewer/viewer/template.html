@@ -212,6 +212,27 @@
   #walkinfo { position: absolute; left: 14px; bottom: 14px; z-index: 4; display: none; padding: 4px 8px; background: var(--bg);
     border: var(--hair) solid var(--line-strong); font-size: var(--fs-micro); color: var(--ink-2); pointer-events: none; }
   #walkinfo.on { display: grid; gap: 2px; }
+  /* The cat's speech bubble: shows "meow!" over the cat when it is stuck and calls for attention. */
+  #bubble { position: absolute; z-index: 5; display: none; transform: translate(-50%, -100%); pointer-events: none; padding: 2px 9px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); font: inherit; font-size: 12px; white-space: nowrap; }
+  #bubble.on { display: block; }
+  /* The cat's thought cloud: a rounded cloud over the cat with two small dots trailing down to it. */
+  #thought { position: absolute; z-index: 5; display: none; transform: translate(-50%, -100%); pointer-events: none; max-width: 190px; margin-top: -16px; padding: 7px 14px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 22px 26px 20px 24px / 20px 22px 24px 18px;
+    font: inherit; font-size: 12px; line-height: 1.25; text-align: center; }
+  #thought.on { display: block; }
+  #thought::before, #thought::after { content: ''; position: absolute; border-radius: 50%; background: var(--bg); border: 1px solid var(--line-strong); }
+  #thought::before { width: 9px; height: 9px; left: 50%; bottom: -15px; margin-left: -4px; }
+  #thought::after { width: 5px; height: 5px; left: 50%; bottom: -24px; margin-left: 3px; }
+  /* Z z z over the sleeping cat, and hearts when it is petted. */
+  #zzz { position: absolute; z-index: 5; display: none; pointer-events: none; width: 56px; height: 64px; color: var(--ink); font: inherit; font-size: 17px; }
+  #zzz.on { display: block; }
+  #zzz span { position: absolute; left: 0; bottom: 0; opacity: 0; animation: zzz 2.4s ease-in infinite; }
+  #zzz span:nth-child(2) { animation-delay: .8s; font-size: 21px; }
+  #zzz span:nth-child(3) { animation-delay: 1.6s; font-size: 26px; }
+  @keyframes zzz { 0% { opacity: 0; transform: translate(0, 0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(26px, -44px); } }
+  .heart { position: absolute; z-index: 5; pointer-events: none; font-size: 16px; animation: heartup 1.3s ease-out forwards; }
+  @keyframes heartup { 0% { opacity: 1; transform: translate(-50%, 0) scale(.8); } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1.25); } }
   #walkread { color: var(--ink); font-variant-numeric: tabular-nums; }
   .walking #cubewrap { opacity: .45; pointer-events: none; }
   /* View cube (top right): hairline wireframe, no fill until hover, compass ring with N/E/S/W. */
@@ -364,6 +385,10 @@
       <button id="helpbtn" type="button" aria-expanded="false" aria-controls="helppanel" aria-label="Mouse and keyboard help">?</button>
       <div id="helppanel" role="region" aria-label="Mouse and keyboard" tabindex="-1"></div>
     </div>
+    <div id="bubble" role="status"></div>
+    <div id="thought" aria-hidden="true"></div>
+    <div id="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
+    <div id="hearts" aria-hidden="true"></div>
     <div id="walkinfo" aria-live="polite"><div id="walkhint">click to look around, esc to exit</div><div id="walkread"></div></div>
     <div id="cubewrap">
       <button id="cubehome" type="button" title="Home: the default perspective" aria-label="Home: the default perspective"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.2 L8 3.2 L13.5 8.2 M4.6 6.6 V12.8 H11.4 V6.6"/></svg></button>
@@ -652,7 +677,7 @@ canvas.addEventListener('pointermove', e => {
 canvas.addEventListener('pointerup', e => {
   if (walk) { walkDrag = null; return; }
   if (drag && drag.action === 'select' && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) {
-    if (petMode) petClick(e.clientX, e.clientY); else select(pick(e.clientX, e.clientY));
+    if (catHit(e.clientX, e.clientY)) petThePet(); else if (petMode) petClick(e.clientX, e.clientY); else select(pick(e.clientX, e.clientY));
   }
   drag = null;
   setCursor(hovered ? 'hover' : 'idle');
@@ -757,7 +782,7 @@ function helpRows() {
     [['Drag handle'], 'move / rotate the selected element'], [['Alt'], 'free, no snap'], [['Esc'], 'cancel the drag or the typed value'],
     [['Click handle'], 'type a value: 2.5, 2\'6", 750mm, 15'], [['0-9'], 'while dragging: type the value'],
     [['Enter'], 'apply the typed value'], [['Tab'], 'apply, then the next axis'],
-    [['P'], 'pet mode: click a floor to send the pet there'], [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
+    [['P'], 'pet mode: click a floor to send the pet there'], [['M'], 'mute or unmute the cat sound'], [['Click cat'], 'pet the cat'], [['G'], 'walk in first person (esc exits)'], [['W', 'A', 'S', 'D'], 'walk: move'], [['Q', 'E'], 'walk: lower / raise the eye'],
     [['Shift'], 'walk: run'], [['C'], 'walk: collision on / off'], [['Click'], 'walk: look with the mouse (right drag if no lock)'],
   ]);
 }
@@ -1172,6 +1197,7 @@ window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (walk) exitWalkMode(); else enterWalkMode(); return; }
   if (k === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && !gdrag) { e.preventDefault(); setPetMode(!petMode); return; }
+  if (k === 'm' && !e.ctrlKey && !e.metaKey && !e.altKey && pet) { e.preventDefault(); petMuted = !petMuted; toast(petMuted ? 'cat sound off' : 'cat sound on'); return; }
   if (!walk) return;
   if (k === 'escape') { e.preventDefault(); exitWalkMode(); return; }
   if (k === 'c') { walk.isCollision = !walk.isCollision; updateWalkInfo(); return; }
@@ -1228,7 +1254,7 @@ function echoAt(point, normal) {
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
 
   for (const o of [echoRipple, echoMark]) { o.position.set(point[0], point[1], point[2]).addScaledVector(n, 0.02 * pet.scale); o.quaternion.copy(q); }
-  echoMark.scale.setScalar(echoUnit() * 0.55); echoMark.visible = !!pet.target;
+  echoMark.scale.setScalar(echoUnit() * 0.55); echoMark.visible = !!pet.goal;
   echoRipple.visible = true; echoT0 = performance.now();
   if (!echoRaf) echoRaf = requestAnimationFrame(echoTick);
 }
@@ -1236,11 +1262,98 @@ function echoAt(point, normal) {
 // yawn, sleep) need it. The page is redrawn at petFps(): full speed while it moves, 30 fps for an idle
 // action, 8 fps while it sits or sleeps (a still scene costs almost nothing).
 let petRenderAt = 0;
+// Petting: a click on the cat (in any mode) pets it. It stops, shuts its eyes and purrs; hearts float up from
+// its head and a short purr plays (M mutes). The cat's thought cloud shows what it thinks (petThink in the core),
+// and Z z z floats over it while it sleeps.
+const thoughtEl = document.getElementById('thought'), zzzEl = document.getElementById('zzz'), heartsEl = document.getElementById('hearts');
+let petThoughtSeen = 0, petPetSeen = 0, purrAt = 0;
+const petScreen = dz => { const v = new THREE.Vector3(pet.pos[0], pet.pos[1], pet.pos[2] + dz * pet.scale).project(activeCam); return { x: ((v.x + 1) / 2) * vp.clientWidth, y: ((1 - v.y) / 2) * vp.clientHeight }; };
+function catHit(px, py) { // is the cat the first thing under this point?
+  if (!pet || !petModel) return false;
+  raycaster.setFromCamera(ndcAt(px, py), activeCam);
+  const hit = raycaster.intersectObject(petModel.group, true).find(h => h.object !== petModel.parts.shadow && h.object.visible);
+  if (!hit) return false;
+  const wall = raycaster.intersectObjects(meshes.filter(m => m.visible), false)[0];
+  return !wall || hit.distance <= wall.distance;
+}
+function petThePet() { petPetted(pet); echoAt(pet.pos, [0, 0, 1]); }
+function playPurr() {
+  if (petMuted) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    petAudioCtx = petAudioCtx || new AC(); const ctx = petAudioCtx; if (ctx.state === 'suspended') ctx.resume();
+    const t = ctx.currentTime, o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.value = 70; f.type = 'lowpass'; f.frequency.value = 260; lfo.frequency.value = 24; lg.gain.value = 0.06;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+    lfo.connect(lg); lg.connect(g.gain); o.connect(f); f.connect(g); g.connect(ctx.destination);
+    o.start(t); lfo.start(t); o.stop(t + 1.6); lfo.stop(t + 1.6);
+  } catch (e) { /* no audio here: the hearts still show */ }
+}
+function spawnHearts() {
+  const q = petScreen(0.95);
+  for (let i = 0; i < 3; i++) {
+    const h = document.createElement('span'); h.className = 'heart'; h.textContent = '\u2665'; h.style.color = '#e8707a';
+    h.style.left = (q.x + (i - 1) * 14 + Math.random() * 6) + 'px'; h.style.top = (q.y - 4 - Math.random() * 8) + 'px'; h.style.animationDelay = (i * 0.12) + 's';
+    heartsEl.append(h); setTimeout(() => h.remove(), 1800);
+  }
+}
+function petFxCheck(now) {
+  if ((pet.petCount || 0) !== petPetSeen) { petPetSeen = pet.petCount; spawnHearts(); if (now - purrAt > 1200) { purrAt = now; playPurr(); } }
+  const t = pet.thought;
+  thoughtEl.classList.toggle('on', !!t);
+  if (t) {
+    if (pet.thoughtId !== petThoughtSeen) { petThoughtSeen = pet.thoughtId; thoughtEl.textContent = t.text; }
+    const q = petScreen(1.55); thoughtEl.style.left = q.x + 'px'; thoughtEl.style.top = q.y + 'px';
+  }
+  const sleeping = pet.act === 'sleep' && !pet.moving && !pet.jump;
+  zzzEl.classList.toggle('on', sleeping);
+  if (sleeping) { const q = petScreen(0.95); zzzEl.style.left = (q.x + 2) + 'px'; zzzEl.style.top = (q.y - 56) + 'px'; }
+}
+// The cat meows for attention when it cannot get where it was sent (p.meowCount goes up): a speech bubble over the
+// cat, and a short synthesized meow (no sound file). Press M to mute or unmute the sound.
+const bubbleEl = document.getElementById('bubble');
+let petMeowSeen = 0, bubbleUntil = 0, petAudioCtx = null, petMuted = false;
+function playMeow() {
+  if (petMuted) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    petAudioCtx = petAudioCtx || new AC(); const ctx = petAudioCtx; if (ctx.state === 'suspended') ctx.resume();
+    const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(520, t); o.frequency.linearRampToValueAtTime(820, t + 0.22); o.frequency.linearRampToValueAtTime(480, t + 0.7);
+    f.type = 'bandpass'; f.Q.value = 3; f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(1800, t + 0.25); f.frequency.linearRampToValueAtTime(900, t + 0.7);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    o.connect(f); f.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.8);
+  } catch (e) { /* no audio here: the bubble still shows */ }
+}
+function petMeowCheck(now) {
+  if ((pet.meowCount || 0) !== petMeowSeen) { petMeowSeen = pet.meowCount; bubbleEl.textContent = 'meow!'; bubbleUntil = now + 1500; playMeow(); }
+  const on = now < bubbleUntil;
+  bubbleEl.classList.toggle('on', on);
+  if (on) {
+    const v = new THREE.Vector3(pet.pos[0], pet.pos[1], pet.pos[2] + 1.3 * pet.scale).project(activeCam);
+    bubbleEl.style.left = ((v.x + 1) / 2) * vp.clientWidth + 'px'; bubbleEl.style.top = ((1 - v.y) / 2) * vp.clientHeight + 'px';
+    requestRender();
+  }
+}
+// Route line: a thin line from the pet through the next route points to the goal, drawn through the model.
+// While a route search runs it shows a straight hint to the goal.
+const routeLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: ECHO_COLOR, transparent: true, opacity: 0.7, depthTest: false }));
+routeLine.visible = false; routeLine.frustumCulled = false; routeLine.renderOrder = 9; scene.add(routeLine);
+function updateRoute() {
+  if (!pet.goal) { routeLine.visible = false; return; }
+  const pts = [pet.pos];
+  if (pet.target) pts.push(pet.target);
+  for (const q of pet.path) pts.push(q);
+  if (pet.planning) pts.push(pet.goal);
+  routeLine.geometry.setFromPoints(pts.map(q => new THREE.Vector3(q[0], q[1], q[2] + 0.04 * pet.scale)));
+  routeLine.visible = pts.length > 1;
+}
 function petTick(now) {
   const dt = Math.min(0.1, Math.max(0, (now - petLast) / 1000)); petLast = now;
   petStep(pet, dt, petEnv);
-  echoMark.visible = !!pet.target; // the target marker pulses while the pet walks, and goes when it arrives or stops
-  if (pet.target) echoMark.scale.setScalar(echoUnit() * (0.55 + 0.1 * Math.sin(now / 130)));
+  echoMark.visible = !!pet.goal; // the goal marker pulses while the pet walks, and goes when it arrives or stops
+  if (pet.goal) echoMark.scale.setScalar(echoUnit() * (0.55 + 0.1 * Math.sin(now / 130)));
+  updateRoute(); petMeowCheck(now); petFxCheck(now);
   if (now - petRenderAt >= 1000 / petFps(pet) - 2) { petRenderAt = now; petApply(petModel, pet); requestRender(); }
   petRaf = requestAnimationFrame(petTick);
 }
@@ -1252,9 +1365,9 @@ function petClick(px, py) {
   if (!s) { toast('click a surface'); return; }
   if (!s.isStandable) { toast('click a floor or a roof'); return; }
   if (!pet) {
-    pet = createPet(s.point, petScale(bounds)); petModel = createPetModel(THREE);
+    pet = createPet(s.point, petScale(bounds)); pet.playful = true; petModel = createPetModel(THREE);
     scene.add(petModel.group); petApply(petModel, pet); requestRender(); startPetLoop();
-  } else petGo(pet, s.point);
+  } else petGo(pet, s.point, petEnv);
   echoAt(s.point, s.normal);
 }
 function setPetMode(on) {
@@ -1311,9 +1424,12 @@ window.__bim = {
   pet: {
     mode: on => setPetMode(on), isOn: () => petMode, click: (x, y) => petClick(x, y),
     get: () => pet && { pos: pet.pos.slice(), heading: pet.heading, moving: pet.moving, scale: pet.scale, target: pet.target && pet.target.slice(),
-      act: pet.act, run: pet.run, jumping: !!pet.jump, speed: pet.speed, idleT: pet.idleT },
+      act: pet.act, run: pet.run, jumping: !!pet.jump, speed: pet.speed, idleT: pet.idleT, goal: pet.goal && pet.goal.slice(), planning: !!pet.planning, route: pet.path.length, meows: pet.meowCount || 0, pets: pet.petCount || 0, thought: pet.thought && pet.thought.text },
     step: (dt, rand) => { if (pet) { petStep(pet, dt, rand ? { ...petEnv, rand } : petEnv); petApply(petModel, pet); render(); } },
     setAct: name => { if (pet && !pet.target && !pet.jump) { pet.act = name; pet.actT = 0; pet.ib = petPose({ ...pet, ib: undefined, w: 0 }); petApply(petModel, pet); render(); } },
+    petIt: () => petThePet(), think: kind => petThink(pet, kind), hearts: () => document.querySelectorAll('.heart').length,
+    fx: () => ({ thought: thoughtEl.classList.contains('on') ? thoughtEl.textContent : null, zzz: zzzEl.classList.contains('on') }),
+    meowNow: () => { if (pet) { pet.act = 'meow'; pet.actT = 0; pet.meowCount = (pet.meowCount || 0) + 1; } },
     freeze: on => { if (on) { cancelAnimationFrame(petRaf); petRaf = 0; } else startPetLoop(); },
     inScene: () => !!petModel && petModel.group.parent === scene, inPickList: () => !!petModel && meshes.some(m => m === petModel.group),
     echo: () => ({ rippleVisible: echoRipple.visible, rippleOpacity: echoRipple.material.opacity, markVisible: echoMark.visible, markAt: echoMark.position.toArray() }),
