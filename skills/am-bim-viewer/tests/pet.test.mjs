@@ -20,7 +20,8 @@ test('petSurface: an up-facing floor is standable, a wall is not, and a back fac
   const down = new THREE.Vector3(0, 0, -1);
   assert.equal(core.petSurface(hit(0, 0, 1), down).isStandable, true, 'floor seen from above');
   assert.equal(core.petSurface(hit(1, 0, 0), down).isStandable, false, 'wall');
-  const back = core.petSurface(hit(0, 0, -1), new THREE.Vector3(0, 0, 1));
+  // A downward ray that meets a downward-pointing face hits its back side, so the normal flips up.
+  const back = core.petSurface(hit(0, 0, -1), new THREE.Vector3(0, 0, -1));
   assert.equal(back.normal[2], 1, 'a face that points away from the ray is flipped');
   assert.deepEqual(core.petSurface(hit(0, 0, 1), down).point, [1, 2, 3]);
   assert.equal(core.petSurface(null, down), null);
