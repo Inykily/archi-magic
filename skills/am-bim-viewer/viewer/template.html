@@ -1184,7 +1184,9 @@ walkBtn.addEventListener('click', () => { if (walk) exitWalkMode(); else enterWa
 // ---------- Pet mode: click a surface and a small figure walks there (P or the pet button) ----------
 // The pet is not a model element: it is not in `meshes`, so it is never picked, listed or exported.
 // The first click on a floor or roof (a face that points up) places it; later clicks send it there.
-// It follows the ground height, and stops at a wall or an edge. The page draws only while it moves.
+// It follows the ground height; walks, or runs when the target is far; jumps up a ledge, down a drop or
+// over a small gap; and stops at a wall that is too high. When it has nothing to do it sits, licks a
+// paw, grooms, yawns, and in the end sleeps (a click wakes it).
 const petBtn = document.getElementById('petbtn');
 const castPetDown = new THREE.Raycaster(), castPetAcross = new THREE.Raycaster();
 const petEnv = {
@@ -1196,16 +1198,51 @@ const petEnv = {
     }
     return null;
   },
-  blocked(x, y, z, ux, uy, len) {
-    castPetAcross.set(new THREE.Vector3(x, y, z + 0.5 * PET.height * pet.scale), new THREE.Vector3(ux, uy, 0)); castPetAcross.far = len;
+  blocked(x, y, z, ux, uy, len, height) { // height: the probe height above the feet (default half the pet; a jump probes higher)
+    castPetAcross.set(new THREE.Vector3(x, y, z + (height === undefined ? 0.5 * PET.height * pet.scale : height)), new THREE.Vector3(ux, uy, 0)); castPetAcross.far = len;
     return castPetAcross.intersectObjects(meshes.filter(m => m.visible), false)
       .some(h => { const s = petSurface(h, castPetAcross.ray.direction); return s && !s.isStandable; });
   },
 };
+// Click echo: a ring that expands and fades at the clicked point, and a small marker that stays at
+// the target (and pulses) until the pet arrives or stops. Both lie on the clicked face and show
+// through the model, so you see where the pet is going.
+const ECHO_COLOR = 0xf3a152, ECHO_MS = 600;
+const echoMaterial = opacity => new THREE.MeshBasicMaterial({ color: ECHO_COLOR, transparent: true, opacity, depthTest: false, side: THREE.DoubleSide });
+const echoRipple = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), echoMaterial(0));
+const echoMark = new THREE.Group();
+echoMark.add(new THREE.Mesh(new THREE.RingGeometry(0.72, 0.88, 32), echoMaterial(0.9)), new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), echoMaterial(0.9)));
+for (const o of [echoRipple, echoMark]) { o.visible = false; o.renderOrder = 10; scene.add(o); }
+let echoT0 = 0, echoRaf = 0;
+// One unit of echo size: about 14 px on screen at any zoom, never smaller than half the pet.
+const echoUnit = () => Math.max(0.5 * pet.scale, 14 * worldPerPixel(state, canvas.clientHeight));
+function echoTick(now) {
+  const t = (now - echoT0) / ECHO_MS;
+  if (t >= 1) { echoRipple.visible = false; echoRaf = 0; requestRender(); return; }
+  echoRipple.scale.setScalar(echoUnit() * (0.3 + 1.7 * (1 - Math.pow(1 - t, 3))));
+  echoRipple.material.opacity = 0.9 * (1 - t);
+  requestRender(); echoRaf = requestAnimationFrame(echoTick);
+}
+function echoAt(point, normal) {
+  const n = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+
+  for (const o of [echoRipple, echoMark]) { o.position.set(point[0], point[1], point[2]).addScaledVector(n, 0.02 * pet.scale); o.quaternion.copy(q); }
+  echoMark.scale.setScalar(echoUnit() * 0.55); echoMark.visible = !!pet.target;
+  echoRipple.visible = true; echoT0 = performance.now();
+  if (!echoRaf) echoRaf = requestAnimationFrame(echoTick);
+}
+// The pet loop runs as long as the pet exists, because its idle timer and actions (sit, lick, groom,
+// yawn, sleep) need it. The page is redrawn at petFps(): full speed while it moves, 30 fps for an idle
+// action, 8 fps while it sits or sleeps (a still scene costs almost nothing).
+let petRenderAt = 0;
 function petTick(now) {
   const dt = Math.min(0.1, Math.max(0, (now - petLast) / 1000)); petLast = now;
-  petStep(pet, dt, petEnv); petApply(petModel, pet); requestRender();
-  petRaf = pet.moving ? requestAnimationFrame(petTick) : 0;
+  petStep(pet, dt, petEnv);
+  echoMark.visible = !!pet.target; // the target marker pulses while the pet walks, and goes when it arrives or stops
+  if (pet.target) echoMark.scale.setScalar(echoUnit() * (0.55 + 0.1 * Math.sin(now / 130)));
+  if (now - petRenderAt >= 1000 / petFps(pet) - 2) { petRenderAt = now; petApply(petModel, pet); requestRender(); }
+  petRaf = requestAnimationFrame(petTick);
 }
 function startPetLoop() { if (!petRaf) { petLast = performance.now(); petRaf = requestAnimationFrame(petTick); } }
 function petClick(px, py) {
@@ -1216,8 +1253,9 @@ function petClick(px, py) {
   if (!s.isStandable) { toast('click a floor or a roof'); return; }
   if (!pet) {
     pet = createPet(s.point, petScale(bounds)); petModel = createPetModel(THREE);
-    scene.add(petModel.group); petApply(petModel, pet); requestRender();
-  } else { petGo(pet, s.point); startPetLoop(); }
+    scene.add(petModel.group); petApply(petModel, pet); requestRender(); startPetLoop();
+  } else petGo(pet, s.point);
+  echoAt(s.point, s.normal);
 }
 function setPetMode(on) {
   if (on && walk) return; // pet mode is for the orbit views; walk mode uses clicks to select
@@ -1272,9 +1310,13 @@ window.__bim = {
   },
   pet: {
     mode: on => setPetMode(on), isOn: () => petMode, click: (x, y) => petClick(x, y),
-    get: () => pet && { pos: pet.pos.slice(), heading: pet.heading, moving: pet.moving, scale: pet.scale, target: pet.target && pet.target.slice() },
-    step: dt => { if (pet) { petStep(pet, dt, petEnv); petApply(petModel, pet); render(); } },
+    get: () => pet && { pos: pet.pos.slice(), heading: pet.heading, moving: pet.moving, scale: pet.scale, target: pet.target && pet.target.slice(),
+      act: pet.act, run: pet.run, jumping: !!pet.jump, speed: pet.speed, idleT: pet.idleT },
+    step: (dt, rand) => { if (pet) { petStep(pet, dt, rand ? { ...petEnv, rand } : petEnv); petApply(petModel, pet); render(); } },
+    setAct: name => { if (pet && !pet.target && !pet.jump) { pet.act = name; pet.actT = 0; pet.ib = petPose({ ...pet, ib: undefined, w: 0 }); petApply(petModel, pet); render(); } },
+    freeze: on => { if (on) { cancelAnimationFrame(petRaf); petRaf = 0; } else startPetLoop(); },
     inScene: () => !!petModel && petModel.group.parent === scene, inPickList: () => !!petModel && meshes.some(m => m === petModel.group),
+    echo: () => ({ rippleVisible: echoRipple.visible, rippleOpacity: echoRipple.material.opacity, markVisible: echoMark.visible, markAt: echoMark.position.toArray() }),
   },
   gumball: {
     layout: () => { const L = gumballLayout(), r = vp.getBoundingClientRect(); if (!L) return null;

@@ -84,16 +84,18 @@ The viewer never changes the Revit model. When the user pastes "element-transfor
 
 The gumball, selection and view cube are off during a walk. A small label shows the eye height, the speed and the collision state.
 
-## Pet mode: a small figure that walks where you click
+## Pet mode: a small cat that walks, runs and jumps where you click
 
 1. Click **pet** in the header, or press P. A short message says pet mode is on. Press P again to turn it off.
-2. Click a floor, a roof or any face that points up. The first click puts a small cartoon cat there (an orange tabby that walks on four legs). Each later click sends it to the new spot.
-3. The pet turns toward the spot, then walks straight at about 3 ft/s. It follows the ground height. It stops at a wall, at an edge, or at a step that is too big (up more than 0.8 ft or down more than 1.5 ft).
-4. A click on a wall shows "click a floor or a roof". A click on nothing shows "click a surface".
-5. The pet is not part of the model. You cannot select it, it is not in the element list, and it is not in the exported JSON. It grows with a large model (up to 6 times) so you can still see it.
-6. Pet mode turns off when you start a walk (G). Clicks select elements again when pet mode is off.
+2. Click a floor, a roof or any face that points up. The first click puts a small cartoon cat there (an orange tabby that walks on four legs). Each later click sends it to the new spot. A ring spreads out where you click. A small marker stays at the target while the cat walks toward it.
+3. The cat turns in an arc and walks at about 2 ft/s with a four-beat cat gait. When the target is far (more than about 6 ft), it runs at about 5 ft/s.
+4. It follows the ground height. It jumps up a ledge (up to 2.5 ft), down a drop (up to 8 ft), over a gap, or over a low obstacle, when it can land in reach. It stops at a wall that is too high, and at an edge it cannot cross.
+5. When the cat has nothing to do, it stands. After about 1.5 s it sits. Then it licks a paw, grooms or yawns, one after another. After a long rest (about 14 s) it curls up and sleeps. A click wakes it.
+6. A click on a wall shows "click a floor or a roof". A click on nothing shows "click a surface".
+7. The cat is not part of the model. You cannot select it, it is not in the element list, and it is not in the exported JSON. It grows with a large model (up to 6 times) so you can still see it.
+8. Pet mode turns off when you start a walk (G). Clicks select elements again when pet mode is off.
 
-The figure is built from simple shapes in `createPetModel` (no image file). Pet logic is in `viewer-core.mjs` (`petStep`, `petSurface`, `petPose`) and is tested in `tests/pet.test.mjs`.
+The page redraws at full speed while the cat moves, at 30 frames a second for a lick, groom or yawn, and at 8 frames a second while it sits or sleeps. The figure is built from simple shapes in `createPetModel` (no image file). The behavior is in `viewer-core.mjs` (`petStep`, `petPose`, `petSurface`) and is tested in `tests/pet.test.mjs`.
 
 ## Theme and help
 
