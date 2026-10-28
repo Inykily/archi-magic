@@ -671,12 +671,18 @@ export function cubeLayout(state) {
 export const CURSOR_INK = '#0a0a0a';
 export const CURSOR_PAPER = '#f4f4f1';
 const PLUMP_ARROW = 'M7.5 4.8 L7.5 21.6 Q7.5 24.2 9.6 22.6 L12.4 20.4 L14.9 25.6 Q15.7 27.2 17.3 26.5 L18.9 25.8 Q20.5 25.1 19.7 23.5 L17.3 18.4 L21.3 18.2 Q23.9 18.1 22.1 16.3 L9.9 4.8 Q7.5 2.9 7.5 4.8 Z';
+// An open hand for petting the cat: four fingers, a thumb and a palm, one outline. hand2 and handb are the same hand
+// turned a little each way: the page swaps them while you stroke the cat, so the hand seems to move.
+const HAND = 'M9 19 Q5.6 15.5 7.6 12.6 Q9.6 11.2 11.4 14.2 L11.4 8.2 Q11.4 5.6 13.4 5.6 Q15.4 5.6 15.4 8.2 L15.4 11.6 L15.4 6.2 Q15.4 3.6 17.4 3.6 Q19.4 3.6 19.4 6.2 L19.4 11.6 L19.4 7.4 Q19.4 4.9 21.3 4.9 Q23.2 4.9 23.2 7.4 L23.2 12.2 L23.2 10.4 Q23.2 8.4 24.9 8.4 Q26.6 8.4 26.6 10.4 L26.6 19.4 Q26.6 27.4 18.6 27.6 L15.6 27.6 Q10.4 27.4 9 19 Z';
 export const CURSOR_SHAPES = {
   idle: { hot: [8, 5], fill: PLUMP_ARROW },
   hover: { hot: [8, 5], fill: PLUMP_ARROW, dot: [24.6, 24.2] },
   rotate: { hot: [16, 16], strokes: [['M22.6 12.2 A7.6 7.6 0 1 0 22.2 20.6', 6.2, 3], ['M18.6 12.4 L22.8 12.6 L23.2 8.4', 6.2, 3]] },
   pan: { hot: [16, 16], strokes: [['M12.4 9 L16 5.4 L19.6 9', 5.6, 2.6], ['M12.4 23 L16 26.6 L19.6 23', 5.6, 2.6], ['M9 12.4 L5.4 16 L9 19.6', 5.6, 2.6], ['M23 12.4 L26.6 16 L23 19.6', 5.6, 2.6]], center: 3.2 },
   zoom: { hot: [13, 13], strokes: [['M19.4 19.4 L25.4 25.4', 7.6, 4.2], ['M13 6 A7 7 0 1 0 13 20 A7 7 0 1 0 13 6 Z', 6, 3]], plus: [13, 13, 3] },
+  hand: { hot: [17, 12], fill: HAND },
+  hand2: { hot: [17, 12], fill: HAND, turn: 14 },
+  handb: { hot: [17, 12], fill: HAND, turn: -14 },
 };
 
 export function cursorSvg(name, theme = 'paper', opts = {}) {
@@ -688,7 +694,7 @@ export function cursorSvg(name, theme = 'paper', opts = {}) {
     : '<feDropShadow dx="0.6" dy="1.2" stdDeviation="1.1" flood-color="' + CURSOR_INK + '" flood-opacity="0.45"/>';
   const hasFilter = opts.filter !== false;
   let body = '';
-  if (s.fill) body += '<path d="' + s.fill + '" fill="' + CURSOR_PAPER + '" stroke="' + CURSOR_INK + '" stroke-width="2.2" stroke-linejoin="round"/>';
+  if (s.fill) body += '<path d="' + s.fill + '"' + (s.turn ? ' transform="rotate(' + s.turn + ' 16 20)"' : '') + ' fill="' + CURSOR_PAPER + '" stroke="' + CURSOR_INK + '" stroke-width="2.2" stroke-linejoin="round"/>';
   for (const [d, outer] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_INK + '" stroke-width="' + outer + '" stroke-linecap="round" stroke-linejoin="round"/>';
   for (const [d, , inner] of s.strokes || []) body += '<path d="' + d + '" fill="none" stroke="' + CURSOR_PAPER + '" stroke-width="' + inner + '" stroke-linecap="round" stroke-linejoin="round"/>';
   if (s.center) body += '<circle cx="16" cy="16" r="' + s.center + '" fill="' + CURSOR_INK + '" stroke="' + CURSOR_PAPER + '" stroke-width="1.6"/>';
@@ -704,7 +710,7 @@ export function cursorSvg(name, theme = 'paper', opts = {}) {
 
 export function cursorCss(name, theme = 'paper') {
   const s = CURSOR_SHAPES[name];
-  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in' }[name];
+  const fallback = { idle: 'default', hover: 'pointer', rotate: 'grabbing', pan: 'move', zoom: 'zoom-in', hand: 'grab', hand2: 'grabbing', handb: 'grabbing' }[name];
   return 'url("data:image/svg+xml,' + encodeURIComponent(cursorSvg(name, theme)) + '") ' + s.hot[0] + ' ' + s.hot[1] + ', ' + fallback;
 }
 

@@ -657,6 +657,7 @@ const canvas = renderer.domElement;
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
   if (walk) { walkPointerDown(e); return; }
+  if (e.button === 0 && pet && catHit(e.clientX, e.clientY)) setCursor('hand2'); // a press on the cat: the hand closes a little
   const action = mapPointer({ button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, isParallel: state.projection === 'parallel' });
   drag = { action, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no capture */ }
@@ -665,7 +666,7 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointermove', e => {
   if (walk) { walkPointerMove(e); return; }
-  if (!drag) { setHover(pick(e.clientX, e.clientY)); return; }
+  if (!drag) { setHover(pick(e.clientX, e.clientY)); petCursor(e); return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY;
   if (drag.action === 'rotate') { orbit(state, dx, dy); if (viewName !== 'perspective') setViewName('rotated'); }
@@ -680,7 +681,7 @@ canvas.addEventListener('pointerup', e => {
     if (catHit(e.clientX, e.clientY)) petThePet(); else if (petMode) petClick(e.clientX, e.clientY); else select(pick(e.clientX, e.clientY));
   }
   drag = null;
-  setCursor(hovered ? 'hover' : 'idle');
+  setCursor(hovered ? 'hover' : 'idle'); petCursor(e);
 });
 // Double-click: Zoom Selected on an element, zoom extents on empty space.
 canvas.addEventListener('dblclick', e => {
@@ -1262,6 +1263,20 @@ function echoAt(point, normal) {
 // yawn, sleep) need it. The page is redrawn at petFps(): full speed while it moves, 30 fps for an idle
 // action, 8 fps while it sits or sleeps (a still scene costs almost nothing).
 let petRenderAt = 0;
+// The cursor over the cat is an open hand. While the cat purrs, the hand tilts back and forth as you move over it
+// (a new frame every 14 px), so it feels like stroking. Off the cat, the normal cursor comes back.
+let petStrokeD = 0, petStrokeFlip = false, petLastX = 0;
+function petCursor(e) {
+  if (!pet || !petModel) return;
+  if (catHit(e.clientX, e.clientY)) {
+    if (pet.act === 'purr') {
+      petStrokeD += Math.abs(e.clientX - petLastX);
+      if (petStrokeD > 14) { petStrokeD = 0; petStrokeFlip = !petStrokeFlip; }
+      setCursor(petStrokeFlip ? 'hand2' : 'handb');
+    } else setCursor('hand');
+    petLastX = e.clientX;
+  } else if (cursorName.startsWith('hand')) setCursor(hovered ? 'hover' : 'idle');
+}
 // Petting: a click on the cat (in any mode) pets it. It stops, shuts its eyes and purrs; hearts float up from
 // its head and a short purr plays (M mutes). The cat's thought cloud shows what it thinks (petThink in the core),
 // and Z z z floats over it while it sleeps.
