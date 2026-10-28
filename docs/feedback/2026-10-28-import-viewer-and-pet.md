@@ -57,3 +57,20 @@ Gaps already filed: #39 (type import recipe and Revit 2026 API gotchas), #40 (vi
 ## Done when
 
 A contributor, human or agent, can open a PR knowing which checks to run and which one the agent session cannot run; the viewer troubleshooting covers the Browser pane quirks above; feedback can reach the maintainers as a PR without write access; and there is one written rule for assets and one for color.
+
+---
+
+## Update: what the last stretch of the session showed
+
+After the first version of this document, the session went on with more requests for the pet. These are the extra lessons.
+
+### New gaps
+
+11. **A new interaction needs a feedback checklist.** The user asked, late, for "a visual echo when I click a surface" and for "the cursor to change to a hand when petting". Both are cheap, but nobody listed them. A click or a hover on something new needs: a cursor, a hover or press state, a short toast or echo, a row in the help panel, a test hook, and a line in `SKILL.md`. The viewer already has a cursor table (`CURSOR_SHAPES`), a help panel and `__bim` hooks, so a checklist would catch all of it in one pass (proposal 7).
+12. **Limits live in constants, but users ask about them.** The user asked: "what is the terrain and the small obstacle? can the cat jump?" The answer (steps of 0.8 ft are walked, ledges up to 2.5 ft are jumped, drops up to 8 ft, gaps up to about 3 ft, walls above 2.5 ft are not) was only in a `PET` constants block. The numbers should be in a table in `SKILL.md`, with the scale rule ("multiplied by the pet scale in a large model"). Done for the pet in the PR; the same habit applies to every limit (walk collision distance, export caps).
+13. **Requests arrive faster than plans.** About 25 short messages came while code was running ("also ...", "should ...", one-word messages such as "feedback"). The task list and the `Agent` tool helped, but a one-word message is ambiguous (issue, PR, comment, or "the thing we just did"). `am-feedback` should ask one short question when the target or the form is unclear, and offer the likely options with buttons.
+14. **Rewriting an open PR is blocked, and that is fine.** Amend and force-push were refused. New commits worked and kept the history honest (including a visible correction). Say so in `CONTRIBUTING.md` (proposal 1).
+
+### New proposal
+
+7. **Add an "interaction checklist" to the `am-bim-viewer` SKILL.md** for any new click, hover or drag behavior: cursor, hover or press state, echo or toast, help row, test hook (with `freeze`), a table of limits, and a check against `design/DESIGN-SYSTEM.md` before writing the feature.
