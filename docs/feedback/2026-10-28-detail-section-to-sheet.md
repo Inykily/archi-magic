@@ -42,3 +42,42 @@ Result: one detail-type section, view template applied, new sheet created, view 
 ## Done when
 
 A user can say "make a section detail here and put it on a new sheet like the others" and get the same result without the agent rediscovering `CreateDetail`, the box transform, or the template choice.
+
+---
+
+## Update: the rest of the session (5 details, layout, numbering, plan markers)
+
+The same session went on for several more rounds. These are the extra lessons.
+
+### What the user asked next
+1. Resize the detail to focus on the floor transition.
+2. Read four pink marks on a second screenshot and add details for them on the same sheet.
+3. Lay the viewports out and assign view titles.
+4. Learn the detail-number sequence from other sheets.
+5. Make the new sections show in the 1st floor finish plan.
+
+### New gaps and fixes
+
+8. **Section box direction is easy to get backwards.** For `ViewSection.CreateDetail`, Revit reads `BasisZ` of the box transform as the **look direction**. Pass `BasisX = look x up` (right), `BasisY = up`, `BasisZ = look`. The first attempt used the opposite sign. Revit silently flipped the view to look south, and the user saw nothing wrong until the crop was resized. Check after creation: `CropBox.Transform.BasisX` is the right direction, `-BasisZ` is the look direction, so print them and compare with the intended compass direction. A helper `create_detail_view(origin, look, width, height, depth, type, template)` with this check would remove the mistake.
+9. **Look for the model's own transition edges before trusting a screenshot.** Reading each floor's sketch profile (`floor.SketchId` then `Sketch.Profile`) near a mark gave exact edge lines (for example x = -160.2, x = -147.1, y = 171.8). Snap the cut to those edges and say so. This turned vague pixel estimates into positions that really show a transition. Also say when a mark has no edge near it (one pink mark showed a plain slab).
+10. **Marks can be skipped by mistake.** After the user said "all 4", only 2 of 4 details were made because 2 looked redundant. The user then asked for the rest. If a mark looks redundant or flat, make it and flag it, or ask once. Do not silently drop it.
+11. **Detail numbers follow a row scheme.** Compared across A-401, A-402, A-470 to A-474 and A-480: the tens digit is the row (1x = bottom row, 2x = next up, and so on), the units digit counts from the right edge (10 is the rightmost in the bottom row, 11 is to its left). Rows sit against the right side and gaps fall on the left. Older sheets (A-476, A-486) use plain 1, 2, 3. A sheet-layout helper should read this from the neighbouring sheets and number the new viewports to match. Set numbers through a temporary unique value first, because duplicates on one sheet are refused.
+12. **Viewport type.** New viewports were "No Title". The neighbour sheet uses `D_Standard_6" Title`. Copy the viewport type from the neighbour. Call `ChangeTypeId`, then `Regenerate`, then `SetBoxCenter`, because the box size changes with the title.
+13. **Sheet geometry.** The title block was 4.0 x 3.0 ft and the first stacking attempt placed a viewport off the sheet (y < 0). Read the title block and neighbour viewport boxes and keep inside them. Placing "by pitch" without a bounds check is not safe. Capture the sheet by its **name**, not its number, to check.
+14. **Section markers did not show in the plan.** The plan's view template had the Sections category hidden, so none of the new markers drew. Unhiding it would show about 130 other markers. A view filter solved it: a filter on the Sections category with the rule Sheet Number is not "A-477", set to hidden, applied in the template. Only markers for details on the new sheet show, and later additions show automatically. Facts worth recording:
+    - The marker elements report category "Views" but the Sections category controls them. `Category.GetCategory(doc, OST_Viewers)` returns None.
+    - The filterable parameters on the Sections category include Sheet Number, View Name, Family, Family and Type and Title on Sheet. The Views category only offers Workset, so a filter created on it fails.
+    - A template change affects every plan that uses it (12 here). Say so before applying, and offer a per-plan template copy.
+    - A dry run cannot show this. Applying and capturing the plan was the only check, so tell the user it is a visual check after approval.
+15. **API traps met in this session** (add to the Revit 2026 notes):
+    - `DB.ElementId(14254608)` is ambiguous in IronPython. Use `DB.ElementId(System.Int64(14254608))`.
+    - `DB.Element.Name.GetValue(t)` works for ViewFamilyType but raises on FloorType. Use `t.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()` for types.
+    - `doc.ActiveView` becomes the sheet after `ui.request_view_change(sheet)`. Look a plan up by id or name in later queries.
+    - Edits to view templates and filters show up in the change set as many modified "Views" elements (44 here). That is normal; the dry-run summary should say "dependent plans refreshed".
+
+### Proposal additions to `am-detail-sheet`
+- Step "resolve cuts": snap to model edges, list what each cut shows, flag any cut that shows no change.
+- Step "make views": use the direction helper above and assert the look direction after creation.
+- Step "sheet": copy the viewport type and title, number by the row scheme, right-align rows, keep inside the title block, then capture by sheet name.
+- Step "plan markers": check whether the Sections category is hidden by the plan's template. If so, propose the filter approach, name the number of plans affected, and ask before changing a shared template.
+- Final step: open the sheet in Revit and offer a reopen button.
