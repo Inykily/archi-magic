@@ -16,6 +16,10 @@ for tg in DB.FilteredElementCollector(doc, view.Id).OfClass(DB.IndependentTag):
     ids = [i.Value for i in tg.GetTaggedLocalElementIds()]
     if not ids:
         continue
+    # only tags that point at a guard; other tags in the view are not ours
+    if not any(isinstance(doc.GetElement(DB.ElementId(System.Int64(i))), DB.FamilyInstance)
+               and doc.GetElement(DB.ElementId(System.Int64(i))).Symbol.FamilyName == FAM for i in ids):
+        continue
     if tg.TagText == "":
         empty_text += 1
     for ref in tg.GetTaggedReferences():

@@ -18,7 +18,8 @@ level = view.GenLevel
 # corners still come from the neighbour room (corridor, lobby, classroom).
 SKIP_ROOMS = ("SHAFT", "STORAGE", "LOCKER", "TOILET", "STAIR", "DRIVE THRU", "MECHANICAL",
               "IDF", "CUSTODIAL", "BACK-OF-HOUSE", "CAFE OFFICE", "PANTRY", "CLOSET", "JANITOR",
-              "ELECTRICAL")
+              "ELECTRICAL", "OFFICE", "TESTING ROOM", "GAME ROOM", "STUDENT COMMUTER LOUNGE",
+              "STUDENT EVENT SPACE", "WORKSTATIONS", "LACTATION") +tuple(x.upper() for x in inputs.get("skip_rooms", []))
 UNSURE_WALL_TYPES = ("I_E12_1F2",)   # user kept only about 1 in 4 of these
 MERGE_FT = 9.0                       # two guards in one room, closer than this, share one tag
 MARGIN = 0.4

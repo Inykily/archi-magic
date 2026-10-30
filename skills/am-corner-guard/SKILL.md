@@ -30,6 +30,8 @@ A guard goes on a **corner** that sticks out into a space where people walk.
 - Wheelchair rule from the user: guards go where students using wheelchairs go. That includes corridors, lobbies, classrooms, study rooms, breakout areas, event space and fitness.
 - **Never use the boundary of a small service room** (pantry, toilet room, closet, custodial, IDF, shaft, storage, mechanical, electrical, stair, locker room). Its inside corners are not wanted, for example the door jamb stub inside a pantry. The **outside** corners of that room come from the corridor or the big room next to it.
 - Also skipped: drive thru, cafe back-of-house, cafe office.
+- 5th floor decision by the user: skip OFFICE, TESTING ROOM, GAME ROOM, STUDENT COMMUTER LOUNGE and STUDENT EVENT SPACE. Add guards in SPIRITUAL LIFE HUB, PRAYER ROOM, MEDITATION ROOM and MAIL / COPY.
+- 6th to 8th floor decision by the user: add guards in CONFERENCE ROOM (M, L, XL), TUTORING CENTER, TRIO SCHOLARS and MEETING. Skip WORKSTATIONS and LACTATION ROOM. Pass more room names to skip with `inputs["skip_rooms"]`.
 - Do not place a guard within 0.3 ft of an existing guard.
 
 ## Tag rules (confirmed by the user)
