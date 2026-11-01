@@ -82,3 +82,13 @@ test('scene palette: night selects paper with an ink outline, paper is the inver
   assert.deepEqual([night.gizmo, paper.gizmo], ['#9a9a96', '#6b6b68'], 'gizmo in --ink-2');
   assert.deepEqual(night.steps, { 2: TOKENS.v2, 3: TOKENS.v3, 4: TOKENS.v4, 5: TOKENS.v5, 6: TOKENS.v6 });
 });
+
+test('architectural visualization: explode, ghost context, and pins are present in template', () => {
+  assert.ok(TEMPLATE.includes('id="explodeslider"'));
+  assert.ok(TEMPLATE.includes('id="hud-explode"'));
+  assert.ok(TEMPLATE.includes('id="hud-focus"'));
+  assert.ok(TEMPLATE.includes('id="hud-peel"'));
+  assert.ok(TEMPLATE.includes('id="hud-pin"'));
+  assert.ok(TEMPLATE.includes('id="pin-svg"'));
+  assert.ok(TEMPLATE.includes('id="pin-dom"'));
+});
