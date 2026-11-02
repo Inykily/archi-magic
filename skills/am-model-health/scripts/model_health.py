@@ -393,14 +393,37 @@ def _cad_path_and_status(ctype):
     """(user-visible path, LinkedFileStatus name) of a CAD link type. Empty/None when unreadable."""
     path, status_text = "", None
     try:
-        ref = ctype.GetExternalFileReference()
-        if ref is not None:
-            status_text = str(ref.GetLinkedFileStatus())
-            mp = ref.GetAbsolutePath() or ref.GetPath()
-            if mp is not None:
-                path = DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(mp) or ""
+        if hasattr(ctype, "IsExternalFileReference") and ctype.IsExternalFileReference():
+            ref = ctype.GetExternalFileReference()
+            if ref is not None:
+                status_text = str(ref.GetLinkedFileStatus())
+                mp = ref.GetAbsolutePath() or ref.GetPath()
+                if mp is not None:
+                    path = DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(mp) or ""
+        elif hasattr(ctype, "GetExternalFileReference"):
+            ref = ctype.GetExternalFileReference()
+            if ref is not None:
+                status_text = str(ref.GetLinkedFileStatus())
+                mp = ref.GetAbsolutePath() or ref.GetPath()
+                if mp is not None:
+                    path = DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(mp) or ""
     except Exception:
-        return "", None
+        pass
+    if not path:
+        try:
+            # Cloud (ACC / Autodesk Docs) links: IsExternalFileReference() is False,
+            # but GetExternalResourceReferences() returns the cloud external resource.
+            if hasattr(ctype, "GetExternalResourceReferences"):
+                rrefs = ctype.GetExternalResourceReferences()
+                if rrefs and rrefs.Count > 0:
+                    for k in rrefs.Keys:
+                        ext_res = rrefs[k]
+                        isp = getattr(ext_res, "InSessionPath", "") or ""
+                        path = isp if isp else ("Autodesk Docs://" + safe_name(ctype))
+                        status_text = "Loaded"
+                        break
+        except Exception:
+            pass
     if not path:
         return "", None  # no readable path: report "unreadable", not a guess
     return path, status_text
