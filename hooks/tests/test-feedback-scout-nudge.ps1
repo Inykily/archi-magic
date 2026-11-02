@@ -58,7 +58,12 @@ try {
     Assert-True 'due: names the scout agent' ($j -and $j.hookSpecificOutput.additionalContext -match 'archi-magic:am-feedback-scout') $r.Out
     Assert-True 'due: passes since = previous nudge' ($j -and $j.hookSpecificOutput.additionalContext -match 'since=2026-11-02T10:00:00') $r.Out
     Assert-True 'due: never posts itself' ($j -and $j.hookSpecificOutput.additionalContext -match 'Post nothing yourself') $r.Out
+    Assert-True 'due: dispatch now, in the background' ($j -and $j.hookSpecificOutput.additionalContext -match 'in the background now') $r.Out
+    Assert-True 'due: do not ask the user first' ($j -and $j.hookSpecificOutput.additionalContext -match 'do not ask the user first') $r.Out
+    Assert-True 'due: no wait for a pause, no ask-first line' ($j -and $j.hookSpecificOutput.additionalContext -notmatch 'next natural pause|ask before you run it') $r.Out
+    Assert-True 'due: offers to post when the scout returns' ($j -and $j.hookSpecificOutput.additionalContext -match 'offer to post') $r.Out
     Assert-True 'due: user line says nothing is posted' ($j -and $j.systemMessage -match 'Nothing is posted') $r.Out
+    Assert-True 'due: user line says the scout runs now in the background' ($j -and $j.systemMessage -match 'now runs in the background' -and $j.systemMessage -notmatch 'next pause') $r.Out
     Assert-True 'due: state moved to now' ((Get-Last $s) -like '2026-11-02T12:00:00*') (Get-Last $s)
 
     # 4. Right after a nudge: quiet again.

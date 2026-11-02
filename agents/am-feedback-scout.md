@@ -1,6 +1,6 @@
 ---
 name: am-feedback-scout
-description: Read-only scout for archi-magic feedback. Reads the recent local Claude Code session transcripts that used archi-magic (am-* skills or the pyRevit agent tools), finds friction (errors, retries, user corrections, missing skill guidance, hand-written workarounds), checks zsenarchitect/archi-magic for duplicate issues, and returns de-identified draft issues or comments. It never posts and never changes a model. Use it when the archi-magic feedback-scout nudge fires (about every 2 hours), or when the user asks to "scout for archi-magic feedback". Posting stays with the am-feedback skill, after the user says "Post".
+description: Read-only scout for archi-magic feedback. Reads the recent local Claude Code session transcripts that used archi-magic (am-* skills or the pyRevit agent tools), finds friction (errors, retries, user corrections, missing skill guidance, hand-written workarounds), checks zsenarchitect/archi-magic for duplicate issues, and returns de-identified draft issues or comments. It never posts and never changes a model. Use proactively, in the background and without asking first, whenever the archi-magic feedback-scout nudge fires (about every 2 hours) and after a session with archi-magic trouble (errors, retries, user corrections). Also use it when the user asks to "scout for archi-magic feedback". Posting stays with the am-feedback skill, after the user says "Post".
 tools: Read, Glob, Grep, Bash
 ---
 

@@ -9,8 +9,8 @@
   JSON object:
     - systemMessage: a short line for the user.
     - additionalContext: tells the agent to dispatch the read-only agent
-      archi-magic:am-feedback-scout in the background at the next pause, with
-      since = the previous nudge time. The scout only drafts; posting stays
+      archi-magic:am-feedback-scout in the background right away, without
+      asking first, with since = the previous nudge time. The scout only drafts; posting stays
       with the am-feedback skill after the user says "Post".
 
   The first run only writes the start time and prints nothing, so a new
@@ -100,13 +100,13 @@ try {
     Save-State $StateFile $now
     $since = $last.ToString('o')
     $user = "archi-magic: $interval minutes since the last feedback scout. " +
-            'At the next pause I will run a read-only scout over recent archi-magic sessions and show you what is worth reporting. Nothing is posted without your "Post".'
+            'A read-only scout now runs in the background over recent archi-magic sessions. You will see what is worth reporting when it is done. Nothing is posted without your "Post".'
     $ctx = "archi-magic feedback scout is due (interval $interval minutes; previous nudge $since UTC). " +
-           'At the next natural pause (never in the middle of a model change, a dry run or a Keep/Discard prompt), ' +
-           "dispatch the agent archi-magic:am-feedback-scout in the background with the input since=$since. " +
-           'When it returns, show the user its themes as a short list. Post nothing yourself: if the user wants to post, ' +
-           'use the am-feedback skill, which posts only after the user says "Post". ' +
-           'If the user is in the middle of urgent work, tell them in one line that the scout is due and ask before you run it.'
+           "Dispatch the agent archi-magic:am-feedback-scout in the background now, with the input since=$since. " +
+           'Do not wait for a pause and do not ask the user first: the scout is read-only and runs in parallel with the current work. ' +
+           'When it returns, show the user its themes as a short list and offer to post them, ' +
+           'but do not interrupt a model change, a dry run or a Keep/Discard prompt to do so. ' +
+           'Post nothing yourself: if the user wants to post, use the am-feedback skill, which posts only after the user says "Post".'
     $out = [ordered]@{
         systemMessage      = $user
         hookSpecificOutput = [ordered]@{ hookEventName = $hookEvent; additionalContext = $ctx }
