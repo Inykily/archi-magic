@@ -2,3 +2,5 @@ state/
 .claude/
 node_modules/
 *.viewer.html
+__pycache__/
+*.pyc
