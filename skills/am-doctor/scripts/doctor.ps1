@@ -21,8 +21,9 @@
   Exit codes (-Fix): the fix command's exit code; 4 = no automatic fix (user action needed);
     2 = fix command not available.
 
-  Test parameters (-AddinsRoot, -UserAddinsRoot, -Py7Root, -LogDir, -SetupLogRoot, -McpName,
+  Test parameters (-AddinsRoot, -UserAddinsRoot, -Py7Root, -Py7Exe, -LogDir, -SetupLogRoot, -McpName,
   -InstalledPluginsJson, -ClaudeSettingsJson, -Only) point the checks at other folders or names.
+  -Py7Exe replaces <Py7Root>\bin\pyrevit.exe (for example with a test stub), as in pyrevit7-setup.ps1.
   Defaults are the real locations. The deps check only reads those two JSON files (no network).
 
 .EXAMPLE
@@ -44,6 +45,10 @@ param(
     [string]$LogDir = '',
     [string]$SetupLogRoot = (Join-Path $env:TEMP 'pyrevit7-setup'),
     [string]$McpName = 'pyrevit',
+    # Test parameters: another Claude Code CLI, pyrevit.exe and setup script. Defaults are the real ones.
+    [string]$ClaudeCli = '',
+    [string]$Py7Exe = '',
+    [string]$SetupScript = '',
     # Claude Code's config folder: CLAUDE_CONFIG_DIR when set, else %USERPROFILE%\.claude.
     [string]$InstalledPluginsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'plugins\installed_plugins.json'),
     [string]$ClaudeSettingsJson = (Join-Path $(if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }) 'settings.json'),
@@ -63,8 +68,16 @@ $ProgressPreference = 'SilentlyContinue'
 
 $IssuesUrl = 'https://github.com/zsenarchitect/archi-magic/issues'
 $PluginRoot = Join-Path $PSScriptRoot '..\..\..'
-$SetupScript = Join-Path $PSScriptRoot '..\..\am-pyrevit7-setup\scripts\pyrevit7-setup.ps1'
-$Py7 = Join-Path $Py7Root 'bin\pyrevit.exe'
+if (-not $SetupScript) { $SetupScript = Join-Path $PSScriptRoot '..\..\am-pyrevit7-setup\scripts\pyrevit7-setup.ps1' }
+$Py7 = if ($Py7Exe) { $Py7Exe } else { Join-Path $Py7Root 'bin\pyrevit.exe' }
+$PolicySwitch = 'Change it only when the user asks: pyrevit configs agent policy readonly|ask|auto (get_context shows the new policy at once, no Revit restart)'
+
+# One spelling per file: 'C:\x\Roaming/pyRevit-Master/bin/pyrevit.exe' equals the backslash form.
+# GetFullPath throws on an empty or odd string: keep it raw then.
+function Get-NormalPath([string]$path) {
+    $p = ([string]$path).Trim().Trim('"')
+    try { return [IO.Path]::GetFullPath($p) } catch { return $p }
+}
 
 $amLogPath = Join-Path $PluginRoot 'scripts\lib\am-log.ps1'
 $script:AmLogLoaded = $false
@@ -123,7 +136,8 @@ function Invoke-Native([string]$exe, [string[]]$argv, [int]$timeoutSec = 60) {
 
 function Find-ClaudeCli {
     # Same search as pyrevit7-setup.ps1. The Claude desktop app's own exe (AnthropicClaude\claude.exe) is NOT the CLI.
-    $cmd = Get-Command claude -ErrorAction SilentlyContinue |
+    if ($ClaudeCli) { if (Test-Path -LiteralPath $ClaudeCli) { return $ClaudeCli } else { return $null } }
+    $cmd =Get-Command claude -ErrorAction SilentlyContinue |
         Where-Object { $_.Source -notmatch 'AnthropicClaude' } | Select-Object -First 1
     if ($cmd) { return $cmd.Source }
     foreach ($c in @("$env:USERPROFILE\.local\bin\claude.exe", "$env:APPDATA\npm\claude.cmd")) {
@@ -226,6 +240,15 @@ if ($Fix) {
         Write-AmLog -Skill 'am-doctor' -Step 'fix' -Level 'info' -Message "Fix $Fix started: setup $($f.Args -join ' ')"
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupFull @($f.Args)
         $code = $LASTEXITCODE
+        if ($code -ne 0 -and ($Fix -eq 'MCP_MISSING' -or $Fix -eq 'MCP_WRONG_PATH')) {
+            # Give the user the one command that registers the server by hand.
+            $py7Full = Get-NormalPath $Py7
+            Write-Host "[am-doctor] The setup script did not finish (exit code $code). Register the pyrevit MCP server by hand."
+            if ($Fix -eq 'MCP_WRONG_PATH') { Write-Host "[am-doctor] First remove the old registration: claude mcp remove $McpName -s user" }
+            Write-Host "[am-doctor] Run: claude mcp add $McpName -s user -- `"$py7Full`" mcp"
+            Write-Host '[am-doctor] Then start a new Claude Code session.'
+            Write-AmLog -Skill 'am-doctor' -Step 'fix' -Level 'warn' -Message "Fix $Fix setup exit $code; printed the manual claude mcp add command."
+        }
     } else {
         if (-not (Test-Path -LiteralPath $Py7)) { Write-Host "[am-doctor] Fix not available: $(Redact $Py7) not found."; exit 2 }
         Write-Host "[am-doctor] Running fix for ${Fix}: pyrevit $($f.Args -join ' ')"
@@ -345,8 +368,9 @@ if (Test-Want 'agent') {
             Add-Finding 'AGENT_CONFIG' 'ok' "pyrevit configs agent: $($cfg.Out)" '-'
             $pol = Invoke-Native $Py7 @('configs', 'agent', 'policy') 60
             if (-not $pol.Ok) { Add-Finding 'AGENT_POLICY' 'unchecked' "pyrevit configs agent policy failed: $($pol.Error)" 'Run: pyrevit configs agent policy' }
-            elseif ($pol.Out -match '\bauto\b') { Add-Finding 'POLICY_AUTO' 'warn' "$($pol.Out). Model changes run without Keep/Discard approval." $FixMap.POLICY_AUTO.Text }
-            elseif ($pol.Out -match '\bask\b') { Add-Finding 'AGENT_POLICY' 'ok' $pol.Out '-' }
+            elseif ($pol.Out -match '\bauto\b') { Add-Finding 'POLICY_AUTO' 'warn' "$($pol.Out). Model changes run without Keep/Discard approval. If the user chose auto on purpose, report it only" "$($FixMap.POLICY_AUTO.Text) (back to the default; only when the user asks)" }
+            elseif ($pol.Out -match '\bask\b') { Add-Finding 'AGENT_POLICY' 'ok' "$($pol.Out). Each model change waits for Keep/Discard in Revit" $PolicySwitch }
+            elseif ($pol.Out -match '\breadonly\b') { Add-Finding 'AGENT_POLICY' 'info' "$($pol.Out). Queries run; model changes are refused" $PolicySwitch }
             else { Add-Finding 'AGENT_POLICY' 'unchecked' "unknown policy output: $($pol.Out)" 'Run: pyrevit configs agent policy' }
 
             if ($revit.Count -eq 0) {
@@ -416,7 +440,7 @@ if (Test-Want 'mcp') {
         elseif ($g.Out -match 'No MCP server named') { Add-Finding 'MCP_MISSING' 'error' "claude mcp get ${McpName}: no MCP server with this name" $FixMap.MCP_MISSING.Text }
         elseif ($g.Out -match '(?m)^\s*Command:\s*(.+?)\s*$') {
             $cmdPath = $Matches[1]
-            if ($cmdPath -ieq $Py7) { Add-Finding 'MCP' 'ok' "$McpName MCP command is $(Redact $cmdPath)" '-' }
+            if ((Get-NormalPath $cmdPath) -ieq (Get-NormalPath $Py7)) { Add-Finding 'MCP' 'ok' "$McpName MCP command is $(Redact $cmdPath)" '-' }
             else { Add-Finding 'MCP_WRONG_PATH' 'error' "$McpName MCP command is '$(Redact $cmdPath)', expected $(Redact $Py7)" $FixMap.MCP_WRONG_PATH.Text }
         } else { Add-Finding 'MCP' 'unchecked' "unknown output from claude mcp get ${McpName}: $(Redact $g.Out)" "Run: claude mcp get $McpName" }
     }
