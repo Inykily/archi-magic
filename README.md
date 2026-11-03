@@ -87,6 +87,7 @@ Optional add-ons, installed only when the user needs them:
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
 | "which materials are unused", "list materials", "material colors" | `am-material-audit` | Read-only query; lists materials by name prefix with colors and patterns, flags duplicates and low contrast |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
+| "add corner guards", corner guards or CG-01 tags on a finish plan | `am-corner-guard` | Find the template guard, run the dry run, ask about large open rooms and corners with no room |
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
@@ -144,6 +145,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-param-qa` | Finds elements whose required parameters are missing or empty (for example door Fire Rating, Mark, or your BEP list). Ask "are my door parameters filled in?". Adapted from Utopia5327 (MIT). |
 | `am-material-audit` | Lists materials whose names start with a prefix you give, with Shading color, Transparency, Surface Pattern foreground and background, and Cut pattern, all in RGB. It flags duplicates and low pattern contrast, and finds unused materials with a scoped check. Ask "which Floor Finish materials are unused?". |
 | `am-workset-audit` | Checks the worksets of a team model and moves elements only after a dry run and your Keep/Discard. Ask "audit my worksets". Adapted from Utopia5327 (MIT). |
+| `am-corner-guard` | Places corner guards and their CG-01 keynote tags on a floor finish plan. It finds the outside wall corners in corridors, skips toilets, elevators and small rooms, and asks you about large open rooms and corners with no room. It changes the model only after a dry run and your Keep/Discard. Ask "add corner guards to the level 5 finish plan". |
 | `am-area-report` | Reports room areas by level and department, gross totals from area plans, and unplaced or unenclosed rooms; compares against a program you paste. Ask for "a room area report". Adapted from Utopia5327 (MIT). |
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
 | `am-schedule-view` | Shows a Revit schedule as Revit displays it, in an interactive table: search, sort, filter, copy, export CSV, compare. It also shows the `am-safe-change` preview. Ask "show me the door schedule". |
