@@ -1,5 +1,5 @@
 {
-  "description": "archi-magic lifecycle hooks: session rules (hooks/session-rules.md), SessionStart update check (hooks/update-check.ps1), SessionEnd feedback scan (hooks/session-end-feedback.ps1), SessionStart feedback scout (hooks/session-start-feedback.ps1). Windows PowerShell, never blocks the session.",
+  "description": "archi-magic lifecycle hooks: session rules (hooks/session-rules.md), SessionStart update check (hooks/update-check.ps1), SessionEnd feedback scan (hooks/session-end-feedback.ps1), SessionStart feedback note (hooks/session-start-feedback.ps1), SessionStart and UserPromptSubmit feedback scout nudge (hooks/feedback-scout-nudge.ps1). Windows PowerShell, never blocks the session.",
   "hooks": {
     "SessionStart": [
       {
@@ -53,6 +53,23 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { $in = [Console]::In.ReadToEnd(); & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'feedback-scout-nudge.ps1')) -HookInputJson $in } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -68,6 +85,25 @@
               "Bypass",
               "-Command",
               "try { $in = [Console]::In.ReadToEnd(); & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'session-end-feedback.ps1')) -HookInputJson $in } catch { }; exit 0"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "try { $in = [Console]::In.ReadToEnd(); & ([IO.Path]::Combine($env:CLAUDE_PLUGIN_ROOT, 'hooks', 'feedback-scout-nudge.ps1')) -HookInputJson $in } catch { }; exit 0"
             ],
             "timeout": 10
           }
