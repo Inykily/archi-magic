@@ -71,6 +71,10 @@ jobs:
         run: |
           .\hooks\tests\test-session-end-feedback.ps1
           exit $LASTEXITCODE
+      - name: Standards recheck reminder tests (temp folders, fixed clock)
+        run: |
+          .\hooks\tests\test-standards-recheck-reminder.ps1
+          exit $LASTEXITCODE
       - name: am-doctor tests (hermetic, temp folders)
         run: |
           .\skills\am-doctor\tests\test-headless.ps1
