@@ -185,7 +185,7 @@ try {
     $ctx = "archi-magic is out of date: $list; latest release $tag. "
     if ($missingText) { $ctx += "Skills in the latest release that are not loaded in this session: $missingText. " }
     $ctx += 'If the user names an archi-magic skill or command that you do not have (for example "feedback am" for am-feedback), it may be new in the latest release: say so and offer the update steps. ' +
-            'If the user asks about it: /plugin > Marketplaces > archi-magic > Update marketplace (or Installed > the plugin > Update now), then /reload-plugins, which also installs any new dependency. ' +
+            'If the user asks about it: run "claude plugin marketplace update archi-magic" then "claude plugin update archi-magic@archi-magic", or use the menu (/plugin > Marketplaces > archi-magic > Update marketplace, or Installed > the plugin > Update now), then /reload-plugins, which also installs any new dependency. ' +
             'Install commands must use the qualified name, for example archi-magic@archi-magic. ' +
             '"/plugin marketplace update archi-magic" alone refreshes the listing only and does not update the plugin. Do not update plugins without the user asking.'
     $out = [ordered]@{

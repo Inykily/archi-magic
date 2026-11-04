@@ -10,6 +10,18 @@ The READ file is the "note" object from read_board.py, saved as JSON
     python board_cli.py status  READ.json NUMBER STATUS DATE USER "comment"
     python board_cli.py comment READ.json NUMBER DATE USER "comment"
     python board_cli.py relate  READ.json A B
+    python board_cli.py batch   READ.json OPS.json
+    python board_cli.py archive READ.json ARCHIVE.json [--status DONE] [--title "..."]
+    python board_cli.py replace READ.json NUMBER finding|todo LINES.json
+
+OPS.json = {"ops": [...]} or a bare list. Each op is one of:
+    {"op": "status", "number": N, "status": "DONE", "date": ..., "user": ..., "comment": ...}
+    {"op": "comment", "number": N, "date": ..., "user": ..., "comment": ...}
+    {"op": "relate", "a": A, "b": B}
+    {"op": "add", "issue": {...}}
+The batch makes one plan with one SHA guard, so Revit shows one Keep prompt.
+LINES.json = {"lines": [...]} or a bare list. Each line is a string, or
+[line, detail, detail] for a field line with detail rows.
 
 ISSUE.json = {"title": ..., "status": "OPEN", "assignees": ["@user"], "severity": "High",
               "findings": ["... id1001 ...", ["header line", "detail row"]],
@@ -40,6 +52,28 @@ def read_note(path):
     return ib.unescape(note["text"]), note.get("formats")
 
 
+def read_archive(path):
+    """(text, formats) of an archive note file, or (None, None) when the file
+    is missing or holds no note: that means the archive note is created."""
+    if not os.path.exists(path):
+        return None, None
+    note = load(path)
+    if not isinstance(note, dict):
+        return None, None
+    if "note" in note and isinstance(note["note"], dict):
+        note = note["note"]
+    if not isinstance(note, dict) or "text" not in note:
+        return None, None
+    return ib.unescape(note["text"]), note.get("formats")
+
+
+def load_ops(path):
+    data = load(path)
+    if isinstance(data, dict):
+        data = data.get("ops")
+    return data
+
+
 def main(argv):
     if len(argv) < 2:
         sys.stderr.write(__doc__)
@@ -49,6 +83,30 @@ def main(argv):
         if cmd == "create":
             spec = load(argv[1])
             out = ib.plan_create(spec["title_line"], spec.get("issues", []), spec.get("next_number"))
+        elif cmd == "batch":
+            text, formats = read_note(argv[1])
+            out = ib.plan_batch(text, load_ops(argv[2]), formats)
+        elif cmd == "archive":
+            status = "DONE"
+            title = None
+            rest = argv[3:]
+            i = 0
+            while i < len(rest):
+                if rest[i] == "--status" and i + 1 < len(rest):
+                    status = rest[i + 1]
+                    i += 2
+                elif rest[i] == "--title" and i + 1 < len(rest):
+                    title = rest[i + 1]
+                    i += 2
+                else:
+                    sys.stderr.write("unknown archive option: %s\n" % rest[i])
+                    return 2
+            text, formats = read_note(argv[1])
+            atext, aformats = read_archive(argv[2])
+            out = ib.plan_archive(text, status, formats, atext, aformats, title)
+        elif cmd == "replace":
+            text, formats = read_note(argv[1])
+            out = ib.plan_replace_field(text, int(argv[2]), argv[3], load(argv[4]), formats)
         else:
             text, formats = read_note(argv[1])
             if cmd == "parse":
@@ -69,7 +127,7 @@ def main(argv):
             else:
                 sys.stderr.write("unknown command: %s\n" % cmd)
                 return 2
-    except (ib.BoardError, IndexError, KeyError) as e:
+    except (ib.BoardError, IndexError, KeyError, ValueError) as e:
         sys.stderr.write("cannot plan: %s\n" % e)
         return 2
     sys.stdout.write(json.dumps(out, indent=1, ensure_ascii=True))

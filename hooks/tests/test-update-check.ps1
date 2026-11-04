@@ -51,6 +51,7 @@ try {
     Assert-True 'outdated: valid JSON' ($null -ne $j) $r.Out
     Assert-True 'outdated: systemMessage names both versions' ($j -and $j.systemMessage -match $Old -and $j.systemMessage -match $New) $r.Out
     Assert-True 'outdated: additionalContext for SessionStart' ($j -and $j.hookSpecificOutput.hookEventName -eq 'SessionStart' -and $j.hookSpecificOutput.additionalContext) $r.Out
+    Assert-True 'outdated: additionalContext contains CLI update commands' ($j -and $j.hookSpecificOutput.additionalContext -match 'claude plugin update archi-magic@archi-magic') $r.Out
 
     # 2. Up to date: no output.
     $r = Invoke-Hook $installedRoot @('-LatestTag', "r2026.10.22-$Old")

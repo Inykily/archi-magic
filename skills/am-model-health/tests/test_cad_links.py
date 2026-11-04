@@ -124,6 +124,13 @@ def test_imported_cad_is_not_reported_as_unreadable():
     assert mh.cad_link_flags(row(kind="imported", status="Imported"), True) == []
 
 
+def test_cloud_acc_link_is_not_reported_as_unreadable():
+    # Cloud (ACC) CAD links show as Loaded with Autodesk Docs path
+    acc_row = row(name="Civil-Base.dwg", path="Autodesk Docs://Project/Civil-Base.dwg", status="Loaded")
+    assert mh.cad_link_flags(acc_row, True) == []
+    assert mh.cad_status(True, "Loaded") == "Loaded"
+
+
 def test_cad_link_details_lists_flagged_rows_most_flags_first():
     rows = [row(id=1, name="b.dwg", flags=["not pinned"]),
             row(id=2, name="a.dwg", flags=[]),
