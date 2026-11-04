@@ -24,7 +24,7 @@ function New-Manifest([string]$addinsRoot, [string]$year, [string]$assembly) {
     [IO.File]::WriteAllText((Join-Path $dir 'pyRevit.addin'), $xml)
 }
 function Invoke-Doctor([string]$machine, [string]$user, [string]$py7) {
-    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Doctor -Only repoint -AddinsRoot $machine -UserAddinsRoot $user -Py7Root $py7 -LogDir (Join-Path $Root 'logs') 2>&1 | Out-String
+    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Doctor -Only repoint -AddinsRoot $machine -UserAddinsRoot $user -Py7Root $py7 -RevitInstallRoot $script:EmptyInstall -LogDir (Join-Path $Root 'logs') 2>&1 | Out-String
     return @{ Code = $LASTEXITCODE; Out = $out }
 }
 function Assert-True([string]$name, [bool]$ok, [string]$detail) {
@@ -34,6 +34,8 @@ function Assert-True([string]$name, [bool]$ok, [string]$detail) {
 function Get-HeadlessLines([string]$out) { @(($out -split "`r?`n") | Where-Object { $_ -match '^HEADLESS_OLD_PYREVIT \|' }) }
 
 try {
+    $script:EmptyInstall = Join-Path $Root 'install-none'
+    New-Item -ItemType Directory -Force $script:EmptyInstall | Out-Null
     $py7 = Join-Path $Root 'user\pyRevit-Master'
     $old = Join-Path $Root 'ProgramFiles\pyRevit-Master'
     $py7core = New-Loader $py7 'netcore'; $py7fx = New-Loader $py7 'netfx'
