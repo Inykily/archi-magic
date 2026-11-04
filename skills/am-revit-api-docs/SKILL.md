@@ -93,6 +93,14 @@ Revit cannot place a material keynote tag on a cut floor layer. This limit cost 
 - The `TM_ADDBY_MATERIAL` mode creates a Material Tags tag that also reads empty.
 - The workaround from the field report is a text note. The note carries the keynote value from the floor type's `Keynote` parameter. Use text notes when the user asks for keynotes on cut layers.
 
+### Detail groups, view delete, and filled-region boundaries (issue #89)
+
+These three traps cost a full session on a department diagram in Revit 2026. They come from issue #89.
+
+- Pass only top-level element ids to `doc.Create.NewGroup`. Do not pass the output of `Group.UngroupMembers()` directly. That output includes sketch elements of filled regions. Revit 2026 threw `SEHException` in `ElementGroup.shouldElementBeAddedToGroupByParent`. Collect the `FilledRegion` ids from the view instead, then pass those ids.
+- Switch the active view before you delete a view. `doc.Delete(view.Id)` fails with "ElementId cannot be deleted" when that view is the active view. Call `uidoc.RequestViewChange(other_view)` in a separate query first, then delete the view.
+- `FilledRegion` has no `IsValidBoundary` method. Do not call it. Check loop closure with pairwise `Curve.Intersect` checks between loops instead. Note that `IsValidBoundary` exists on `SiteSubRegion`, not on `FilledRegion`.
+
 ### Sample query skeleton
 
 Use these exact argument names for the first query from any skill. The same names work on Revit 2024, 2025 and 2026.
