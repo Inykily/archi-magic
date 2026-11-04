@@ -21,8 +21,9 @@
   Exit codes (-Fix): the fix command's exit code; 4 = no automatic fix (user action needed);
     2 = fix command not available.
 
-  Test parameters (-AddinsRoot, -UserAddinsRoot, -Py7Root, -Py7Exe, -LogDir, -SetupLogRoot, -McpName,
-  -InstalledPluginsJson, -ClaudeSettingsJson, -Only) point the checks at other folders or names.
+  Test parameters (-AddinsRoot, -UserAddinsRoot, -RevitInstallRoot, -Py7Root, -Py7Exe, -LogDir,
+  -SetupLogRoot, -McpName, -InstalledPluginsJson, -ClaudeSettingsJson, -Only) point the checks
+  at other folders or names.
   -Py7Exe replaces <Py7Root>\bin\pyrevit.exe (for example with a test stub), as in pyrevit7-setup.ps1.
   Defaults are the real locations. The deps check only reads those two JSON files (no network).
 
@@ -33,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
+    [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'YEAR_NOT_ATTACHED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
         'AGENT_BLOCKED_DIALOG', 'AGENT_BUSY_SESSION', 'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
     [string]$Fix = '',
     [switch]$Report,
@@ -41,6 +42,7 @@ param(
     [int]$Days = 14,
     [string]$AddinsRoot = 'C:\ProgramData\Autodesk\Revit\Addins',
     [string]$UserAddinsRoot = (Join-Path $env:APPDATA 'Autodesk\Revit\Addins'),
+    [string]$RevitInstallRoot = 'C:\Program Files\Autodesk',
     [string]$Py7Root = (Join-Path $env:APPDATA 'pyRevit-Master'),
     [string]$LogDir = '',
     [string]$SetupLogRoot = (Join-Path $env:TEMP 'pyrevit7-setup'),
@@ -181,6 +183,18 @@ function Get-LogEntries {
 
 function Redact([string]$s) { return (ConvertTo-AmRedacted $s) }
 
+# Installed Revit years: the "Revit 20*" folders under the Revit install root (the same
+# source -Report uses below). -RevitInstallRoot is the test seam: tests point it at a
+# temp folder. A Revit installed to a custom path outside it is a known gap, not a finding.
+function Get-InstalledRevitYears([string]$root) {
+    $years = @()
+    foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Filter 'Revit 20*' -ErrorAction SilentlyContinue)) {
+        $y = ($d.Name -replace '\D', '')
+        if ($y -match '^\d{4}$') { $years += $y }
+    }
+    return @($years | Sort-Object -Unique)
+}
+
 # Plugin dependencies (read-only, offline): scripts\lib\am-plugins.ps1 walks the dependency tree of
 # every installed archi-magic* plugin. A plugin counts as missing ("failed to load") when its entry is
 # absent, or its installPath or installPath\.claude-plugin\plugin.json is missing on disk.
@@ -195,6 +209,7 @@ function Get-DepsState {
 $FixMap = @{
     PY7_MISSING          = @{ Kind = 'setup'; Args = @('-Install', '-Repoint', '-EnableAgent', '-Verify'); Text = 'am-pyrevit7-setup: run setup (Install, Repoint, EnableAgent, Verify).' }
     REPOINT_NEEDED       = @{ Kind = 'setup'; Args = @('-Repoint', '-Verify'); Text = 'am-pyrevit7-setup -Repoint -Verify' }
+    YEAR_NOT_ATTACHED    = @{ Kind = 'setup'; Args = @('-Repoint', '-Verify'); Text = 'am-pyrevit7-setup -Repoint -Verify' }
     INSTALL_CRASH        = @{ Kind = 'setup'; Args = @('-Install', '-Force'); Text = 'am-pyrevit7-setup -Install -Force (the script no longer passes /LOG). Close Revit first.' }
     AGENT_DISABLED       = @{ Kind = 'setup'; Args = @('-EnableAgent'); Text = 'am-pyrevit7-setup -EnableAgent' }
     MCP_MISSING          = @{ Kind = 'setup'; Args = @('-EnableAgent'); Text = 'am-pyrevit7-setup -EnableAgent, then start a new Claude Code session.' }
@@ -303,6 +318,21 @@ if (Test-Want 'repoint') {
             }
             if ($good) { Add-Finding 'REPOINT' 'ok' "Revit ${year}: per-user manifest loads $(Redact $good)" '-' }
             else { Add-Finding 'REPOINT_NEEDED' 'error' "Revit ${year}: per-user manifest does not point at an existing 7.x loader ($($bad -join '; '))" $FixMap.REPOINT_NEEDED.Text }
+        }
+        # Installed Revit years with no pyRevit manifest at all (issue #88): the machine
+        # loop above only visits years IT attached, so a year installed after setup (or
+        # never attached) was silently skipped. A year counts as attached when either
+        # a machine-wide or a per-user pyRevit manifest exists for it.
+        $installedYears = Get-InstalledRevitYears $RevitInstallRoot
+        if ($installedYears.Count -gt 0) {
+            $manifestYears = @(@($machine | ForEach-Object { $_.Directory.Name }) +
+                @(Get-ChildItem -Path (Join-Path $UserAddinsRoot '*\pyRevit*.addin') -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name }) |
+                Sort-Object -Unique)
+            foreach ($year in $installedYears) {
+                if ($manifestYears -notcontains $year) {
+                    Add-Finding 'YEAR_NOT_ATTACHED' 'warn' "Revit ${year}: installed but no pyRevit manifest under $(Redact $AddinsRoot) or $(Redact $UserAddinsRoot); Revit starts without pyRevit" $FixMap.YEAR_NOT_ATTACHED.Text
+                }
+            }
         }
         # Headless 'pyrevit run' does not read the per-user override: it uses the machine-wide (AllUsers)
         # attachment, so it loads whatever install the machine manifest names (seen live: pyRevit 6.4 in
@@ -490,7 +520,7 @@ if ($exitCode -eq 1 -and $unchecked.Count -gt 0) { $summary += "; also could not
 Write-Host $summary
 
 if ($Report) {
-    $years = @(Get-ChildItem 'C:\Program Files\Autodesk' -Directory -Filter 'Revit 20*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Name -replace '\D', '' } | Sort-Object)
+    $years = @(Get-InstalledRevitYears $RevitInstallRoot)
     $pluginVer = if ($script:AmLogLoaded) { Get-AmPluginVersion } else { 'unknown' }
     $codes = @(($problems + $unchecked) | ForEach-Object Code | Select-Object -Unique)
     $title = if ($codes.Count) { "am-doctor: $($codes -join ', ')" } else { 'am-doctor: problem not detected by the doctor' }
