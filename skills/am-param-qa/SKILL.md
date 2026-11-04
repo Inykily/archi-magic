@@ -1,6 +1,6 @@
 ---
 name: am-param-qa
-description: Read-only parameter completeness check of the open Revit model through the pyRevit Agent Runtime. For the categories and required parameters you choose (for example Doors with Mark, Fire Rating and Comments, Rooms with Department, or a BEP list you give), it lists the elements with missing or empty values as a table with counts and pass rates, and can then select the offenders in Revit. Use when the user asks "are my parameters filled in", "missing fire ratings", "empty marks", "BEP compliance", "COBie data check", "parameter QA" or for a pre-submission data check. NOT for whole-model health such as warnings, links, in-place families or rooms (use am-model-health), and NOT for filling in values (use am-safe-change).
+description: Read-only parameter completeness check of the open Revit model through the pyRevit Agent Runtime. For the categories and required parameters you choose (for example Doors with Mark, Fire Rating and Comments, Rooms with Department, or a BEP list you give), it lists the elements with missing or empty values as a table with counts and pass rates, and can then select the offenders in Revit. Use when the user asks "are my parameters filled in", "missing fire ratings", "empty marks", "BEP compliance", "COBie data check", "parameter QA", "parameter inventory" or for a pre-submission data check. NOT for whole-model health such as warnings, links, in-place families or rooms (use am-model-health), and NOT for filling in values (use am-safe-change).
 ---
 
 # am-param-qa
@@ -57,6 +57,47 @@ Write, in plain words for an architect:
 3. A table of the first offenders (max 20 rows): element ID, Mark or name, problems. Say if `rows_truncated` is true.
 4. **What to do next**: MISSING means the parameter is not added to this category (Manage > Project Parameters, or the shared parameter file). EMPTY means somebody must enter the value (a schedule is the fastest way).
 5. Offer to select the offenders of one category in Revit with `show_elements`, using `offender_ids`. `show_elements` changes the user's selection and view, so offer it; do not do it unasked.
+
+## Inventory mode: "parameter inventory"
+
+Use this mode when the user asks for a list of the parameters themselves: bindings, groups, GUIDs, or usage. Examples: "list all parameters", "which parameters are bound", "find duplicate parameter names", "where is this parameter used". This mode is read-only, like the check above. It changes nothing.
+
+The rules from the check above still hold: call `get_context` first, then `get_skill("revit-scripting")`. Use only `run_query` here. Never use `run_modify` in this skill. Do not rewrite the inventory script. Read `scripts/param_inventory.py` in this skill's folder, pass its full text as the `script` argument of `run_query`, and pass the options as `inputs`.
+
+`inputs` example:
+
+```json
+{"name_rule": {"forbid_chars": " -", "case": "Pascal"},
+ "max_rows": 1000}
+```
+
+Options: `categories` (a list of `BuiltInCategory` names; fill rates cover only those categories), `name_rule` (see below), `skip_fill_rates` (true skips the element scan; use it on a large model when fill rates can wait), `scan_families` (false skips the family scan; then the result has no unbound rows and no family usage), `max_rows` (default 1000), `max_fill_elements` (0 means no cap; else cap elements scanned per category).
+
+The name rule is the rule the user gives for parameter names. `forbid_chars` lists characters the name must not contain (for example `" -"` forbids spaces and hyphens). `case` is `lower`, `upper`, `Pascal`, `camel`, or `any`. With no rule, the script flags no names.
+
+## How the inventory decides
+
+- One row per parameter. A row has: name, shared or project, GUID (empty for project parameters), data type, group ("Group parameter under"), instance or type, bound categories, fill rate, usage counts, families, flags.
+- A shared parameter with no binding is `unbound`. The row lists the families that bring it. An unbound parameter is not "unused": a family that carries it can still fill it. Never call an unbound parameter a purge candidate on that fact alone.
+- The same name under two GUIDs gets the flag `duplicate-name`. A tag or schedule that uses the wrong GUID shows blanks. Say so.
+- Group `Other` gets the flag `group-other`.
+- Usage counts cover schedule fields, schedule filters, view filters, and families. A count matches by GUID when Revit resolves the parameter, else by name. A name-matched count on a duplicate name gets the flag `usage-ambiguous`.
+- The result states what it did not check: tags, labels, nested families. Say so in the report. Do not imply full coverage.
+- The result states whether a shared parameter file is set in Revit. With no file set, the `.txt` group of each parameter cannot be read. Say so.
+
+## Inventory report
+
+`result` has `summary` (parameters, bound, unbound_shared, duplicate_names, group_other, name_rule_violations), `rows[]`, `rows_truncated`, `not_checked`, `usage_unresolved`, `shared_param_file_set`, and `csv`.
+
+Write, in plain words for an architect:
+1. One line of totals: bound parameters, unbound shared parameters, duplicate names, `Other` groups, name-rule violations.
+2. A table of flagged parameters: name, GUID, flag, and what it means. Put duplicate names first.
+3. A table of the inventory rows (max 50 rows in chat; say if `rows_truncated` is true). Each row: name, shared or project, GUID, group, instance or type, categories, fill rate, schedule fields, schedule filters, view filters, families.
+4. State what the inventory did not check: tags, labels, nested families.
+5. State whether a shared parameter file is set. With no file set, say the `.txt` groups cannot be read.
+6. Save the `csv` string to a notes folder as `parameter-inventory-<date>.csv`. Tell the user the file name.
+7. Note for rule drafting: a shared parameter cannot be renamed in place. A rename is a new GUID, plus a value copy, plus updates of schedules, filters, and tags. Say so when the user drafts a naming rule.
+8. Offer the dated snapshot: a drafting view with the table only as a dated snapshot ("rerun the audit to refresh it"). Build it as a separate task with `am-safe-change`, with its own preview and approval. Do not build it in this skill.
 
 ## Source and license
 
