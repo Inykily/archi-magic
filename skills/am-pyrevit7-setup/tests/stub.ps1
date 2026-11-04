@@ -2,6 +2,9 @@
 # is appended to calls.log. Used only by the tests in this folder. Never touches real pyRevit or Claude config.
 # Like the real claude.exe, 'mcp get' and 'mcp remove' on a missing server write to STDERR and exit 1.
 # AM_STUB_INSTALL_NOOP=1 makes 'pyrevit mcp install claude' register nothing (forces the direct-add path).
+# AM_STUB_USER_ADDINS + AM_STUB_PY7_LOADER make 'pyrevit attach master default <year>' write
+# that year's per-user manifest pointing at the loader (issue #88). Without them, attach
+# exits 0 and writes nothing, so a setup run that reaches attach for another reason stays green.
 # AM_STUB_PY7_STDERR=1 makes every pyrevit call also write one log line to STDERR (exit code unchanged),
 # like a real pyrevit.exe that logs a warning. The line holds no word the setup script parses.
 # The .cmd wrapper passes the raw argument line in AM_STUB_ARGS, because powershell.exe -File
@@ -29,6 +32,15 @@ if ($Kind -eq 'py7') {
             $state.mcp = [pscustomobject]@{ scope = 'user'; command = $env:AM_STUB_PY7; args = 'mcp'; env = @() }; Save; exit 0
         }
         '^agent status$' { 'Agent host: enabled'; exit 0 }
+        '^attach master default (\d{4})$' {
+            if ($env:AM_STUB_USER_ADDINS -and $env:AM_STUB_PY7_LOADER) {
+                $d = Join-Path $env:AM_STUB_USER_ADDINS $Matches[1]
+                New-Item -ItemType Directory -Force $d | Out-Null
+                $xml = "<?xml version=`"1.0`" encoding=`"utf-8`"?><RevitAddIns><AddIn Type=`"Application`"><Name>PyRevitLoader</Name><Assembly>$env:AM_STUB_PY7_LOADER</Assembly></AddIn></RevitAddIns>"
+                [IO.File]::WriteAllText((Join-Path $d 'pyRevit.addin'), $xml, (New-Object Text.UTF8Encoding $false))
+            }
+            exit 0
+        }
         default { "stub py7: unknown command $line"; exit 9 }
     }
 }
