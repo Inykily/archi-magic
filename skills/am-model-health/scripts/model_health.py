@@ -749,6 +749,240 @@ def read_heavy_2d():
     return ranked, summary
 
 
+# ---------------------------------------------------------------------------
+# Color fill schemes (issue #78). Pure functions first (unit tested in tests/), then the Revit reader.
+# The report answers "what is using these?" per scheme: views (with template and sheet),
+# templates, and legends. A view is always reported with the scheme the view itself
+# uses (View.GetColorFillSchemeId on the view), never with its template's scheme:
+# a template can show one area scheme's color scheme while its views each use their
+# own area scheme's color scheme, and the template's setting is the wrong answer
+# for those views. The check is read-only; cleanup goes through am-safe-change.
+# ---------------------------------------------------------------------------
+DEFAULT_LEGEND_TITLE = "Schema 1 Legend"  # the title Revit gives a legend until it is renamed
+
+
+def color_scheme_row(scheme_id, name, category, area_scheme, entry_count, legend_title):
+    """One scheme row. views/templates/legends lists are capped at MAX_ROWS; the
+    *_count fields are exact, so a capped list never hides a user silently."""
+    return {"id": scheme_id, "name": name, "category": category, "area_scheme": area_scheme,
+            "entry_count": entry_count, "legend_title": legend_title,
+            "views": [], "templates": [], "legends": [],
+            "views_count": 0, "templates_count": 0, "legends_count": 0, "flags": []}
+
+
+def attach_color_use(row, kind, use):
+    """Attach one use to a scheme row. kind is "view", "template" or "legend".
+    A view use is {id, name, template, sheet}; a template use is {id, name};
+    a legend use is {id, name, owner_view}."""
+    if kind == "view":
+        row["views_count"] += 1
+        if len(row["views"]) < MAX_ROWS:
+            row["views"].append(use)
+    elif kind == "template":
+        row["templates_count"] += 1
+        if len(row["templates"]) < MAX_ROWS:
+            row["templates"].append(use)
+    elif kind == "legend":
+        row["legends_count"] += 1
+        if len(row["legends"]) < MAX_ROWS:
+            row["legends"].append(use)
+
+
+def color_scheme_flags(row, name_area_groups):
+    """Flags for one scheme row. name_area_groups maps a scheme name to the set of
+    area scheme names that carry a scheme of that name."""
+    flags = []
+    if row["views_count"] == 0 and row["templates_count"] == 0 and row["legends_count"] == 0:
+        flags.append("unused")
+    if len(name_area_groups.get(row["name"], [])) > 1:
+        flags.append("same name on several area schemes")
+    if row["legend_title"] == DEFAULT_LEGEND_TITLE:
+        flags.append("default legend title")
+    if row["templates_count"] > 0 and row["views_count"] == 0:
+        flags.append("used by templates only")
+    return flags
+
+
+def finalize_color_schemes(rows):
+    """Set flags on every row, then sort: unused first, template-only next, then by name."""
+    groups = {}
+    for r in rows:
+        groups.setdefault(r["name"], set()).add(r["area_scheme"])
+    for r in rows:
+        r["flags"] = color_scheme_flags(r, groups)
+
+    def rank(r):
+        if "unused" in r["flags"]:
+            return 0
+        if "used by templates only" in r["flags"]:
+            return 1
+        return 2
+    rows.sort(key=lambda r: (rank(r), r["name"], r["area_scheme"]))
+    return rows
+
+
+def summarize_color_schemes(rows):
+    return {"schemes": len(rows),
+            "unused": len([r for r in rows if "unused" in r["flags"]]),
+            "same_name": len([r for r in rows if "same name on several area schemes" in r["flags"]]),
+            "default_titles": len([r for r in rows if "default legend title" in r["flags"]]),
+            "template_only": len([r for r in rows if "used by templates only" in r["flags"]])}
+
+
+def color_scheme_label(r):
+    """Plain-words line for one scheme row, for the metric details."""
+    area = r["area_scheme"] if r["area_scheme"] else "no area scheme"
+    bits = ["%d view(s)" % r["views_count"], "%d template(s)" % r["templates_count"],
+            "%d legend(s)" % r["legends_count"]]
+    if r["entry_count"] is not None:
+        bits.append("%d entries" % r["entry_count"])
+    if r["legend_title"]:
+        bits.append("legend title %s" % r["legend_title"])
+    text = "%s (%s, %s): %s" % (r["name"], r["category"], area, ", ".join(bits))
+    if r["flags"]:
+        text += " - " + "; ".join(r["flags"])
+    return text
+
+
+def color_scheme_details(rows):
+    """Detail rows for the metric: flagged schemes only, most flags first."""
+    flagged = [r for r in rows if r["flags"]]
+    flagged.sort(key=lambda r: (-len(r["flags"]), r["name"]))
+    return [{"label": color_scheme_label(r), "count": len(r["flags"]), "ids": [r["id"]]}
+            for r in flagged]
+
+
+def read_color_schemes():
+    """One row per ColorFillScheme: its users (views with template and sheet,
+    templates, legends) and its flags. Read-only."""
+    if not hasattr(DB, "ColorFillScheme"):
+        return [], summarize_color_schemes([])
+    cat_names = {}
+    try:
+        for cat in doc.Settings.Categories:  # noqa: F821
+            cat_names[eid(cat.Id)] = cat.Name
+    except Exception:
+        pass
+    schemes = {}
+    for s in collect(cls=DB.ColorFillScheme):
+        sid = eid(s.Id)
+        area = ""
+        try:
+            aid = s.AreaSchemeId
+            if aid is not None and aid != DB.ElementId.InvalidElementId:
+                a = doc.GetElement(aid)  # noqa: F821
+                area = safe_name(a) if a is not None else ""
+        except Exception:
+            pass
+        cat = ""
+        try:
+            cat = cat_names.get(eid(s.CategoryId), "")
+        except Exception:
+            pass
+        entries = None
+        try:
+            entries = len(list(s.GetEntries()))
+        except Exception:
+            try:
+                entries = len(list(s.Entries))
+            except Exception:
+                entries = None
+        title = ""
+        try:
+            title = s.Title or ""
+        except Exception:
+            pass
+        schemes[sid] = color_scheme_row(sid, safe_name(s), cat, area, entries, title)
+    sheet_of = {}
+    for vp in collect(cls=DB.Viewport):
+        try:
+            sh = doc.GetElement(vp.SheetId)  # noqa: F821
+            sheet_of[eid(vp.ViewId)] = sh.SheetNumber if sh is not None else ""
+        except Exception:
+            pass
+    # Categories a color scheme can belong to (Areas, Rooms, Spaces). Names that
+    # this Revit version does not define are skipped, never guessed.
+    cat_ids = []
+    for bic_name in ("OST_Areas", "OST_Rooms", "OST_MEPSpaces", "OST_Spaces"):
+        try:
+            cat_ids.append(DB.ElementId(getattr(DB.BuiltInCategory, bic_name)))
+        except Exception:
+            pass
+
+    def view_scheme_ids(view):
+        """Scheme ids the view itself uses, one per category. Never the template's."""
+        found = []
+        for cid in cat_ids:
+            try:
+                sid_el = view.GetColorFillSchemeId(cid)
+            except Exception:
+                continue
+            if sid_el is None or sid_el == DB.ElementId.InvalidElementId:
+                continue
+            found.append(eid(sid_el))
+        return found
+
+    for v in collect(cls=DB.View):
+        if isinstance(v, (DB.ViewSheet, DB.ViewSchedule)):
+            continue
+        vid = eid(v.Id)
+        tname = ""
+        try:
+            tid = v.ViewTemplateId
+            if tid is not None and tid != DB.ElementId.InvalidElementId:
+                t = doc.GetElement(tid)  # noqa: F821
+                tname = safe_name(t) if t is not None else ""
+        except Exception:
+            pass
+        for sid in view_scheme_ids(v):
+            if sid not in schemes:
+                continue
+            if v.IsTemplate:
+                attach_color_use(schemes[sid], "template", {"id": vid, "name": safe_name(v)})
+            else:
+                attach_color_use(schemes[sid], "view",
+                                 {"id": vid, "name": safe_name(v),
+                                  "template": tname, "sheet": sheet_of.get(vid, "")})
+    for lg in collect(cls=DB.ColorFillLegend):
+        sid = None
+        try:
+            sid_el = lg.ColorFillSchemeId
+            if sid_el is not None and sid_el != DB.ElementId.InvalidElementId:
+                sid = eid(sid_el)
+        except Exception:
+            pass
+        if sid is None:
+            try:
+                sid_el = lg.GetColorFillSchemeId()
+                if sid_el is not None and sid_el != DB.ElementId.InvalidElementId:
+                    sid = eid(sid_el)
+            except Exception:
+                pass
+        if sid is None:
+            # Last resort: the owner view uses exactly one scheme, so the legend
+            # can only show that one. More than one means unknown, never a guess.
+            try:
+                ov = doc.GetElement(lg.OwnerViewId)  # noqa: F821
+                if ov is not None:
+                    found = set(view_scheme_ids(ov))
+                    if len(found) == 1:
+                        sid = found.pop()
+            except Exception:
+                pass
+        if sid is None or sid not in schemes:
+            continue
+        owner = ""
+        try:
+            ov = doc.GetElement(lg.OwnerViewId)  # noqa: F821
+            owner = safe_name(ov) if ov is not None else ""
+        except Exception:
+            pass
+        attach_color_use(schemes[sid], "legend",
+                         {"id": eid(lg.Id), "name": safe_name(lg), "owner_view": owner})
+    rows = finalize_color_schemes(list(schemes.values()))
+    return rows, summarize_color_schemes(rows)
+
+
 def check_views():
     views = [v for v in collect(cls=DB.View) if not v.IsTemplate]
     sheets = [v for v in views if isinstance(v, DB.ViewSheet)]
@@ -856,6 +1090,16 @@ else:
                           [{"label": heavy_view_label(r), "count": r["total"], "ids": [r["id"]]}
                            for r in h_ranked[:MAX_ROWS]]))
 
+    cs_rows, cs_summary = read_color_schemes()
+    metrics.append(metric("color_schemes", "Color fill schemes with no users", cs_summary["unused"], 0, None,
+                          "%d schemes in total. %d unused, %d share a name across area schemes, "
+                          "%d keep the default legend title, %d are used by templates only. "
+                          "Delete unused schemes through am-safe-change, after a recheck, "
+                          "and never delete the last scheme of an area scheme."
+                          % (cs_summary["schemes"], cs_summary["unused"], cs_summary["same_name"],
+                             cs_summary["default_titles"], cs_summary["template_only"]),
+                          color_scheme_details(cs_rows)))
+
     v_all, v_sheets, v_loose = check_views()
     metrics.append(metric("views_not_on_sheets", "Views not on sheets", len(v_loose), 150, 400,
                           "%d views and %d sheets in total. Delete views you do not need." % (len(v_all), len(v_sheets)),
@@ -879,6 +1123,8 @@ else:
         "cad_view_count": cad_view_stats,
         "heavy_2d_views": h_ranked[:MAX_ROWS],
         "heavy_2d_summary": h_summary,
+        "color_schemes": cs_rows,
+        "color_scheme_summary": cs_summary,
     }
     result = jsonable(result)
     bad = len([m for m in metrics if m["status"] == "bad"])
