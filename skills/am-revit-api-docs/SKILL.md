@@ -36,7 +36,7 @@ Counted in local session transcripts (49 sessions that used the pyRevit MCP tool
 
 | Error text you see | Cause | Fix |
 |---|---|---|
-| `revit_busy` (31 sessions) | A dialog is open, or another agent session holds Revit | Follow the house rule: name the dialog, then stop. With no dialog listed, say "another agent session probably holds Revit". Do not loop. |
+| `revit_busy` (31 sessions) | A dialog is open, or another agent session holds Revit | Follow the house rule: name the dialog, then stop. A window whose name ends in `Monitor` during a sync or a reload is a progress window, not a dialog. Tell the user to wait until it closes. Do not ask the user to answer it. With no dialog listed, say "another agent session probably holds Revit". Do not loop. |
 | `TypeError: Multiple targets could match: ElementId(BuiltInParameter), ElementId(BuiltInCategory), ElementId(Int64)` (10 sessions) | A plain Python int is ambiguous in IronPython | `import System`, then `DB.ElementId(System.Int64(n))` |
 | `AttributeError: Name` on a type or element (about 6 sessions) | `.Name` fails on some IronPython types (filled region type, group type, view) | Read: `DB.Element.Name.GetValue(t)`, or `t.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()`. Write: `DB.Element.Name.SetValue(t, name)`. An empty string from `SYMBOL_NAME_PARAM` means: use `GetValue`. |
 | `ResultSerializationError` (13 sessions) | Non-ASCII text in `result` (for example `°`, `é`), a .NET `long` (`39L`), or a non-string dict key | Escape text to `\uXXXX` or use `engine="cpython"`. Wrap numbers in `int()` or `float()`. Use string keys. |
@@ -248,6 +248,7 @@ A read query can run for many minutes on a large model. Keep each query inside a
 ## Rules
 
 - Quote the member exactly as the docs give it (full name and signature), and say which Revit year you checked.
+- `run_modify` and `show_elements` act on the active document only. Check the `get_context` document title before each modify or select step. If the title differs from the title at the start, stop and ask the user to switch windows.
 - If the script finds nothing, say "not found in Revit <year> docs on this machine". That's a scoped negative, not proof the API doesn't exist. Try a shorter query or `-AllYears` before concluding.
 - When code must run on several Revit years, check each one with `-AllYears` and branch on the differences.
 - pyRevit scripts run on IronPython 2.7 by default: no f-strings. For element ids, use the pattern in "Revit 2026 differences" above.

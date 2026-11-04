@@ -18,7 +18,7 @@ For a change with no recipe yet, follow the same 8 steps. Write the read query, 
 
 ## The 8 steps (do all of them, in this order)
 
-1. **Context.** Call `get_context`, then `get_skill("revit-scripting")`. Note the Revit version, the document title, the agent policy and the engine.
+1. **Context.** Call `get_context`, then `get_skill("revit-scripting")`. Note the Revit version, the document title, the agent policy and the engine. Write down the document title. Later steps compare the active document with this title. If the user names the model with a short project name, list the open document titles first. Ask the user to pick one, unless exactly one title contains the name. Do not guess the match.
 2. **Clarify.** If the request has more than one reasonable meaning, ask with AskUserQuestion. The recipe lists the questions. Then say the chosen meaning back in one short sentence, for example: "I will add 1 to sheets A301 to A307, keep the gaps, and move suffixed sheets with their base number."
 3. **Read.** Before the read query, say how many elements the plan may touch. If the plan may touch more than 5000 elements, say so and ask the user first. Tell the user to save or sync before the read. Keep the read inside the query budget in `am-revit-api-docs`. Run the recipe's read script with `run_query` (read-only). Save the result to a work folder, for example `$env:TEMP\am-safe-change\<yyyyMMdd-HHmmss>\read.json`.
 4. **Compute and check ownership.** Calculate the change outside Revit with the recipe's pure function. Write the change-preview JSON (format below) to the work folder. Do not change Revit in this step. Then check worksharing ownership (#97). In a workshared model, Revit refuses to change an element that another user borrows. "Borrow" means a user has the right to edit one element until they synchronize and relinquish it. One refused element rolls back the whole run, after the user approved the preview. Do this check for every recipe. The script paths are in this skill's folder.
@@ -35,6 +35,7 @@ For a change with no recipe yet, follow the same 8 steps. Write the read query, 
    - When another user owns some targets, ask this question in place of the one above: **Leave them out (Recommended)** / **Wait for the owner** / **Cancel**. Name each owner. "Leave them out" means compute again without those elements, for example with the recipe's skip option, then do step 4 again. Offer it only if the recipe can drop elements and the new compute does not block. A sheet shift often cannot drop a sheet in the middle of a chain. "Wait for the owner" means the owner synchronizes and relinquishes, then you start again at step 3. Never ask the user to take an element from its owner.
    - When central has updated a target, tell the user to click **Collaborate > Reload Latest**. Then start again at step 3.
 7. **Execute.**
+   - Before each `run_modify`, check `get_context`. If the document title differs from the step 1 title, stop. Ask the user to switch windows to the step 1 model. Do not run the change on another model.
    - First run the apply script with `run_modify` and `dry_run: true`. Compare the dry-run result with the preview. It must match exactly. If it does not match, stop, show the differences, and do not run the real change.
    - Then show the side-effect counts. Run the recipe's `<preview>.py side-effects --preview <preview.json> --dryrun <dryrun.json` command. Show two numbers in chat: elements the script edited on purpose, and dependent elements Revit regenerated. Say in one sentence why dependents change. If the command warns about an unexpected category, tell the user and ask whether to continue before you apply.
    - Then run the same script with `run_modify` (not dry run). Revit shows the user a Keep/Discard prompt. Tell the user to check the isolated elements and click Keep or Discard. The change is one undo entry named "Agent: <title>".
@@ -58,13 +59,13 @@ An agent run cannot synchronize with central. Revit blocks Synchronize with Cent
    4. Click **OK**.
    After a Discard, give only the Relinquish step: click **Collaborate > Relinquish All Mine**. Nothing changed, so there is nothing to synchronize.
 4. Offer a read-only check after the sync. Use AskUserQuestion: **Check the sync (Recommended)** / **Skip**.
-5. For the check, run `scripts/read_ownership.py` again with the inputs from step 2. Its `elements` give `status` (`GetCheckoutStatus`) and `updates` (`GetModelUpdatesStatus`) for each changed id. Run `ownership.py borrowed` again for the dependents. Report the counts. Then act on each result:
+5. For the check, run the check on the changed model, not on `doc`. Before the check, compare the `get_context` document title with the step 1 title. If the titles differ, ask the user to switch windows to the changed model, then run the check. If the changed model is not open, report "cannot check, model closed". Run `scripts/read_ownership.py` again with the inputs from step 2. Its `elements` give `status` (`GetCheckoutStatus`) and `updates` (`GetModelUpdatesStatus`) for each changed id. Run `ownership.py borrowed` again for the dependents. Report the counts and the `document` title from the result. If the result title is not the changed model, discard the result. The check ran on the wrong model. Then act on each result:
    - `CurrentWithCentral` and `NotOwned`: the sync is complete. Say so.
    - `OwnedByCurrentUser`: the elements are still borrowed. Tell the user to click **Collaborate > Relinquish All Mine**. Then offer the check again.
    - `NotYetInCentral`: the change is not in central yet. Tell the user to do the sync steps again.
    - `UpdatedInCentral`: central has a newer version. Tell the user to click **Collaborate > Reload Latest**, or to sync again.
    - `OwnedByOtherUser`: another user owns the element. Report it only. Do not ask the user to take it.
-   - `DeletedInCentral`: report it, and ask the user what they expect.
+   - `DeletedInCentral` on the changed model: report it, and ask the user what they expect. A `DeletedInCentral` result from any other document has no meaning. Never report it.
 6. Never synchronize, relinquish or reload from a script. These are the user's actions.
 
 ## Rules
@@ -77,7 +78,8 @@ An agent run cannot synchronize with central. Revit blocks Synchronize with Cent
 - Never use an AskUserQuestion answer in place of Keep/Discard. The answer in step 6 approves the plan. Keep/Discard approves the actual model change.
 - If the model changed between the read and the apply, the apply script stops with "Model changed since the preview". Start again at step 3.
 - Do not change the user's active view or selection.
-- If Revit answers `revit_busy`, read the open windows in the error first. If it names a dialog, stop. Tell the user which dialog blocks Revit, in plain words. Do not try again. Do not close windows. If it names another agent run or another client instead, wait 20 to 30 seconds and try again. Try at most 8 times, then stop and report. If the error names no windows, call `get_context` once, then stop and ask the user what is open in Revit.
+- If Revit answers `revit_busy`, read the open windows in the error first. A window whose name ends in `Monitor` during a sync or a reload is a progress window, not a dialog. Tell the user to wait until it closes. Do not ask the user to answer it. If it names a dialog, stop. Tell the user which dialog blocks Revit, in plain words. Do not try again. Do not close windows. If it names another agent run or another client instead, wait 20 to 30 seconds and try again. Try at most 8 times, then stop and report. If the error names no windows, call `get_context` once, then stop and ask the user what is open in Revit.
+- `run_modify` and `show_elements` act on the active document only. Before each modify or select step, compare the `get_context` document title with the step 1 title. If the title changed, stop. Ask the user to switch windows. Do not assume the active document stays the same.
 - If `list_revit_instances` returns an empty list after a pipe or connection error, Revit closed. Tell the user unsaved work may be lost. Offer to run `am-revit-crash-doctor` once Revit is closed. If `get_context` fails because no Revit answers, treat it the same way.
 - If something fails part way, report the state and how to undo it:
   - The apply script uses one transaction. If it fails, Revit rolls back all of it, and the model stays as it was.
