@@ -35,7 +35,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('', 'PY7_MISSING', 'REPOINT_NEEDED', 'YEAR_NOT_ATTACHED', 'INSTALL_CRASH', 'AGENT_DISABLED', 'AGENT_NOT_RESPONDING',
-        'AGENT_BLOCKED_DIALOG', 'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
+        'AGENT_BLOCKED_DIALOG', 'AGENT_BUSY_SESSION', 'NO_MODEL_OPEN', 'MCP_MISSING', 'MCP_WRONG_PATH', 'POLICY_AUTO', 'DOCS_OFFLINE', 'DEPS_MISSING', 'HEADLESS_OLD_PYREVIT')]
     [string]$Fix = '',
     [switch]$Report,
     [switch]$OpenIssue,
@@ -217,6 +217,7 @@ $FixMap = @{
     POLICY_AUTO          = @{ Kind = 'py7'; Args = @('configs', 'agent', 'policy', 'ask'); Text = 'pyrevit configs agent policy ask' }
     AGENT_NOT_RESPONDING = @{ Kind = 'manual'; Text = 'User: in Revit, click pyRevit tab > Reload (it can need two reloads), or restart Revit. Then run the doctor again.' }
     AGENT_BLOCKED_DIALOG = @{ Kind = 'manual'; Text = 'User: close the dialog in Revit, then run the doctor again.' }
+    AGENT_BUSY_SESSION   = @{ Kind = 'manual'; Text = 'User: wait for the other session to finish, then run the doctor again. Run Revit-touching sessions in sequence.' }
     NO_MODEL_OPEN        = @{ Kind = 'manual'; Text = 'User: open a model in Revit (an Autodesk sample such as Snowdon Towers is fine).' }
     DOCS_OFFLINE         = @{ Kind = 'manual'; Text = 'No action needed. The cached docs copy is in use. Check the network later.' }
     HEADLESS_OLD_PYREVIT = @{ Kind = 'manual'; Text = 'Interactive Revit and the archi-magic skills are not affected. For your own pyrevit run scripts (batch, CI): ask IT to uninstall the machine-wide pyRevit in Program Files.' }
@@ -432,7 +433,8 @@ if (Test-Want 'agent') {
                     if ($names) {
                         Add-Finding 'AGENT_BLOCKED_DIALOG' 'warn' "Revit is blocked by a modal dialog: $names ($busy)" 'Close the dialog in Revit, then run the doctor again.'
                     } else {
-                        Add-Finding 'AGENT_STATUS' 'unchecked' "Revit stayed busy for 3 checks: $busy" 'Finish or cancel the open Revit command, or close the dialog, then run the doctor again.'
+                        # No windows named: the holder is probably a second agent session, not a dialog.
+                        Add-Finding 'AGENT_BUSY_SESSION' 'warn' "Revit stayed busy for 3 checks and the busy line names no open windows. Another agent session probably holds Revit. ($busy)" 'Wait for the other session to finish, then run the doctor again. Run Revit-touching sessions in sequence.'
                     }
                 } else {
                     $inst = foreach ($p in $revit) {
