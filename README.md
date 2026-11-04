@@ -105,6 +105,7 @@ Optional add-ons, installed only when the user needs them:
 | Revit API question, "does Revit 20xx have ..." | `am-revit-api-docs` | If connected to that Revit year, `lookup_revit_api`; else search the installed `RevitAPI.xml` for the user's year |
 | pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
+| "rename types", "clean up type names", "naming standards", "standardize type names" | `am-naming-standards` | Inventory first, settle the global rules for all categories and get sign-off, then build the approved rename table; the apply itself goes through `am-safe-change` |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
 If you are connected to Revit through the `pyrevit` MCP server, call `get_context` first and `get_skill("revit-scripting")` before you send any script. pyRevit's own built-in skills (scheduling, views, drawings, modeling, family-editing) cover general Revit know-how. The `am-*` skills add archi-magic's workflows, previews and checks on top of them.
@@ -171,6 +172,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-pyrevit-docs` | Searches the official pyRevit documentation and the installed pyRevit source. Ask "how do I show a table in the pyRevit output window?" |
 | `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
 | `am-grilling` | The interview method behind `am-grill-me`. It also starts when you say "grill me". Adapted from Matt Pocock (MIT). |
+| `am-naming-standards` | Settles one naming rule set for all categories first, then renames: inventory, global rules with user sign-off, an approved rename table, a view and schedule filter scan, guarded deletes, and reference-view label updates. The approved table goes through `am-safe-change`. Ask "rename types" or "clean up type names". |
 
 ### Mods
 
