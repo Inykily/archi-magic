@@ -58,6 +58,15 @@ Write, in plain words for an architect:
 4. **What to do next**: MISSING means the parameter is not added to this category (Manage > Project Parameters, or the shared parameter file). EMPTY means somebody must enter the value (a schedule is the fastest way).
 5. Offer to select the offenders of one category in Revit with `show_elements`, using `offender_ids`. `show_elements` changes the user's selection and view, so offer it; do not do it unasked.
 
+## Audit output: live schedule or dated snapshot table
+
+- Use a **live schedule** when the answer is a count or a value that elements carry. For EMPTY values, a schedule is the fastest way to fill them in.
+- Use a **dated snapshot table** when the answer needs things a schedule cannot hold. Examples: flags, comments, and suggested actions on offenders.
+- Often keep both. The snapshot names the live schedule in its "How to read" note.
+- A snapshot table is a drafting view. It holds aligned text notes and thin detail lines. It carries a date and the note "snapshot, rerun to refresh".
+- A snapshot is a write, so this read-only skill does not build it. Make it a separate task with `run_modify`, a dry run first, and Keep/Discard approval in Revit.
+- Every snapshot ships with a saved scan / build / write script set, so the next audit refreshes the same view in place with the same columns and a new date. The audit step list includes the refresh. See `am-material-audit` for the full rule and the takeoff limits.
+
 ## Source and license
 
 The completeness check and the MISSING/EMPTY rules are adapted from `validate-parameters` in [Utopia5327/claude-plugin-for-revit-bim](https://github.com/Utopia5327/claude-plugin-for-revit-bim/tree/08545c1a6e2cca1ca6cd9d5a1ae6567393f573de/skills/validate-parameters) at commit `08545c1a6e2cca1ca6cd9d5a1ae6567393f573de`, by Manas Bhatia, MIT License (see `LICENSE-utopia5327.txt` in this folder). Changes in archi-magic: renamed to `am-param-qa`; rewrote the Dynamo Python script as a pyRevit Agent Runtime `run_query` script that takes its rules as `inputs` (no DocumentManager, no `OUT`, no CSV writes); added the type-parameter lookup, language-independent built-in parameters, and `HasValue` for zero values; and the archi-magic house rules below.
