@@ -119,6 +119,112 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\se
 
 Add each removed member you find to the list above. Do not guess members from memory.
 
+## Legend components (issue #98)
+
+A legend component shows one model family type or system type in a legend view. It is a view-specific graphic. It is not a model instance. It does not appear in schedules. Use this recipe to fill a legend with one sample of each type.
+
+### Place the first component by hand
+
+The API cannot create the first legend component. Place one by hand first. Then a script can copy it.
+
+1. Open the View tab.
+2. Open the Create panel.
+3. Open Legends and select Legend.
+4. Name the legend and set its scale.
+5. Open the Annotate tab.
+6. Open the Detail panel.
+7. Open Component and select Legend Component.
+8. Pick a family and a type in the Options Bar.
+9. Pick a view direction in the Options Bar.
+10. Set the host length in the Options Bar.
+11. Click once in the legend view to place the component.
+12. Press Esc twice to end the command.
+
+Do not place a detail component. Do not place a graphic scale. Place a legend component. The first attempt in issue #98 placed the wrong two items. Clear steps prevent that error.
+
+### Copy and retype the component
+
+A legend component is not a class with its own properties. Collect the placed component by category `OST_LegendComponents`. Copy it with `ElementTransformUtils.CopyElements`. Then set three built-in parameters on the copy:
+
+- `LEGEND_COMPONENT`: the ElementId of the new type.
+- `LEGEND_COMPONENT_VIEW`: an integer for the view direction.
+- `LEGEND_COMPONENT_LENGTH`: a double for the host length, in feet.
+
+The view direction values below were found by testing in Revit 2026 only. Other Revit years are not verified. Do not assume the same values in other years.
+
+| Value | Direction |
+| -8 | Floor Plan |
+| -7 | Elevation Front |
+| -6 | Elevation Back |
+| -5 | Section |
+| -4 | Ceiling Plan |
+| -3 | 3D |
+
+Useful directions by category:
+
+- Walls: Floor Plan and Section.
+- Slabs (floors, roofs, ceilings): Section.
+- Families: Floor Plan and Elevation.
+
+### Commit-time failures: use a probe transaction
+
+Some types pass every per-element check and still fail at commit. `LEGEND_COMPONENT.Set()` returns true. The element gets a bounding box. All checks inside a SubTransaction pass. At commit, Revit reports "The component you have selected is not visible in the selected view" for some types (stairs, railings, curtain wall mullions, sloped glazing). Then Revit rolls back the whole transaction. A per-element check cannot find these types. Test each type and direction pair in a probe transaction first.
+
+```python
+# Probe transaction: find type and direction pairs that fail at commit.
+# IronPython 2.7: no f-strings. Revit units are feet.
+class ProbePreprocessor(DB.IFailuresPreprocessor):
+    def __init__(self):
+        self.failed_ids = []
+
+    def PreprocessFailures(self, accessor):
+        for msg in accessor.GetFailureMessages():
+            for eid in msg.GetFailingElementIds():
+                value = int(eid.Value)
+                if value not in self.failed_ids:
+                    self.failed_ids.append(value)
+        return DB.FailureProcessingResult.ProceedWithRollBack
+
+
+preprocessor = ProbePreprocessor()
+probe = DB.Transaction(doc, "Probe legend components")
+probe.Start()
+options = probe.GetFailureHandlingOptions()
+options.SetFailuresPreprocessor(preprocessor)
+options.SetClearAfterRollback(True)
+probe.SetFailureHandlingOptions(options)
+# Place every candidate component here, one per type and direction pair.
+# Record the element id of each placed component with its pair.
+status = probe.Commit()
+# status is RolledBack when the preprocessor returns ProceedWithRollBack.
+# preprocessor.failed_ids now holds the pairs that fail at commit.
+# The real transaction leaves those pairs out.
+```
+
+The probe transaction returns `RolledBack`. Read the failed ids from the preprocessor. Map each failed id back to its type and direction pair. The real transaction leaves those pairs out. The result: one dry run plus one real run, with no commit-time rollback.
+
+### Size guard: measure each sample
+
+Some samples are very large and break the layout. Examples found in issue #98:
+
+- An adaptive site surface family: about 25,000 ft by 14,000 ft.
+- Floors, roofs, and ceilings in Floor Plan: a band 300 ft wide. The length parameter changes only the depth.
+- Walls in Elevation: a strip 150 ft tall, with no length parameter.
+
+Measure the bounding box of each sample after you place it. Revit units are feet. If the sample is wider or taller than the limit, try another direction first. If no direction fits, list the type as text instead of a sample. Example limit: 50 ft. Set the limit from the legend scale and the sheet space.
+
+### Acceptance
+
+- A script that follows this recipe fills a legend in one dry run plus one real run, with no commit-time rollback.
+- No sample is larger than the size limit.
+- The user gets clear steps to place the first legend component.
+
+### Not verified
+
+- Whether other Revit years return the same `LEGEND_COMPONENT_VIEW` values.
+- Whether some refused types (for example stairs) work in another direction or at another legend scale.
+- Live Revit run: this recipe comes from the issue #98 field report (Windows 11, Revit 2026, pyRevit 7.0). No live Revit run verified it in this change.
+
 ## Query budget
 
 A read query can run for many minutes on a large model. Keep each query inside a budget.
