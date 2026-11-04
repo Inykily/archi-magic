@@ -48,3 +48,27 @@ Finds the crash evidence on this computer, analyzes it, and explains it. The tes
 - Before the first Revit call in a Revit-facing skill, call `get_context` first. If Revit answers `revit_busy`, read the open windows in the error. Tell the user which dialog blocks Revit, in plain words. Then stop. Do not try again in a loop. Do not close windows.
 - One Revit instance serves one agent session at a time. When work is split into sessions, run the Revit-touching sessions in sequence. Give Revit to one session, and let the other sessions do work that does not touch Revit.
 - If the error lists no open dialog, tell the user that a second agent session probably holds Revit. Then stop. Do not try again in a loop.
+
+## Several sessions, one Revit
+
+When several agent sessions share one Revit, follow these rules.
+- One session uses Revit at a time.
+- The coordinator gives Revit to the next session with a message.
+- A peer message "Revit is free" is a hint, not a fact.
+- Call `get_context` first, before you use Revit.
+- If a dialog blocks Revit, tell the user which dialog it is.
+- Do not report Revit as free.
+- Re-read the model before you report its state to a peer or the user.
+- Treat a count or a name from a peer as a hint.
+- Check each hint in the model before you act on it.
+- Write each user decision to one shared file.
+- The coordinator keeps that file in the shared notes folder.
+- Read that file before you start a queued task.
+- A decision covers only the categories and views it names.
+- If a named view is gone, ask the user again before you act.
+- Approve an irreversible git or GitHub action in the session that runs it.
+- Do not relay "yes" from another session.
+- The coordinator or the maintainer can run the action instead.
+- With more than one Revit open, ask the user once which Revit to use.
+- Then pass `revit=<pid>` on every pyRevit call.
+- The pid is the process number of that Revit.
