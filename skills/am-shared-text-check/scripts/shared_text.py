@@ -8,7 +8,7 @@ Revit and only lists notes, it does not import this module.
 Search rules (from archi-magic issue #101):
 - User terms match whole-word and case-sensitive. A short firm
   abbreviation must not match a common word that holds the same letters
-  ("EA" matches "EA-01" but not "EASE"; "IT" matches "IT team" but
+  ("AB" matches "AB-01" but not "ABLE"; "IT" matches "IT team" but
   not "WITH").
 - Personal paths: drive-letter paths, UNC paths, user folders, cloud
   sync folders (OneDrive, Dropbox, Google Drive, Box, iCloudDrive)

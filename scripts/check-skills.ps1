@@ -67,10 +67,15 @@ foreach ($d in $dirs) {
         $problems.Add("$n : house rules differ from HOUSE-RULES.md (run scripts/sync-house-rules.ps1)")
     }
     # The old namespaced form breaks when a skill moves to another plugin; use the bare skill name.
+    # Sensitivity check: archi-magic is public; never commit client or office identifiers.
     foreach ($f in @(Get-ChildItem $d.FullName -Recurse -File -Include *.md, *.ps1, *.py, *.mjs, *.js, *.json -ErrorAction SilentlyContinue |
                      Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' })) {
-        if ([IO.File]::ReadAllText($f.FullName).Contains('archi-magic:am-')) {
+        $c = [IO.File]::ReadAllText($f.FullName)
+        if ($c.Contains('archi-magic:am-')) {
             $problems.Add("$n : $($f.Name) names a skill as 'archi-magic:am-...'; use the bare name (am-...)")
+        }
+        if ($c -match '(?i)(NYU|Ennead)|(EA_|EC_)') {
+            $problems.Add("$n : $($f.Name) contains sensitive client or office identifier '$($matches[0])'")
         }
     }
 }

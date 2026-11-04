@@ -76,9 +76,11 @@ Check this **before** you write the feature, not after.
 - Prefer original work that is built in code (shapes, a small SVG, a synthesized sound). It keeps the page one self-contained file and carries no third-party license.
 - Dependencies are pinned, and `scripts/check-upstream.ps1` watches them. Add a new one only with a reason.
 
-## Privacy
+## Privacy and Neutrality
 
-Issues, pull requests, documents and test files must not contain project, client or building names, file paths with user names, element ids, e-mail addresses, tokens or links to document-management systems. Replace them with neutral words ("the project model", "a manufacturer .rvt"). Scan your text before you post it.
+archi-magic is a public open-source repository and must NEVER contain any client or office project information. Only abstract skills and abilities belong in archi-magic, not office-specific or project-specific workflows.
+
+Issues, pull requests, documents and test files must not contain project, client or building names, firm abbreviations, file paths with user names, element ids, e-mail addresses, tokens or links to document-management systems. Replace them with neutral words ("the project model", "a manufacturer .rvt", "Firm A"). Scan and desensitize your text before you post it.
 
 Pages made by `am-bim-viewer` contain the geometry, element names, ids and parameters of the model. Do not commit them and do not post them. Keep them out of the repo (for example in a folder that you ignore).
 

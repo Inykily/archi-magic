@@ -4,7 +4,7 @@
     python shared_text_cli.py check <notes.json> <terms.json>
 
 notes.json: {"notes": [{"id": 1, "view": "Start", "view_id": 10, "text": "..."}]}
-terms.json: {"terms": ["EA", "office line"], "first_names": ["Will"]}
+terms.json: {"terms": ["AB", "office line"], "first_names": ["Will"]}
 
 Prints one JSON object: {"findings": [...], "counts": {...}}.
 Each finding has kind, match, line, context, offset, note_id, view and

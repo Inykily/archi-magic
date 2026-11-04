@@ -18,22 +18,22 @@ import shared_text as st
 
 
 def test_whole_word_case_sensitive_term():
-    matches = st.find_term_matches("EASE of use. The EA team. ea notes.", "EA")
+    matches = st.find_term_matches("EASE of use. The AB team. ea notes.", "AB")
     assert len(matches) == 1
-    assert "EA team" in "EASE of use. The EA team. ea notes."[matches[0][0]:]
+    assert "AB team" in "EASE of use. The AB team. ea notes."[matches[0][0]:]
 
 
 def test_abbreviation_inside_common_word_does_not_match():
-    assert st.find_term_matches("EASE and PLEASE", "EA") == []
+    assert st.find_term_matches("ABLE and TABLE", "AB") == []
     it = st.find_term_matches("WITH the IT team", "IT")
     assert len(it) == 1
     assert "WITH the IT team"[it[0][0]:it[0][1]] == "IT"
 
 
 def test_term_at_text_edges():
-    assert len(st.find_term_matches("EA", "EA")) == 1
-    assert len(st.find_term_matches("EA.", "EA")) == 1
-    assert len(st.find_term_matches("xEA", "EA")) == 0
+    assert len(st.find_term_matches("AB", "AB")) == 1
+    assert len(st.find_term_matches("AB.", "AB")) == 1
+    assert len(st.find_term_matches("xAB", "AB")) == 0
 
 
 def test_personal_path_kinds():
@@ -75,14 +75,14 @@ def test_neutral_form_suggestions():
 def test_check_note_counts_and_lines():
     result = st.check_notes(
         [{"id": 7, "view": "Start", "view_id": 10, "text": SAMPLE}],
-        ["EA", "office line"], ["Will"])
+        ["AB", "office line"], ["Will"])
     counts = result["counts"]
-    assert counts["term"] == 2  # one EA, one "office line"
+    assert counts["term"] == 2  # one AB, one "office line"
     assert counts["personal_path"] == 4
     assert counts["email"] == 1
     assert counts["at_name"] == 2
     assert counts["first_name"] == 1
-    ea = [f for f in result["findings"] if f["match"] == "EA"][0]
+    ea = [f for f in result["findings"] if f["match"] == "AB"][0]
     assert ea["line"] == 3
     assert ea["note_id"] == 7
     assert ea["view"] == "Start"
@@ -95,7 +95,7 @@ def test_cli_check_end_to_end(tmp_path):
         json.dump({"notes": [{"id": 7, "view": "Start", "view_id": 10,
                               "text": SAMPLE}]}, f)
     with open(terms_path, "w") as f:
-        json.dump({"terms": ["EA"], "first_names": ["Will"]}, f)
+        json.dump({"terms": ["AB"], "first_names": ["Will"]}, f)
     cli = os.path.join(HERE, "..", "scripts", "shared_text_cli.py")
     proc = subprocess.run([sys.executable, cli, "check", notes_path, terms_path],
                           capture_output=True, text=True)
