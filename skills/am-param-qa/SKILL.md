@@ -122,6 +122,13 @@ The completeness check and the MISSING/EMPTY rules are adapted from `validate-pa
 - One Revit instance serves one agent session at a time. When work is split into sessions, run the Revit-touching sessions in sequence. Give Revit to one session, and let the other sessions do work that does not touch Revit.
 - If the error lists no open dialog, tell the user that a second agent session probably holds Revit. Then stop. Do not try again in a loop.
 
+## Public repository: no client, office, or project information
+
+- archi-magic is a public open-source repository. Never write client names, office names, firm abbreviations, project codes, model titles, real element IDs, or personal file paths in skills, documentation, tests, issues, PRs, or commit messages.
+- Put only abstract skills and capabilities in archi-magic. Keep office-specific and project-specific workflows in private repositories.
+- Sanitize and desensitize all issue reports, pull requests, and review notes before you publish them. Replace real names and paths with neutral examples (for example: Project A, Firm A, jdoe, example.com).
+- If model data contains internal or office text, replace it with neutral text before you share it.
+
 ## Several sessions, one Revit
 
 When several agent sessions share one Revit, follow these rules.

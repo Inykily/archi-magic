@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE = (
     "PROPOSED JOINT PROJECT RULES - for review\r\n"
     "Use project line styles, not office line styles.\r\n"
-    "EASE of use matters. The EA team owns the link model.\r\n"
+    "EASE of use matters. The AB team owns the link model.\r\n"
     "Link path: C:\\Users\\jdoe\\OneDrive\\Project\\link.rvt\r\n"
     "Old path: D:\\Users\\asmith\\docs\\notes.txt\r\n"
     "Base file: C:\\Project\\shared\\base.dwg\r\n"
