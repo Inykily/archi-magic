@@ -1,6 +1,6 @@
 ---
 name: am-model-health
-description: Read-only health check of the open Revit model through the pyRevit Agent Runtime, as a short ranked report in plain words or as an interactive HTML dashboard with trends across saved snapshots. Checks Revit warnings by type, linked models (loaded, pinned, shared-coordinates hints), in-place families, unplaced, not-enclosed and redundant rooms, duplicate Marks, a CAD link audit (path, status, personal sync folders, placement, views that show it), views with heavy 2D content ranked by severity, views not on sheets and file size. Use when the user asks "check my model", "model health", "is my model clean", "how many warnings", "BIM QC", "link status", "where are the DWG files", "CAD link audit", "heavy 2D views", "model dashboard", before a submission or when the model is slow. NOT for checking that required parameter values are filled in (use am-param-qa), NOT for worksets (use am-workset-audit), NOT for a Revit crash (use am-revit-crash-doctor), and NOT for setting up the Revit connection (use am-pyrevit7-setup).
+description: Read-only health check of the open Revit model through the pyRevit Agent Runtime, as a short ranked report in plain words or as an interactive HTML dashboard with trends across saved snapshots. Checks Revit warnings by type, linked models (loaded, pinned, shared-coordinates hints), in-place families, unplaced, not-enclosed and redundant rooms, duplicate Marks, a CAD link audit (path, status, personal sync folders, placement, views that show it), views with heavy 2D content ranked by severity, views not on sheets, file size, and color fill scheme usage by view, template and legend. Use when the user asks "check my model", "model health", "is my model clean", "how many warnings", "BIM QC", "link status", "where are the DWG files", "CAD link audit", "heavy 2D views", "model dashboard", "what is using these color schemes", before a submission or when the model is slow. NOT for checking that required parameter values are filled in (use am-param-qa), NOT for worksets (use am-workset-audit), NOT for a Revit crash (use am-revit-crash-doctor), and NOT for setting up the Revit connection (use am-pyrevit7-setup).
 ---
 
 # am-model-health
@@ -46,6 +46,7 @@ It drives the `pyrevit` MCP tools (the pyRevit Agent Runtime). If those tools ar
 | `cad_links` | CAD instances (linked or imported) with at least one CAD flag (see "CAD link audit") | 0 / 3 |
 | `heavy_2d_views` | Views with 250 or more 2D elements (see "Heavy 2D views") | 0 / 10 |
 | `views_not_on_sheets` | Printable views and schedules that are not on a sheet | 150 / 400 |
+| `color_schemes` | Color fill schemes with no users (see "Color fill scheme usage") | 0 / - |
 | `file_size` | Size of the local .rvt file, in MB | 300 / 600 |
 
 The two link hints are not proof. The Revit API has no simple "uses shared coordinates" flag. Say "hint" when you report them.
@@ -81,6 +82,28 @@ The two link hints are not proof. The Revit API has no simple "uses shared coord
 | `shows in N views` | A model-level instance shows in `cad_many_views` (default 25) views or more | Hide it in the views that do not need it (`am-safe-change`, view graphics). |
 
 The audit is read only. Give the fixes as suggestions only. Each model change goes through `am-safe-change` with Keep/Discard in Revit.
+
+### Color fill scheme usage
+
+`result.color_schemes[]` has one row for each color fill scheme. A color fill scheme colors rooms, spaces or areas by a value (for example area, department, occupancy). A view shows one color scheme per category. A color fill legend is the key box on a drawing that shows the colors of one scheme.
+
+Each row has: `name`, `category` (Areas, Rooms or Spaces), `area_scheme` (the area scheme the scheme belongs to; empty for Rooms and Spaces), `entry_count` (the number of color entries in the scheme), `legend_title` (the title the legend shows), `views[]` (each with `name`, `template` and `sheet`), `templates[]`, `legends[]` (each with `owner_view`), and the exact totals `views_count`, `templates_count` and `legends_count`. The lists stop at 200 rows per scheme. The counts stay exact, so a stopped list never hides a user.
+
+- A view is always reported with the scheme the view itself uses. Never use the view template's scheme for the view. A template can show one area scheme's color scheme while its views each use their own area scheme's color scheme. The template's setting is the wrong answer for those views.
+- The Edit Color Scheme dialog hides duplicates: one area scheme can carry a scheme with the same name as another area scheme's scheme. The report shows the area scheme for each row, so the duplicates stay visible.
+
+| Flag | Meaning |
+|---|---|
+| `unused` | No view, no template and no legend uses the scheme. These are the cleanup candidates. |
+| `same name on several area schemes` | Two or more area schemes carry a scheme with this name. Check the area scheme before you delete one. |
+| `default legend title` | The legend title is still `Schema 1 Legend`. Rename it so the drawing key is clear. |
+| `used by templates only` | Templates use the scheme, but no view does. The scheme still affects new views that use those templates. |
+
+The metric `color_schemes` counts the unused schemes. Its details list the flagged schemes only. The full list of all schemes is in `result.color_schemes`. The dashboard shows the metric cell. It does not show the full rows. Read the rows from the result JSON.
+
+This check is read only. Cleanup goes through `am-safe-change` as a separate task, with its preview, confirm, dry run and Keep/Discard steps. Give `am-safe-change` the flagged unused scheme IDs. It must do two things before it deletes:
+1. Recheck first. Run this section again. Drop any scheme that gained a user since the report.
+2. Never delete the last scheme of an area scheme. If the only remaining scheme of an area scheme is unused, keep it and say so.
 
 ## Step 1: Ask which output (only if the user did not say)
 
