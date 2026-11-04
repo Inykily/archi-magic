@@ -13,7 +13,7 @@ neutral wording. The suggestion is a proposal only; the user approves
 each change, and changes go through am-safe-change.
 
 Runs under CPython 3 and IronPython 2.7 (no f-strings, ASCII only).
-Every open() call uses a with statement.
+Every file handle uses a with statement.
 """
 import json
 import os
