@@ -15,8 +15,8 @@ as the first argument, or "-" to read stdin. The script always exits
 0: it reports findings, it does not gate. The agent reads the report,
 shows it to the user, and applies the plan only after approval.
 
-Runs under IronPython 2.7 and CPython 3. No Revit imports. The open()
-call sits inside a "with" statement, as the repo check requires.
+Runs under IronPython 2.7 and CPython 3. No Revit imports. File reads
+use a with block, as the repo check requires.
 """
 import json
 import os
