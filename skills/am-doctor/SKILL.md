@@ -67,7 +67,7 @@ The agent policy tells pyRevit what an agent run may do. The doctor reports it a
 |---|---|
 | `readonly` | Queries run. Model changes are refused. |
 | `ask` | The default. Each model change waits for Keep/Discard in Revit. |
-| `auto` | Model changes run without Keep/Discard. `am-safe-change` stops when the policy is `auto`. |
+| `auto` | Model changes run without Keep/Discard. `am-safe-change` runs with a chat yes after the dry run. |
 
 - Read it: `pyrevit configs agent policy`, or call `get_context` (it shows `policy`).
 - Change it: `pyrevit configs agent policy readonly`, `ask` or `auto`. The full path is `%APPDATA%\pyRevit-Master\bin\pyrevit.exe`.
