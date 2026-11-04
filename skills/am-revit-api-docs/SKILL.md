@@ -30,6 +30,36 @@ The pyrevit MCP tools can be deferred. Load them with ToolSearch (for example `s
 3. **Online:** `https://www.revitapidocs.com/<year>/`, for browsing namespaces or when Revit isn't installed (the script exits 2). Fetch the specific page; don't guess its URL contents.
 4. **The Revit SDK samples and The Building Coder** (jeremytammik.github.io/tbc) cover how-to patterns the XML doesn't explain.
 
+## Most frequent script failures (read before the first run_query or run_modify)
+
+Counted in local session transcripts (49 sessions that used the pyRevit MCP tools, 2026-11-03). The counts include sessions that only discussed an error, so read them as a ranking, not as exact numbers. Search this table for the exact error text.
+
+| Error text you see | Cause | Fix |
+|---|---|---|
+| `revit_busy` (31 sessions) | A dialog is open, or another agent session holds Revit | Follow the house rule: name the dialog, then stop. With no dialog listed, say "another agent session probably holds Revit". Do not loop. |
+| `TypeError: Multiple targets could match: ElementId(BuiltInParameter), ElementId(BuiltInCategory), ElementId(Int64)` (10 sessions) | A plain Python int is ambiguous in IronPython | `import System`, then `DB.ElementId(System.Int64(n))` |
+| `AttributeError: Name` on a type or element (about 6 sessions) | `.Name` fails on some IronPython types (filled region type, group type, view) | Read: `DB.Element.Name.GetValue(t)`, or `t.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()`. Write: `DB.Element.Name.SetValue(t, name)`. An empty string from `SYMBOL_NAME_PARAM` means: use `GetValue`. |
+| `ResultSerializationError` (13 sessions) | Non-ASCII text in `result` (for example `°`, `é`), a .NET `long` (`39L`), or a non-string dict key | Escape text to `\uXXXX` or use `engine="cpython"`. Wrap numbers in `int()` or `float()`. Use string keys. |
+| `TypeError: 39L is not JSON serializable` (4 sessions) | Revit 2026 returns .NET `long` values | `int(x)` before you put it in `result` |
+| `AttributeError: 'ElementId' object has no attribute 'IntegerValue'` (5 sessions) | `IntegerValue` is gone in Revit 2026 | `.Value`, wrapped in `int()` (see the pattern below) |
+| `AttributeError: ... has no attribute 'Int64'` or `NameError: name 'System' is not defined` | `System` is not imported by default | Add `import System` at the top of the script. `DB.Int64` does not exist. |
+| `invalid_params` with `'script' is required` (2 sessions) | The argument was named `code` | Name it `script`. See the sample below. |
+| `GetModelUpdatesStatus() takes exactly 2 arguments` | It needs the document and an element id | There is no one-call "model has unsynced changes" check. Do not promise one. |
+| `pipe_error`, a long silent run, or `timed out` | A whole-model scan or a per-element loop is too slow, and may crash Revit | See "Slow scans" below. |
+
+The `revit` argument (the process id of the Revit instance) took a plain number (`21556`) in the sessions we read. One call sent it as a quoted string (`"\"21556\""`) in the same session where `script` was missing. That call failed on the missing `script`, so the quoted form is not proven bad or good. Send a plain number.
+
+## Slow scans
+
+One live query ran about 190 seconds. It called `GetMaterialIds` on about 552,000 elements. Revit stays frozen for the whole run, and a longer scan can end in `pipe_error` (issue #25).
+
+- Ask which elements can hold the thing, and read only those. For "is this material used", read the compound-structure layers of types in the four layer categories (floors, walls, roofs, ceilings), then family materials. This is the scoped check in `am-material-audit`.
+- Read types, not instances, when the answer lives on the type.
+- Use `OfCategory` or `OfClass` first. A filter that Revit runs itself is much faster than a Python loop over every element.
+- Do not call `GetMaterialIds`, `Parameters` or geometry on every element. Time a sample of 200 elements, multiply, and say the estimate to the user before the full run.
+- Split the work into several queries (one category each), save results between them, and set `timeout_s`.
+- Use `engine="cpython"` for large loops. Save or sync the model first.
+
 ## Revit 2026 differences
 
 These changes broke real queries. Check them first when a query fails on Revit 2026.
