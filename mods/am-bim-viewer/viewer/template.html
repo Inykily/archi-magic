@@ -342,6 +342,29 @@
     padding: 6px 12px; transition: opacity var(--slow) var(--ease); pointer-events: none; z-index: 70; }
   #toast.on { opacity: 1; }
 
+  /* Architectural visualization HUD & Pinned Leader Lines */
+  #hud-explode { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 20;
+    display: flex; align-items: center; gap: var(--space-2); background: var(--bg); border: var(--hair) solid var(--line-strong);
+    padding: 4px 12px; }
+  #hud-explode label { font-size: var(--fs-micro); letter-spacing: var(--track-micro); text-transform: uppercase; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+  .hud-slider { -webkit-appearance: none; appearance: none; width: 100px; height: 3px; background: var(--line-strong); outline: none; border: none; }
+  .hud-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 10px; height: 10px; background: var(--ink); cursor: pointer; border: none; }
+  .hud-val { font-size: var(--fs-micro); color: var(--ink); font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+  #hud-focus { display: inline-flex; align-items: center; gap: 4px; border: var(--hair) solid var(--line);
+    padding: 2px 8px; font-size: var(--fs-micro); text-transform: uppercase; background: none; color: var(--ink-2); cursor: pointer; }
+  #hud-focus[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  #pin-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+  #pin-svg line { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; }
+  #pin-dom { position: absolute; inset: 0; pointer-events: none; z-index: 11; overflow: hidden; }
+  .pin-callout { position: absolute; pointer-events: auto; background: var(--bg); border: var(--hair) solid var(--line-strong);
+    padding: 2px 6px; font-size: var(--fs-micro); color: var(--ink); cursor: pointer;
+    transform: translate(-50%, -100%); display: flex; align-items: center; gap: 4px; }
+  .pin-callout:hover { border-color: var(--ink); }
+  .pin-callout .pin-id { font-weight: var(--w-medium); }
+  .pin-callout .pin-del { border: none; background: none; color: var(--ink-2); cursor: pointer; padding: 0 2px; font-size: 11px; }
+  .pin-callout .pin-del:hover { color: var(--ink); }
+
   @media (max-width: 760px) {
     #app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; }
     header { grid-column: 1; padding: var(--space-3) 16px; }
@@ -398,6 +421,18 @@
     <div id="cubewrap">
       <button id="cubehome" type="button" title="Home: the default perspective" aria-label="Home: the default perspective"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.2 L8 3.2 L13.5 8.2 M4.6 6.6 V12.8 H11.4 V6.6"/></svg></button>
       <svg id="viewcube" viewBox="-42 -42 84 84" role="img" aria-label="View cube: click a face, edge or corner; drag to orbit; drag the ring to spin"></svg>
+    </div>
+    <!-- Architectural Visualization: HUD Explode & Pinned Callouts -->
+    <svg id="pin-svg"></svg>
+    <div id="pin-dom"></div>
+    <div id="hud-explode">
+      <label><span>Explode</span>
+        <input type="range" class="hud-slider" id="explodeslider" min="0" max="100" value="0" step="1">
+      </label>
+      <span class="hud-val" id="explodeval">0%</span>
+      <button type="button" id="hud-peel" class="btn sm" title="Peel exterior curtain walls and envelope outward" aria-pressed="false">Peel</button>
+      <button type="button" id="hud-focus" title="Focus selection / safe changes and ghost context" aria-pressed="false">Ghost Context</button>
+      <button type="button" id="hud-pin" class="btn sm" title="Pin selected element callout in 3D">Pin</button>
     </div>
   </div>
   <aside>
@@ -578,7 +613,9 @@ function setHover(m) { if (m === hovered) return; const old = hovered; hovered =
 function select(m) {
   const next = nextSelection(selected ? selected.userData.el.id : null, m ? m.userData.el : null);
   if (!next.isChanged) return; // the 2nd click of a double-click lands here: no flicker
-  const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null); requestRender();
+  const old = selected; selected = m; tint(old); tint(m); showProps(m ? m.userData.el : null);
+  updateGhostFocus();
+  requestRender();
   if (typed) closeTyped();
   fillValueFields();
 }
@@ -856,8 +893,175 @@ function render() {
   }
   drawCube();
   drawGumball();
+  updatePins();
 }
 new ResizeObserver(requestRender).observe(vp);
+
+// ---------- Architectural Visualization: Explode, Peel, Ghost Context, Pins ----------
+const levelZMap = {};
+for (const el of elements) {
+  const lvl = el.level || 'Default';
+  if (!levelZMap[lvl]) levelZMap[lvl] = { sumZ: 0, count: 0 };
+  const b = elementBounds(el);
+  levelZMap[lvl].sumZ += (b.min[2] + b.max[2]) / 2;
+  levelZMap[lvl].count += 1;
+}
+const sortedLevels = Object.keys(levelZMap).sort((a, b) => (levelZMap[a].sumZ / levelZMap[a].count) - (levelZMap[b].sumZ / levelZMap[b].count));
+const levelIndex = {};
+sortedLevels.forEach((lvl, i) => { levelIndex[lvl] = i; });
+const modelHeight = Math.max(10, bounds.max[2] - bounds.min[2]);
+const maxLevelOffset = (modelHeight / Math.max(1, sortedLevels.length)) * 1.6;
+const modelCenterX = (bounds.min[0] + bounds.max[0]) / 2;
+const modelCenterY = (bounds.min[1] + bounds.max[1]) / 2;
+const ENVELOPE_CATS = new Set(['Walls', 'Curtain Walls', 'Curtain Panels', 'Curtain Wall Mullions', 'Roofs', 'Windows']);
+
+let explodeFactor = 0;
+let peelActive = false;
+let ghostMode = false;
+const pinnedIds = new Set();
+
+function meshDisplacement(mesh) {
+  if (!mesh) return [0, 0, 0];
+  const el = mesh.userData.el;
+  const lvl = el.level || 'Default';
+  const lIdx = levelIndex[lvl] || 0;
+  let dz = lIdx * maxLevelOffset * explodeFactor;
+  let dx = 0, dy = 0;
+  if (peelActive && ENVELOPE_CATS.has(el.category)) {
+    const b = elementBounds(el);
+    const elX = (b.min[0] + b.max[0]) / 2;
+    const elY = (b.min[1] + b.max[1]) / 2;
+    const dirX = elX - modelCenterX;
+    const dirY = elY - modelCenterY;
+    const dist = Math.hypot(dirX, dirY);
+    if (dist > 0.01) {
+      dx = (dirX / dist) * 14;
+      dy = (dirY / dist) * 14;
+    }
+    if (el.category === 'Roofs') dz += 10;
+  }
+  return [dx, dy, dz];
+}
+
+function updateGhostFocus() {
+  const hasFocus = ghostMode && (selected || Object.keys(edits.byId).length > 0);
+  for (const m of meshes) {
+    const isTarget = m === selected || (edits.byId[String(m.userData.el.id)] && !isIdentity(edits.byId[String(m.userData.el.id)]));
+    if (hasFocus && !isTarget) {
+      m.material.transparent = true;
+      m.material.opacity = 0.15;
+      m.material.depthWrite = false;
+      if (m.children[0]) m.children[0].material.opacity = 0.08;
+    } else {
+      m.material.transparent = false;
+      m.material.opacity = 1.0;
+      m.material.depthWrite = true;
+      if (m.children[0]) m.children[0].material.opacity = pal.edgeOpacity;
+    }
+  }
+}
+
+const pinSvg = document.getElementById('pin-svg');
+const pinDom = document.getElementById('pin-dom');
+
+function togglePin(elId) {
+  if (pinnedIds.has(elId)) pinnedIds.delete(elId);
+  else pinnedIds.add(elId);
+  renderPinDoms();
+  requestRender();
+}
+
+function renderPinDoms() {
+  if (!pinDom) return;
+  pinDom.innerHTML = '';
+  for (const id of pinnedIds) {
+    const m = meshById[String(id)];
+    if (!m) continue;
+    const el = m.userData.el;
+    const div = document.createElement('div');
+    div.className = 'pin-callout';
+    div.dataset.id = String(id);
+    div.innerHTML = '<span class="pin-id">#' + escHtml(el.id) + ' ' + escHtml(el.category || '') + '</span><button type="button" class="pin-del" title="Remove pin">&times;</button>';
+    div.querySelector('.pin-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      pinnedIds.delete(id);
+      renderPinDoms();
+      requestRender();
+    });
+    div.addEventListener('click', () => select(m));
+    pinDom.append(div);
+  }
+}
+
+function updatePins() {
+  if (!pinSvg || !pinDom) return;
+  if (pinnedIds.size === 0) {
+    pinSvg.innerHTML = '';
+    return;
+  }
+  let svgContent = '';
+  const callouts = pinDom.querySelectorAll('.pin-callout');
+  for (const div of callouts) {
+    const id = div.dataset.id;
+    const m = meshById[String(id)];
+    if (!m || !m.visible) {
+      div.style.display = 'none';
+      continue;
+    }
+    const c = gumCenter(m.userData.el);
+    const s = toScreen(c);
+    if (!s.isFront) {
+      div.style.display = 'none';
+      continue;
+    }
+    div.style.display = 'flex';
+    const lx = s.x + 36, ly = s.y - 28;
+    div.style.left = lx + 'px';
+    div.style.top = ly + 'px';
+    svgContent += '<circle cx="' + s.x.toFixed(1) + '" cy="' + s.y.toFixed(1) + '" r="2.5" fill="var(--ink)" />' +
+      '<line x1="' + s.x.toFixed(1) + '" y1="' + s.y.toFixed(1) + '" x2="' + lx.toFixed(1) + '" y2="' + ly.toFixed(1) + '" />';
+  }
+  pinSvg.innerHTML = svgContent;
+}
+
+const explodeSlider = document.getElementById('explodeslider');
+const explodeVal = document.getElementById('explodeval');
+const peelBtn = document.getElementById('hud-peel');
+const focusBtn = document.getElementById('hud-focus');
+const pinBtn = document.getElementById('hud-pin');
+
+function updateAllMeshPoses() {
+  for (const m of meshes) poseMesh(m);
+  requestRender();
+}
+
+if (explodeSlider) {
+  explodeSlider.addEventListener('input', () => {
+    explodeFactor = Number(explodeSlider.value) / 100;
+    explodeVal.textContent = explodeSlider.value + '%';
+    updateAllMeshPoses();
+  });
+}
+if (peelBtn) {
+  peelBtn.addEventListener('click', () => {
+    peelActive = !peelActive;
+    peelBtn.setAttribute('aria-pressed', String(peelActive));
+    updateAllMeshPoses();
+  });
+}
+if (focusBtn) {
+  focusBtn.addEventListener('click', () => {
+    ghostMode = !ghostMode;
+    focusBtn.setAttribute('aria-pressed', String(ghostMode));
+    updateGhostFocus();
+    requestRender();
+  });
+}
+if (pinBtn) {
+  pinBtn.addEventListener('click', () => {
+    if (selected) togglePin(selected.userData.el.id);
+  });
+}
 
 // ---------- Gumball: move along X / Y / Z, rotate about Z (viewer copy only) ----------
 // Left drag on a handle; the camera keeps its Rhino right-button mapping. Moves snap to 1/2 ft and
@@ -877,7 +1081,13 @@ function poseMesh(mesh) {
   const rec = edits.byId[String(mesh.userData.el.id)];
   const isMoved = rec && !isIdentity(rec);
   mesh.matrixAutoUpdate = false;
-  if (isMoved) mesh.matrix.fromArray(editMatrix(rec)); else mesh.matrix.identity();
+  const m = new THREE.Matrix4();
+  if (isMoved) m.fromArray(editMatrix(rec)); else m.identity();
+  const [dx, dy, dz] = meshDisplacement(mesh);
+  m.elements[12] += dx;
+  m.elements[13] += dy;
+  m.elements[14] += dz;
+  mesh.matrix.copy(m);
   mesh.matrixWorldNeedsUpdate = true;
   const key = String(mesh.userData.el.id);
   if (isMoved && !ghosts[key]) {
@@ -885,20 +1095,32 @@ function poseMesh(mesh) {
     ghosts[key] = new THREE.LineSegments(mesh.children[0].geometry, new THREE.LineBasicMaterial({ color: toColor(css('--line-strong'), '#9a9a96'), transparent: true, opacity: .55, depthWrite: false }));
     scene.add(ghosts[key]);
   } else if (!isMoved && ghosts[key]) { scene.remove(ghosts[key]); ghosts[key].material.dispose(); delete ghosts[key]; }
+  if (ghosts[key]) {
+    ghosts[key].position.set(dx, dy, dz);
+  }
 }
 // The element as it now sits in the viewer (for zoom-to and the gumball center).
 function posedEl(el) {
+  const m = meshById[String(el.id)];
+  const [dx, dy, dz] = m ? meshDisplacement(m) : [0, 0, 0];
   const rec = edits.byId[String(el.id)];
-  if (!rec || isIdentity(rec)) return el;
   const v = el.mesh.vertices, out = new Array(v.length);
-  for (let i = 0; i + 2 < v.length; i += 3) { const p = applyEditToPoint(rec, [v[i], v[i + 1], v[i + 2]]); out[i] = p[0]; out[i + 1] = p[1]; out[i + 2] = p[2]; }
+  for (let i = 0; i + 2 < v.length; i += 3) {
+    let p = [v[i], v[i + 1], v[i + 2]];
+    if (rec && !isIdentity(rec)) p = applyEditToPoint(rec, p);
+    out[i] = p[0] + dx;
+    out[i + 1] = p[1] + dy;
+    out[i + 2] = p[2] + dz;
+  }
   return { ...el, mesh: { vertices: out, indices: el.mesh.indices } };
 }
 function gumCenter(el) {
+  const m = meshById[String(el.id)];
+  const [dx, dy, dz] = m ? meshDisplacement(m) : [0, 0, 0];
   const rec = edits.byId[String(el.id)];
-  if (rec) return rec.pivot.map((v, i) => v + rec.move[i]);
+  if (rec) return [rec.pivot[0] + rec.move[0] + dx, rec.pivot[1] + rec.move[1] + dy, rec.pivot[2] + rec.move[2] + dz];
   const b = elementBounds(el);
-  return [0, 1, 2].map(i => (b.min[i] + b.max[i]) / 2);
+  return [(b.min[0] + b.max[0]) / 2 + dx, (b.min[1] + b.max[1]) / 2 + dy, (b.min[2] + b.max[2]) / 2 + dz];
 }
 function toScreen(p) { // world -> viewport-local px
   const v = new THREE.Vector3(p[0], p[1], p[2]).project(activeCam);
@@ -1487,6 +1709,35 @@ window.__bim = {
     meshMatrix: id => meshById[String(id)].matrix.toArray(),
     ghostCount: () => Object.keys(ghosts).length,
     isDragging: () => gdrag !== null,
+  },
+  explode: {
+    set: (pct) => {
+      explodeFactor = Math.max(0, Math.min(1, pct / 100));
+      if (explodeSlider) { explodeSlider.value = String(pct); explodeVal.textContent = pct + '%'; }
+      updateAllMeshPoses();
+    },
+    get: () => Math.round(explodeFactor * 100),
+    peel: (on) => {
+      peelActive = on !== undefined ? !!on : !peelActive;
+      if (peelBtn) peelBtn.setAttribute('aria-pressed', String(peelActive));
+      updateAllMeshPoses();
+    },
+    isPeeled: () => peelActive,
+  },
+  ghost: {
+    toggle: (on) => {
+      ghostMode = on !== undefined ? !!on : !ghostMode;
+      if (focusBtn) focusBtn.setAttribute('aria-pressed', String(ghostMode));
+      updateGhostFocus();
+      requestRender();
+    },
+    isOn: () => ghostMode,
+  },
+  pins: {
+    add: (id) => { pinnedIds.add(id); renderPinDoms(); requestRender(); },
+    remove: (id) => { pinnedIds.delete(id); renderPinDoms(); requestRender(); },
+    list: () => [...pinnedIds],
+    clear: () => { pinnedIds.clear(); renderPinDoms(); requestRender(); },
   },
   gridOnly: on => { for (const m of meshes) m.visible = on ? false : chipFor[m.userData.el.category || 'Generic'].getAttribute('aria-pressed') === 'true'; grid.visible = true; render(); },
   gridDensityFade: on => { grid.material.uniforms.uDensityFade.value = on ? 1 : 0; render(); },
