@@ -105,6 +105,7 @@ It then applies `SetListType`, `SetIndentLevel`, `SetBoldStatus` and `SetUnderli
 
 - Remind the user to **Synchronize with Central** to share the board.
 - After the sync, the note can stay borrowed by the user. Tell the user to relinquish it (Collaborate > Relinquish All Mine), so the team can edit the board.
+- If the issues came from a standards recheck (for example a naming check against the project's own rules), record it so the weekly reminder resets: `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill's folder>\..\..\scripts\record-standards-check.ps1" -Project "<central model name>"`. It records only; it never scans and never changes the model.
 
 ## Rules
 
