@@ -11,6 +11,8 @@ guards = [e for e in DB.FilteredElementCollector(doc, view.Id).OfCategory(DB.Bui
 tagged = set()
 empty_text = 0
 far_leader = 0
+no_leader = 0
+not_free = 0
 sizes = {}
 for tg in DB.FilteredElementCollector(doc, view.Id).OfClass(DB.IndependentTag):
     ids = [i.Value for i in tg.GetTaggedLocalElementIds()]
@@ -22,6 +24,11 @@ for tg in DB.FilteredElementCollector(doc, view.Id).OfClass(DB.IndependentTag):
         continue
     if tg.TagText == "":
         empty_text += 1
+    # Rule: leader on and end condition Free.
+    if not tg.HasLeader:
+        no_leader += 1
+    elif tg.LeaderEndCondition != DB.LeaderEndCondition.Free:
+        not_free += 1
     for ref in tg.GetTaggedReferences():
         g = doc.GetElement(ref.ElementId)
         if not isinstance(g, DB.FamilyInstance) or g.Symbol.FamilyName != FAM:
@@ -35,4 +42,5 @@ for tg in DB.FilteredElementCollector(doc, view.Id).OfClass(DB.IndependentTag):
             pass
     sizes[len(ids)] = sizes.get(len(ids), 0) + 1
 result = {"guards": len(guards), "untagged_guards": len([g for g in guards if g.Id.Value not in tagged]),
-          "tags_with_empty_text": empty_text, "leader_ends_far_from_guard": far_leader, "guards_per_tag": sizes}
+          "tags_with_empty_text": empty_text, "leader_ends_far_from_guard": far_leader,
+          "tags_without_leader": no_leader, "tags_leader_not_free": not_free, "guards_per_tag": sizes}
