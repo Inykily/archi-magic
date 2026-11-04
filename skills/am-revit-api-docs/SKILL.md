@@ -119,6 +119,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\se
 
 Add each removed member you find to the list above. Do not guess members from memory.
 
+## MCP output traps (issue #85)
+
+Two pyRevit MCP outputs mislead agents. Both traps come from one live session (Windows 11, Revit 2026, pyRevit agent runtime, 2026-11-02).
+
+### A capture follows the Revit UI theme
+
+`capture_view` shows the colors of the Revit UI theme, not the true model colors. A dark theme changes the colors in the capture. Do not read RGB values from a capture. Read RGB values from the model with `run_query` (for example, read the material `Color` or the filled region type `Color`).
+
+Evidence: a fill stored as RGB 111,184,219 showed as RGB 0,89,132 in a dark-theme capture. The session redrew the region outlines with PIL from the model RGB values as a workaround.
+
+Open question: the shift may come from the dark theme only, or also from view graphics (halftone, transparency). Only one fill color was compared by number. Until that question is answered, treat every capture as theme-shifted.
+
+### A script sees the Revit process TEMP folder
+
+A `run_query` script does not see the agent's `%TEMP%` folder. It sees the `%TEMP%` folder of the Revit process. Revit puts its TEMP files in a `<guid>` subfolder of `%TEMP%`. A file a script wrote to `%TEMP%` lands in that subfolder, not in the agent's TEMP folder.
+
+Do not guess where a written file went. Make the script return the full path of each file it writes in the `result` dict. Then read the files from those returned paths on the first try.
+
 ## Query budget
 
 A read query can run for many minutes on a large model. Keep each query inside a budget.
