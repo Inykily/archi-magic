@@ -44,6 +44,8 @@ Pass `workspace` = the absolute path of this skill's `scripts/` folder on every 
 | `scripts/read_board.py` | `run_query` | No (read-only) |
 | `scripts/board_cli.py` | Your shell, `python board_cli.py ...` | No. It writes a plan as JSON |
 | `scripts/apply_board.py` | `run_modify`, `dry_run=true` first | Yes, only after Keep in Revit |
+| `scripts/standards_view.py` | Imported in Revit, and by tests | No. Pure logic: history check, renumber, word diff |
+| `standards-view.md` | Recipe doc, read it before the work | No. It is the standards-view recipe |
 
 ## Before you start
 
@@ -91,6 +93,15 @@ To fill in an assignee, run `read_board.py` with `inputs = {"creator_ids": [<ele
 2. Write a spec file `{"title_line": ..., "issues": [...]}` and run `python board_cli.py create <spec.json>`.
 3. Dry run, then the real run of `apply_board.py` with `inputs = {"plan": <plan>, "view_id": <id>, "x": 0, "y": 0, "width_ft": 0.5}`. Use the view's free space for `x` and `y` (feet). Keep/Discard as above.
 4. Optional: call `capture_view` on the view as a final check of the layout.
+
+## Standards view
+
+A standards view is a different thing from an issue board. It holds the
+team's proposed rules, one text note per section, in one drafting view.
+It shows no status and no history. Follow [standards-view.md](standards-view.md)
+for it: one note per section, found by first line, one writer per view
+or section, proposal only, column-first layout, table lines for tables,
+and a history-words check plus a renumber test before you finish.
 
 ## Why edits are in place
 
