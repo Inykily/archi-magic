@@ -25,7 +25,7 @@ Diagnose archi-magic problems with the tested script `scripts/doctor.ps1` in thi
    - Exit 2: no problem found, but some part was not checked. Say which part, and say what the user can do so it can be checked.
    - If Revit answered earlier in this session and is gone now, run it again with `-RevitWasRunning`. The doctor then points to `am-revit-crash-doctor`.
 2. Explain each `error`, `warn` and `unchecked` line in plain words. Say what is wrong, why it matters, and what the fix does. Mention `info` lines only when they help.
-3. Ask which fix to run. Use AskUserQuestion. Put the fix for the most basic problem first, with "(Recommended)", in this order: DEPS_MISSING, PY7_MISSING, INSTALL_CRASH, REPOINT_NEEDED, AGENT_DISABLED, MCP_MISSING / MCP_WRONG_PATH, POLICY_AUTO. Add a "Not now" option. If the user set `auto` on purpose, report POLICY_AUTO only: do not offer its fix, and never mark it "(Recommended)".
+3. Ask which fix to run. Use AskUserQuestion. Put the fix for the most basic problem first, with "(Recommended)", in this order: DEPS_MISSING, PY7_MISSING, INSTALL_CRASH, REPOINT_NEEDED, YEAR_NOT_ATTACHED, AGENT_DISABLED, MCP_MISSING / MCP_WRONG_PATH, POLICY_AUTO. Add a "Not now" option. If the user set `auto` on purpose, report POLICY_AUTO only: do not offer its fix, and never mark it "(Recommended)".
 4. Run only the fix that the user picked:
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\doctor.ps1" -Fix <CODE>`
    - Exit 4 means there is no automatic fix. Give the user the manual step from the `fix` column.
@@ -41,6 +41,7 @@ Diagnose archi-magic problems with the tested script `scripts/doctor.ps1` in thi
 |---|---|---|
 | PY7_MISSING | `%APPDATA%\pyRevit-Master\bin\pyrevit.exe` is missing or older than 7. | Full am-pyrevit7-setup run (install, repoint, agent, verify). |
 | REPOINT_NEEDED | A Revit year has the IT-installed pyRevit manifest but no per-user manifest that loads pyRevit 7. This happens after any pyRevit update or `pyrevit attach`. | am-pyrevit7-setup `-Repoint -Verify`. |
+| YEAR_NOT_ATTACHED | A Revit year is installed but has no pyRevit manifest at all, neither machine-wide nor per-user. This happens when Revit was installed after setup ran. | am-pyrevit7-setup `-Repoint -Verify`. |
 | INSTALL_CRASH | A setup log shows the installer crash ("Access violation ... ucrtbase.dll", exit 1). The cause was the installer `/LOG` flag. Severity is `info` when pyRevit 7 is installed now. | am-pyrevit7-setup `-Install -Force` (no `/LOG`). Revit must be closed. |
 | AGENT_DISABLED | `pyrevit configs agent` says Disabled. | am-pyrevit7-setup `-EnableAgent`. |
 | AGENT_NOT_RESPONDING | Revit runs, but no agent host answers. The doctor shows if `%APPDATA%\pyRevit\agent\instances\<pid>.json` exists. | Manual: pyRevit tab > Reload (it can need two reloads), or restart Revit. |
