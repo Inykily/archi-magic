@@ -10,6 +10,8 @@
                   Skipped if pyRevit 7+ is already installed (use -Force to reinstall).
     -Repoint      Write per-user Revit manifests (%APPDATA%\Autodesk\Revit\Addins\<year>)
                   that load pyRevit 7, overriding an admin-owned machine-wide 6.x install.
+                  A year installed after setup (no machine-wide manifest) gets a
+                  per-user attach instead, so it is not silently skipped.
     -EnableAgent  Turn on the agent host, set the agent policy to 'ask' (or the
                   -Policy value), and register 'pyrevit mcp' with Claude Code.
     -Verify       Print the final state. Read-only. A policy other than 'ask' or
@@ -45,8 +47,9 @@
   6 verify found problems, 7 nothing to undo (no journal, or already undone),
   8 undo finished with problems (some items skipped or failed).
 
-  Test parameters (-UserAddinsRoot, -MachineAddinsRoot, -Py7Root, -Py7Exe, -ClaudeCli,
-  -BackupRoot) point the script at other folders and programs. Defaults are the real ones.
+  Test parameters (-UserAddinsRoot, -MachineAddinsRoot, -RevitInstallRoot, -Py7Root,
+  -Py7Exe, -ClaudeCli, -BackupRoot) point the script at other folders and programs.
+  Defaults are the real ones.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\pyrevit7-setup.ps1
@@ -67,6 +70,7 @@ param(
     [string]$Stamp = '',
     [string]$UserAddinsRoot = (Join-Path $env:APPDATA 'Autodesk\Revit\Addins'),
     [string]$MachineAddinsRoot = 'C:\ProgramData\Autodesk\Revit\Addins',
+    [string]$RevitInstallRoot = 'C:\Program Files\Autodesk',
     [string]$Py7Root = (Join-Path $env:APPDATA 'pyRevit-Master'),
     [string]$Py7Exe = '',
     [string]$ClaudeCli = '',
@@ -243,6 +247,18 @@ function Get-NormalPath([string]$path) {
     $p = ([string]$path).Trim().Trim('"')
     try { return [IO.Path]::GetFullPath($p) } catch { return $p }
 }
+# Installed Revit years: the "Revit 20*" folders under the Revit install root.
+# -RevitInstallRoot is the test seam: tests point it at a temp folder. A Revit
+# installed to a custom path outside it is a known gap, not an attach target.
+function Get-InstalledRevitYears([string]$root) {
+    $years = @()
+    foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Filter 'Revit 20*' -ErrorAction SilentlyContinue)) {
+        $y = ($d.Name -replace '\D', '')
+        if ($y -match '^\d{4}$') { $years += $y }
+    }
+    return @($years | Sort-Object -Unique)
+}
+
 function Test-SamePath([string]$a, [string]$b) {
     if (-not $a -or -not $b) { return $false }
     return ((Get-NormalPath $a) -ieq (Get-NormalPath $b))
@@ -594,6 +610,25 @@ if ($Repoint) {
             New-Item -ItemType Directory -Force $dstDir | Out-Null
             [IO.File]::WriteAllText($dst, $out, (New-Object Text.UTF8Encoding $false))
             Say "$year : $dst -> $asm"
+        }
+        # Installed Revit years with no machine-wide manifest (issue #88): the loop above
+        # only visits years IT attached, so a year installed after setup was silently
+        # skipped. For each such year with no per-user manifest either, attach per-user
+        # (the manual fix from the issue: no --allusers, no admin). Years repointed
+        # above now have a per-user manifest, so they are skipped here; a later Repoint
+        # run therefore leaves an attached year untouched. The attach writes only that
+        # year's folder: the issue's own fix left the neighbouring years unchanged.
+        $installedYears = Get-InstalledRevitYears $RevitInstallRoot
+        if ($installedYears.Count -gt 0) {
+            $userYears = @(Get-ChildItem (Join-Path $UserAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name })
+            $attachedMachineYears = @($machine | ForEach-Object { $_.Directory.Name })
+            foreach ($y in $installedYears) {
+                if ($attachedMachineYears -contains $y) { continue }
+                if ($userYears -contains $y) { continue }
+                Invoke-Cli $Py7 @('attach', 'master', 'default', $y) | Out-Host
+                if ($LASTEXITCODE -ne 0) { Warn "Revit $y : per-user attach failed (exit $LASTEXITCODE); Revit starts without pyRevit for this year." }
+                else { Say "Revit $y : attached per-user (no machine-wide manifest)" }
+            }
         }
     }
     Complete-RepointJournal
