@@ -1,6 +1,6 @@
 ---
 name: am-pyrevit7-setup
-description: "Install pyRevit 7 per-user on Windows WITHOUT admin rights, repoint Revit 2024-2026 to it (overriding an admin-owned machine-wide pyRevit 6.x), enable the pyRevit Agent Runtime, and register its MCP server with Claude Code so Claude can read and edit the open Revit model. Can undo a setup run (-Undo restores the backed-up manifests, the MCP registration and the agent policy). Use when the user wants first-time setup, \"install pyrevit 7\", \"update pyrevit\", \"pyrevit still shows 6.4\", \"connect claude to revit\", \"set up the pyrevit agent runtime\", \"revit agent setup\", \"undo the pyrevit setup\", or when Revit still loads pyRevit 6.x after an update or `pyrevit attach`. NOT for problems after setup (use am-doctor) or Revit crashes (use am-revit-crash-doctor)."
+description: "Install pyRevit 7 per-user on Windows WITHOUT admin rights, repoint installed Revit years to it (overriding an admin-owned machine-wide pyRevit 6.x), enable the pyRevit Agent Runtime, and register its MCP server with Claude Code so Claude can read and edit the open Revit model. Can undo a setup run (-Undo restores the backed-up manifests, the MCP registration and the agent policy). Use when the user wants first-time setup, \"install pyrevit 7\", \"update pyrevit\", \"pyrevit still shows 6.4\", \"connect claude to revit\", \"set up the pyrevit agent runtime\", \"revit agent setup\", \"undo the pyrevit setup\", or when Revit still loads pyRevit 6.x after an update or `pyrevit attach`. NOT for problems after setup (use am-doctor) or Revit crashes (use am-revit-crash-doctor)."
 ---
 
 # am-pyrevit7-setup
@@ -40,6 +40,7 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
      ```
      An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
    - Re-run this skill after any pyRevit update.
+   - A Revit year installed after setup (for example a new Revit year) needs another `-Repoint` run: Repoint attaches years that have no manifest yet, and leaves attached years unchanged.
    - If IT installed an older pyRevit for all users, the setup fixes Revit when you open it yourself, and the archi-magic skills use pyRevit 7. A `pyrevit run` batch or CI script still loads the old pyRevit, because it reads the machine-wide manifest. To fix that, IT must uninstall the old pyRevit (admin rights). `am-doctor` reports this as HEADLESS_OLD_PYREVIT. Offer the IT request template in `IT-REQUEST.md` (this skill's folder).
 
 ## Undo a setup run
