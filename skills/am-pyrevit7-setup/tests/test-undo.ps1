@@ -32,6 +32,10 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     $machine = Join-Path $root 'machine'; $user = Join-Path $root 'user'; $py7Root = Join-Path $root 'pyRevit-Master'
     $backups = Join-Path $root 'backups'; $stubDir = Join-Path $root 'stub'
     foreach ($d in $machine, $user, $py7Root, $backups, $stubDir) { New-Item -ItemType Directory -Force $d | Out-Null }
+    # -Repoint also reads installed Revit years (issue #88). Pin the install root to an
+    # empty temp folder so a Revit on the test machine cannot add attach calls here.
+    $install = Join-Path $root 'install-none'
+    New-Item -ItemType Directory -Force $install | Out-Null
 
     # Machine-wide manifests (IT install) for 2025 and 2026, and the 7.x loader they will point to.
     $asm = 'bin\netfx\engines\IPY2712PR\pyRevitLoader.dll'
@@ -58,7 +62,7 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     [IO.File]::WriteAllText((Join-Path $stubDir 'state.json'), $state0, (New-Object Text.UTF8Encoding $false))
     $env:AM_STUB_DIR = $stubDir; $env:AM_STUB_PY7 = $py7
 
-    $common = @('-UserAddinsRoot', $user, '-MachineAddinsRoot', $machine, '-Py7Root', $py7Root, '-Py7Exe', $py7, '-ClaudeCli', $claude, '-BackupRoot', $backups)
+    $common = @('-UserAddinsRoot', $user, '-MachineAddinsRoot', $machine, '-RevitInstallRoot', $install, '-Py7Root', $py7Root, '-Py7Exe', $py7, '-ClaudeCli', $claude, '-BackupRoot', $backups)
     $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPath -Repoint -EnableAgent @common 2>&1 | Out-String
     $code = $LASTEXITCODE
     Check ($code -eq 0) "setup exit $code`n$out" $problems

@@ -75,6 +75,8 @@ A material change also changes elements that use the material (floors, tags, leg
 Run `read_materials.py` again, save it as `verify.json`, then:
 `python "<skill dir>\scripts\material_preview.py" compare --preview preview.json --actual verify.json`
 
+Do not verify colors from a `capture_view` image. A capture follows the Revit UI theme, so a dark theme changes the colors in the capture (issue #85: a fill stored as RGB 111,184,219 showed as RGB 0,89,132). Compare the model RGB values in `verify.json` instead.
+
 ## Tests
 
 `python -m pytest "<skill dir>\tests" -q`, or `python "<skill dir>\tests\test_material_colors.py"` without pytest.
