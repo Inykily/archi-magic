@@ -103,6 +103,10 @@ These three traps cost a full session on a department diagram in Revit 2026. The
 - Switch the active view before you delete a view. `doc.Delete(view.Id)` fails with "ElementId cannot be deleted" when that view is the active view. Call `uidoc.RequestViewChange(other_view)` in a separate query first, then delete the view.
 - `FilledRegion` has no `IsValidBoundary` method. Do not call it. Check loop closure with pairwise `Curve.Intersect` checks between loops instead. Note that `IsValidBoundary` exists on `SiteSubRegion`, not on `FilledRegion`.
 
+### Detail line geometry updates (TODO-9344)
+
+Setting line.GeometryCurve = new_curve on an existing DetailLine can fail to persist in Revit without raising an error (read-back shows the old curve geometry). Use line.SetGeometryCurve(new_curve, True) with overrideJoins=True to ensure Revit updates and persists modified detail line geometry.
+
 ### Sample query skeleton
 
 Use these exact argument names for the first query from any skill. The same names work on Revit 2024, 2025 and 2026.

@@ -103,3 +103,26 @@ def test_cli_check_end_to_end(tmp_path):
     result = json.loads(proc.stdout)
     assert result["counts"]["personal_path"] == 4
     assert result["counts"]["term"] == 1
+
+
+def test_is_prose_note_filter():
+    assert st.is_prose_note("Short label") is False
+    assert st.is_prose_note("Cell 123") is False
+    assert st.is_prose_note("This is a reference note with six words") is True
+    assert st.is_prose_note("One two three four five") is False
+    assert st.is_prose_note("One two three four five six") is True
+
+
+def test_fact_preservation_check():
+    orig = "Verify line 42 with code SEC_01 and cost $500 for element <1048>."
+    rewritten_ok = "Check line 42 with code SEC_01 and cost $500 for element <1048> carefully."
+    ok, missing = st.check_fact_preservation(orig, rewritten_ok)
+    assert ok is True
+    assert missing == []
+
+    rewritten_bad = "Check line 42 with code and cost for element."
+    ok_bad, missing_bad = st.check_fact_preservation(orig, rewritten_bad)
+    assert ok_bad is False
+    assert "$500" in missing_bad
+    assert "<1048>" in missing_bad
+    assert "SEC_01" in missing_bad

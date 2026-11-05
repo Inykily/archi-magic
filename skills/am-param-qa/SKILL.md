@@ -81,8 +81,10 @@ The name rule is the rule the user gives for parameter names. `forbid_chars` lis
 - A shared parameter with no binding is `unbound`. The row lists the families that bring it. An unbound parameter is not "unused": a family that carries it can still fill it. Never call an unbound parameter a purge candidate on that fact alone.
 - The same name under two GUIDs gets the flag `duplicate-name`. A tag or schedule that uses the wrong GUID shows blanks. Say so.
 - Group `Other` gets the flag `group-other`.
-- Usage counts cover schedule fields, schedule filters, view filters, and families. A count matches by GUID when Revit resolves the parameter, else by name. A name-matched count on a duplicate name gets the flag `usage-ambiguous`.
-- The result states what it did not check: tags, labels, nested families. Say so in the report. Do not imply full coverage.
+- Usage counts cover schedule fields, schedule filters, view filters, and families. Wider scans can include color schemes and browser organization (views and sheets). A count matches by GUID when Revit resolves the parameter, else by name. A name-matched count on a duplicate name gets the flag `usage-ambiguous`.
+- In table output, never show a bare `-` for unchecked or non-matching sources. Display `not found in <checked sources>` so cells are not mistaken for proof of non-use.
+- For family sources, check both `FamilyManager.Parameters` and `SharedParameterElement` (labels and formulas reference `SharedParameterElement` directly). Scan nested families recursively up to depth 10 with cycle guard.
+- The result states what it did not check: tags, labels, nested families beyond scanned depth. Say so in the report. Do not imply full coverage.
 - The result states whether a shared parameter file is set in Revit. With no file set, the `.txt` group of each parameter cannot be read. Say so.
 
 ## Inventory report
@@ -107,6 +109,34 @@ Write, in plain words for an architect:
 - A snapshot table is a drafting view. It holds aligned text notes and thin detail lines. It carries a date and the note "snapshot, rerun to refresh".
 - A snapshot is a write, so this read-only skill does not build it. Make it a separate task with `run_modify`, a dry run first, and Keep/Discard approval in Revit.
 - Every snapshot ships with a saved scan / build / write script set, so the next audit refreshes the same view in place with the same columns and a new date. The audit step list includes the refresh. See `am-material-audit` for the full rule and the takeoff limits.
+
+## Shared parameter file (.txt) edit recipe (issue #189)
+
+The shared parameter file (.txt) lives outside the model with no Revit transaction or rollback. Treat it as a shared concurrent resource:
+
+1. **Backup and hash**: before editing, copy the file to a backup and record its SHA-256 hash. Verify the encoding (UTF-16 Little Endian with BOM, tab-separated).
+2. **Single-writer verify**: re-read and compare the SHA-256 hash immediately before writing. If the hash changed, another session or user modified the file: stop and show the diff.
+3. **Change only own lines**: keep existing lines, column layouts, and GUIDs. Append new groups with the next free numbers.
+4. **Post-write validation**: verify BOM presence, line count, no duplicate names, no duplicate GUIDs, and that new GUIDs match parameters bound in the model.
+5. **Diff review**: show a unified diff against the backup to the user.
+
+## Recipe: rename a shared parameter by migration (issue #190)
+
+Revit cannot rename a shared parameter in place (#93, #100). Use this migration workflow:
+
+1. **Pre-flight & freeze window**: request a freeze window and ensure no other user borrows target elements. List manual steps upfront (tag labels, nested family bindings).
+2. **Step 0 - Read-only snapshot**: record element values, schedule definitions, color schemes, and ownership to JSON.
+3. **Step 1 - New parameters in .txt**: add the new parameter names with fixed GUIDs to the shared parameter file using the shared file recipe.
+4. **Step 2 - Create and bind**: bind new parameters to the same categories, grouping, and instance/type settings (dry run, read-back, real run, read-back).
+5. **Step 3 - Value copy with drift guard**:
+   - Compare live elements with the step 0 snapshot; stop if any element changed or is owned by another user.
+   - Run a 1-cell intentional self-test to verify detection before copying.
+   - Copy values across all elements in one transaction. Report total compared cells and runtime.
+6. **Step 4 - Repoint schedules & filters**: update schedule fields and view filters to use the new parameter.
+7. **Step 5 - Rebuild color schemes**: color schemes drop entries when parameter changes; repoint and rebuild scheme definitions.
+8. **Step 6 - Manual tag label hand-off**: the Revit API cannot repoint tag labels. Provide the user with the list of views and sheets needing manual label reassignment.
+9. **Step 7 - Purge old parameters**: verify old GUID is not bound, no elements carry it, and no schedules/filters reference it. Delete old parameters and roll back if `doc.Delete` deletes any other element ID.
+10. **Table layout guard**: if drafting view tables were updated, verify bounding-box overlaps between text notes and thin detail lines to prevent grid overflow.
 
 ## Source and license
 

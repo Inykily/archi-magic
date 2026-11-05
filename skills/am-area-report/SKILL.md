@@ -35,6 +35,17 @@ The script `scripts/area_report.py` does the work. Read the file and pass its fu
    Run again with `inputs = {"group_by": ..., "program_csv": "<text>", "program_key": "group" or "name", "program_units": "display" or "m2" or "ft2"}`. Show `program` as a table with target, actual, delta, delta % and status (OK within 5%, OVER, UNDER, MISSING). Set `tolerance_pct` to change the 5%.
 6. CSV file (optional). Ask for the folder. Write the CSV from Claude's side with the Write tool, not from inside Revit (guarded runs cannot save files). Use `header` and `rows` from the result. Quote each field that has a comma, a quote or a line break, and double the quotes inside it. Name it `<model>-area-report-<yyyy-mm-dd>.csv`. Tell the user the full path.
 
+## Recipe: presentation department diagram from areas (issue #89)
+
+Use this workflow to create presentation department diagrams with rounded-corner filled regions following area plan boundaries.
+
+1. **Target view selection**: ask the user which view receives the diagram before creating any geometry. Note that view template area color fills show through transparent (`_TRN`) filled regions; offer to duplicate the view or use opaque masking types.
+2. **Boundary loop closure check**: query `Area.GetBoundarySegments()` for open boundary loops. Report open areas and gap sizes (e.g. 0.17 to 0.61 ft) to the user. Never fail silently.
+3. **Line trim/extend approval**: if boundary lines stop short or overshoot, offer a separate approved change to trim or extend boundary lines. Calculate the resulting area delta before applying.
+4. **Filled region creation**: generate closed `CurveLoop` boundaries with merged collinear segments. Offset and fillet corners with tangent limits capped at half the length of adjacent segments.
+5. **Detail grouping**: pass only top-level `FilledRegion` element IDs to `doc.Create.NewGroup`. Never pass IDs from `Group.UngroupMembers()` directly (avoids Revit `SEHException` on sketch members).
+6. **View deletion cleanup**: if deleting a temporary scratch view, switch the active view via `uidoc.RequestViewChange(other_view)` first before calling `doc.Delete(view.Id)`.
+
 ## Rules
 
 - Use only `run_query`. This skill never changes the model.
