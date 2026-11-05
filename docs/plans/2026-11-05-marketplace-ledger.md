@@ -29,9 +29,9 @@ Demand rating reflects cumulative user reviews from similar commercial and free 
 | #183 | Model version compare: what changed since date/sync | Safety | `am-safe-change` | **Delivered** | `scripts/model_compare.py`, `tests/test_model_compare.py`, diff docs |
 | #184 | Local time-saved log and ROI report | Doctor / Value | `am-doctor` | **Delivered** | `scripts/time_log.py`, `tests/test_time_log.py`, CLI commands |
 | #185 | Narrated screen recordings as task input | Intelligence | `am-markup-intake` | Backlog | Video framing and Whisper/multimodal parser |
-| #186 | Epic: MEP support (routing, sizing and MEP QA) | Epic | `am-issue-board` / new | **RFC Approved** | `docs/rfcs/003-mep-support.md` (Phase 0 scope) |
-| #187 | Epic: Web workspace (projects, previews, issue board) | Epic | `am-bim-viewer` / web | **RFC Approved** | `docs/rfcs/002-web-workspace.md` (Phase 0 scope) |
-| #188 | Epic: AutoCAD support (read and write DWG) | Epic | CAD connector | **RFC Approved** | `docs/rfcs/001-autocad-support.md` (Phase 0 scope) |
+| #186 | Epic: MEP support (routing, sizing and MEP QA) | Epic | `am-issue-board` / new | **Phase 1 delivered** | RFC 003 + `am-issue-board/scripts/mep_qa.py`. Phases 2-3 open |
+| #187 | Epic: Web workspace (projects, previews, issue board) | Epic | `am-bim-viewer` / web | **Phase 1 started** | RFC 002 + `am-bim-viewer/scripts/project_page.py`. Phases 2-3 open |
+| #188 | Epic: AutoCAD support (read and write DWG) | Epic | CAD connector | **Phase 1 delivered** | RFC 001 + `am-model-health/scripts/dwg_cad_audit.py`. Phases 2-3 open |
 
 ---
 

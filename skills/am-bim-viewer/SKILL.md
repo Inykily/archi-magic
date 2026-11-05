@@ -155,6 +155,15 @@ If the page text has no pending rows, or no viewer tab is open, ask the user to 
 
 From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 29 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) the gumball (axis mapping, snap, Esc, undo, the JSON contract), typed values (the unit parser), the view cube and the walk. In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel, a gumball drag, typed values, the view cube and the walk. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
 
+## Local project page (issue #187 Phase 1)
+
+Build one read-only HTML page that shows the latest audit results and a change preview. The page runs from local files. It makes no network call and cannot change a model. The Revit Keep/Discard step stays the only approval.
+
+`python skills/am-bim-viewer/scripts/project_page.py --title "Project A" --audit <audit.json> [--audit <more.json>] [--preview <preview.json>] --out project.html`
+
+- Audit inputs: output of `mep_qa.py`, `dwg_cad_audit.py`, or other audits with a `findings` list.
+- The page escapes all model text. It sets a strict content policy.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
