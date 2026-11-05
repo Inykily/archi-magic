@@ -1,0 +1,25 @@
+{
+  "name": "Room Data Standards",
+  "version": "1.0",
+  "description": "Checks room department, occupancy, and naming",
+  "rules": [
+    {
+      "id": "ROOM-01",
+      "category": "OST_Rooms",
+      "parameter": "Department",
+      "condition": "not_empty",
+      "severity": "error",
+      "message": "Room department is unassigned",
+      "fix_hint": "Assign department name from approved project list"
+    },
+    {
+      "id": "ROOM-02",
+      "category": "OST_Rooms",
+      "parameter": "Occupancy",
+      "condition": "not_empty",
+      "severity": "warning",
+      "message": "Room occupancy load is missing",
+      "fix_hint": "Calculate occupancy per code standards"
+    }
+  ]
+}

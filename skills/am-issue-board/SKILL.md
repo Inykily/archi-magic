@@ -136,6 +136,19 @@ It then applies `SetListType`, `SetIndentLevel`, `SetBoldStatus` and `SetUnderli
 - After the sync, the note can stay borrowed by the user. Tell the user to relinquish it (Collaborate > Relinquish All Mine), so the team can edit the board.
 - If the issues came from a standards recheck (for example a naming check against the project's own rules), record it so the weekly reminder resets: `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill's folder>\..\..\scripts\record-standards-check.ps1" -Project "<central model name>"`. It records only; it never scans and never changes the model.
 
+## Check packs: team-authored rules (issue #180)
+
+Teams can define custom quality checks as JSON packs without writing code. Each rule defines a target category, parameter, condition (`not_empty`, `empty`, `equals`, `not_equals`, `contains`, `not_contains`, `greater_than`, `less_than`), severity (`error`, `warning`, `info`), message, and fix hint.
+
+- **Available built-in packs**:
+  - `packs/door-data.json`: Fire Rating, Frame Type, Comments.
+  - `packs/room-data.json`: Department, Occupancy load.
+  - `packs/sheet-data.json`: Sheet Name, Drawn By, Checked By.
+- **Run evaluation**:
+  `python skills/am-issue-board/scripts/check_packs.py evaluate --pack door-data.json --data <elements.json>`
+- **Hand-off to issue board**:
+  Findings convert directly to issue board items via `to_issue_board_findings()`.
+
 ## Rules
 
 - Never renumber issues. Never reuse a number.

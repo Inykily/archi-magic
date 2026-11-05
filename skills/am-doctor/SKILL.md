@@ -85,6 +85,23 @@ If it shows DEPS_MISSING, run it again with `-Fix DEPS_MISSING`, then restart th
 
 archi-magic scripts write one JSON line per key step to `%LOCALAPPDATA%\archi-magic\logs\<yyyy-MM>.jsonl` (6 months kept). The log contains no model data, no file contents and no tokens. Paths are written as `%APPDATA%`, `%TEMP%` and similar.
 
+## Time-saved log and ROI report (issue #184)
+
+archi-magic logs estimated manual minutes saved after each kept change or completed audit to `%LOCALAPPDATA%\archi-magic\telemetry\time-saved.jsonl`. All data stays local.
+
+- **Record a run**: `python skills/am-doctor/scripts/time_log.py log --skill <name> --elements <n>`
+- **Monthly summary**: `python skills/am-doctor/scripts/time_log.py report`
+- **ROI financial calculation**: `python skills/am-doctor/scripts/time_log.py roi --rate 120`
+- **What-if projection**: `python skills/am-doctor/scripts/time_log.py what-if --skill <name> --freq <n> --rate 120`
+
+## Revit backup file cleanup (issue #176)
+
+Find and clean up `.0001`-style Revit backup files (`*.0001.rvt`, `*.0002.rfa`, `*.0001.rte`) in project directories.
+
+- **Dry-run scan**: `python skills/am-doctor/scripts/cleanup_backups.py <directory>`
+- **Safe archive**: `python skills/am-doctor/scripts/cleanup_backups.py <directory> --archive <archive_dir>`
+- **Confirmed delete**: `python skills/am-doctor/scripts/cleanup_backups.py <directory> --delete --confirm`
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
