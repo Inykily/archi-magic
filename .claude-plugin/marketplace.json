@@ -17,17 +17,17 @@
       "source": {
         "source": "url",
         "url": "https://github.com/obra/superpowers.git",
-        "sha": "2ce8aa15d05bd57213e6f746f953aafb7ded7a8b"
+        "sha": "22f0b463e7a5e579904dd6211a520321035526f7"
       },
-      "description": "General work skills by Jesse Vincent (obra), MIT: brainstorming, writing and executing plans, systematic debugging, test-driven development, code review, verification before completion. Pinned to v7.0.1."
+      "description": "General work skills by Jesse Vincent (obra), MIT: brainstorming, writing and executing plans, systematic debugging, test-driven development, code review, verification before completion. Pinned to v7.0.2."
     },
     {
       "name": "frontend-design",
       "source": {
         "source": "git-subdir",
-        "url": "https://github.com/anthropics/claude-code.git",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
         "path": "plugins/frontend-design",
-        "sha": "ef7bfdca55d906929fe6b782025b93758c325074"
+        "sha": "30202c767cfaf325212b3921ab484f83adaec850"
       },
       "description": "Anthropic's frontend design skill: distinctive, production-grade web interfaces instead of generic AI-looking pages. Pinned to v1.1.0."
     },
@@ -47,7 +47,7 @@
         "source": "git-subdir",
         "url": "https://github.com/mcneel/RhinoAI.git",
         "path": "cc-plugin",
-        "sha": "02547db0a93e1e841165bcf0baa18d93fa47f62d"
+        "sha": "8c9693f7b85f7fecc52f0d6c93620bcfa400909a"
       },
       "description": "McNeel's official Rhino MCP plugin (MIT): lets Claude read and edit the open Rhino 8 document. On demand: needs Rhino 8, Node.js and the Rhino-MCP-Platform Rhino package. Run am-rhino-setup first."
     }

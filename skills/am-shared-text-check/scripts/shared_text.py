@@ -211,3 +211,32 @@ def check_notes(notes, terms, first_names):
             out.append(f)
             counts[f["kind"]] = counts.get(f["kind"], 0) + 1
     return {"findings": out, "counts": counts}
+
+
+def is_prose_note(text, min_words=6):
+    """Check if text note is prose (>= min_words alphanumeric words). Table cells and short labels are False."""
+    words = [w for w in (text or "").split() if any(c.isalnum() for c in w)]
+    return len(words) >= min_words
+
+
+def extract_fact_tokens(text):
+    """Tokens that must be preserved: containing digits, _, $, <>, or non-punctuation symbols."""
+    facts = set()
+    for tok in (text or "").split():
+        stripped = tok.strip(".,;:!?'()[]{}").strip('"')
+        if not stripped:
+            continue
+        if any(c.isdigit() or c in "_$<>/\\#%*+=" for c in stripped):
+            facts.add(stripped)
+    return facts
+
+
+def check_fact_preservation(original_text, rewritten_text):
+    """Verify that all technical tokens (numbers, IDs, codes, symbols) survive in rewritten text.
+
+    Returns (ok, missing_tokens).
+    """
+    orig_facts = extract_fact_tokens(original_text)
+    rewritten_tokens = set(t.strip(".,;:!?'()[]{}").strip('"') for t in (rewritten_text or "").split())
+    missing = sorted(list(orig_facts - rewritten_tokens))
+    return len(missing) == 0, missing
