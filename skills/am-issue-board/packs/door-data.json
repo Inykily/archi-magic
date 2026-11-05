@@ -1,0 +1,35 @@
+{
+  "name": "Door Data Completeness",
+  "version": "1.0",
+  "description": "Standard door schedule completeness and rating checks",
+  "rules": [
+    {
+      "id": "DOOR-01",
+      "category": "OST_Doors",
+      "parameter": "Fire Rating",
+      "condition": "not_empty",
+      "severity": "error",
+      "message": "Door is missing Fire Rating",
+      "fix_hint": "Enter approved fire rating value (e.g. 20 MIN, 45 MIN, 90 MIN)"
+    },
+    {
+      "id": "DOOR-02",
+      "category": "OST_Doors",
+      "parameter": "Frame Type",
+      "condition": "not_empty",
+      "severity": "warning",
+      "message": "Door Frame Type is unassigned",
+      "fix_hint": "Select standard frame type"
+    },
+    {
+      "id": "DOOR-03",
+      "category": "OST_Doors",
+      "parameter": "Comments",
+      "condition": "not_contains",
+      "value": "TBD",
+      "severity": "info",
+      "message": "Door comments contain unresolved placeholder TBD",
+      "fix_hint": "Resolve or remove placeholder note"
+    }
+  ]
+}

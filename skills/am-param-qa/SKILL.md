@@ -138,6 +138,18 @@ Revit cannot rename a shared parameter in place (#93, #100). Use this migration 
 9. **Step 7 - Purge old parameters**: verify old GUID is not bound, no elements carry it, and no schedules/filters reference it. Delete old parameters and roll back if `doc.Delete` deletes any other element ID.
 10. **Table layout guard**: if drafting view tables were updated, verify bounding-box overlaps between text notes and thin detail lines to prevent grid overflow.
 
+## Recipe: bulk-bind shared parameters to categories (issue #136)
+
+Bind shared parameters across multiple model categories in a single safe workflow:
+
+1. **Verify parameter definitions**: load external shared parameter file definitions via `app.OpenSharedParameterFile()`. Confirm definition names, GUIDs, and data types.
+2. **Build category set**: create a `CategorySet` and insert target categories (e.g. `OST_Doors`, `OST_Windows`, `OST_Walls`).
+3. **Configure binding**:
+   - Instance vs Type: create `InstanceBinding(cat_set)` or `TypeBinding(cat_set)`.
+   - Set parameter group (for example `Identity Data`, `Construction`, or `Data`).
+   - Where applicable, enable `definition.AllowVaryBetweenGroups = True` before insertion.
+4. **Binding execution**: insert or re-insert via `doc.ParameterBindings.Insert(definition, binding, group)`. Run dry run first, verify with read-back query, then commit in Revit.
+
 ## Source and license
 
 The completeness check and the MISSING/EMPTY rules are adapted from `validate-parameters` in [Utopia5327/claude-plugin-for-revit-bim](https://github.com/Utopia5327/claude-plugin-for-revit-bim/tree/08545c1a6e2cca1ca6cd9d5a1ae6567393f573de/skills/validate-parameters) at commit `08545c1a6e2cca1ca6cd9d5a1ae6567393f573de`, by Manas Bhatia, MIT License (see `LICENSE-utopia5327.txt` in this folder). Changes in archi-magic: renamed to `am-param-qa`; rewrote the Dynamo Python script as a pyRevit Agent Runtime `run_query` script that takes its rules as `inputs` (no DocumentManager, no `OUT`, no CSV writes); added the type-parameter lookup, language-independent built-in parameters, and `HasValue` for zero values; and the archi-magic house rules below.

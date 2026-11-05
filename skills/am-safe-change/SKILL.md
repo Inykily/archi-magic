@@ -125,6 +125,66 @@ In Windows PowerShell 5.1, write the inner quotes of `--inputs` as `\"` and use 
 
 Both engines work. Under IronPython, the agent runtime cannot return non-ASCII text (for example "Café"). The scripts then escape the text (`\u00e9`) and set `"escaped": true`. The compute and compare commands restore the original text.
 
+## Model version compare: snapshot and diff (issue #183)
+
+Compare model elements across dates, syncs, or milestones to identify added, deleted, modified, and moved elements:
+
+- **Run comparison**:
+  `python skills/am-safe-change/scripts/model_compare.py <before.json> <after.json> [--out <report.md>] [--json]`
+- **Report structure**:
+  - `added`: newly created elements.
+  - `deleted`: removed element IDs.
+  - `modified`: parameter, family, or type changes with previous and new values.
+  - `moved`: location shifts.
+  - Elements deleted and recreated with a new ID report as 1 delete + 1 add (never as a modify).
+
+## Team recipe library and proven fast path (issue #179)
+
+Teams can save successful agent modifications as reusable, versioned recipes.
+
+- **Save a recipe**:
+  `python skills/am-safe-change/scripts/recipe_library.py save --name "<name>" --desc "<description>" --script <path> --run-id <id>`
+- **List team recipes**:
+  `python skills/am-safe-change/scripts/recipe_library.py list [--keyword <text>]`
+- **Fast path for proven recipes**:
+  - A recipe earns `[PROVEN]` status after 3 consecutive clean runs where the dry run matches the preview without warnings.
+  - A proven recipe skips chat confirmation questions and runs straight to the dry run.
+  - The Revit Keep/Discard prompt always stays.
+  - Any stale-guard failure (model changed since preview) or new warning resets the recipe to normal mode.
+
+## Recipe: join geometry by category rules with preview (issue #130)
+
+Join or switch join order for intersecting element pairs based on category hierarchy rules:
+
+1. **Category priority**: define priority order (e.g. Columns cut Floors; Floors cut Walls; Structural framing cuts Walls).
+2. **Intersection query**: use `ElementIntersectsElementFilter` or `BoundingBoxIntersectsFilter` to find overlapping pairs.
+3. **Join status check**: inspect `JoinGeometryUtils.AreElementsJoined(doc, a, b)` and `JoinGeometryUtils.IsCuttingElementInJoin(doc, a, b)`.
+4. **Change preview**: display table of candidate pairs, current join state, target cutting element, and action (`join`, `switch order`, `unjoin`).
+5. **Dry run & Keep/Discard**: execute `JoinGeometryUtils.JoinGeometry(doc, a, b)` or `JoinGeometryUtils.SwitchJoinOrder(doc, a, b)` inside transaction. Keep/Discard approval confirms.
+
+## Recipe: renumber any category by path, order, or location (issue #131)
+
+Renumber elements (rooms, doors, parking spaces, grids) sequentially with duplicate prevention:
+
+1. **Element collection**: collect target category elements in selected views or model.
+2. **Sort order calculation**:
+   - By sketched model curve or detail line pick order.
+   - By spatial coordinate: sort by Level elevation, then Y (North/South), then X (East/West).
+   - By selection pick order.
+3. **Prefix and padding**: apply user prefix (e.g. `101`, `102` or `P1-01`), number padding, and step intervals.
+4. **Temporary renumbering**: assign temporary intermediate numbers (`_TEMP_123`) when swapping numbers to avoid Revit duplicate mark/number warnings.
+5. **Dry run & Keep/Discard**: preview old vs new numbers, confirm 0 duplicate collisions, and present in Revit Keep/Discard.
+
+## Recipe: transfer standards between open models (issue #137)
+
+Transfer project standards (view templates, wall types, filters, materials) between open Revit models:
+
+1. **Locate source model**: identify source document by title in `app.Documents` (can be background or linked model).
+2. **Read standards inventory**: read source element types and definitions. Compare names and properties against target active model.
+3. **Collision handling**: report duplicate type names upfront. Ask the user whether to overwrite existing types or rename duplicates.
+4. **Copy execution**: copy selected element types into target model using `ElementTransformUtils.CopyElements(src_doc, element_ids, target_doc, Transform.Identity, copy_options)`.
+5. **Read-back verification**: confirm copied types exist in target model and verify parameter consistency.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.

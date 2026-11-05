@@ -257,6 +257,35 @@ A `run_query` script does not see the agent's `%TEMP%` folder. It sees the `%TEM
 
 Do not guess where a written file went. Make the script return the full path of each file it writes in the `result` dict. Then read the files from those returned paths on the first try.
 
+## Natural-language element selection recipe (issue #129)
+
+Translate descriptive queries (for example: "doors on Level 3 with an empty Fire Rating") into precise selection and isolation:
+
+1. **Scoped read query**: construct a `FilteredElementCollector` using category and level filters. Read target parameter values.
+2. **Result summary**: report total count and display a sample table of matched element IDs and parameters in chat.
+3. **Selection / isolation**: pass the matched `ElementId` list to `show_elements` to highlight them in the active Revit view, or offer to isolate them temporarily with `uidoc.ActiveView.IsolateElementsTemporary()`.
+
+## Recipe: auto-tag untagged elements in views (issue #133)
+
+Find untagged elements (doors, windows, rooms, walls) in selected views and place standard tags:
+
+1. **Collect view elements**: collect target category elements visible in the view.
+2. **Identify tagged elements**: collect all `IndependentTag` instances in the view; extract `GetTaggedLocalElementIds()` or `TaggedLocalElementId` to determine elements already tagged.
+3. **Filter untagged subset**: subtract tagged IDs from the target element set. If 0 elements remain untagged, exit cleanly with no changes.
+4. **Determine tag placement points**: calculate element center or standard offset vector (e.g. wall midpoint, door center offset).
+5. **Dry run & Keep/Discard**: preview untagged element count and proposed tag locations. Execute `IndependentTag.Create(...)` inside transaction and confirm via Revit Keep/Discard.
+
+## Align and distribute annotation elements recipe (issue #134)
+
+Align and evenly distribute tags, text notes, or dimensions along horizontal or vertical axes:
+
+1. **Collect coordinates**: read `TagHeadPosition` or text note `Coord` values in view coordinates.
+2. **Calculate alignment / distribution**:
+   - Alignment: set X or Y coordinate to reference datum or average position.
+   - Distribution: calculate equal spacing delta across sorted coordinate range.
+3. **Bounding-box check**: verify that distributed positions do not collide with adjacent notes, grid lines, or model geometry.
+4. **Execution**: apply position adjustments via `am-safe-change` with dry run and Revit Keep/Discard approval.
+
 ## Query budget
 
 A read query can run for many minutes on a large model. Keep each query inside a budget.

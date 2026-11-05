@@ -73,6 +73,19 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
 - Anything read from the model goes to the AI provider. Use this only on projects where that is allowed.
 - The interactive page is a web page, not a panel inside Claude Code. A mod pane draws only the engine's own elements, with no HTML. The optional `am-schedule-view` mod (a separate plugin in this marketplace) adds `/am-schedule-view <file.json>`. It shows the same JSON in a pane: a paged table, a filter and Copy as TSV.
 
+## Excel round trip for schedules (issue #128)
+
+Export schedule data to CSV for spreadsheet editing, and safely preview edits before writing back to the model:
+
+- **Export schedule to spreadsheet CSV**:
+  `python skills/am-schedule-view/scripts/schedule_roundtrip.py export --schedule <data.json> --out <schedule.csv>`
+- **Validate and preview re-imported edits**:
+  `python skills/am-schedule-view/scripts/schedule_roundtrip.py preview --original <orig.json> --edited <edited.csv> --out <preview.json>`
+- **Safe write-back rules**:
+  - Automatically identifies changed cells with old and new values.
+  - Blocks edits to read-only or calculated parameters (such as `Area`, `Volume`, `Level`, `Count`).
+  - Formats output as an `am-safe-change` preview for dry-run verification and Revit Keep/Discard approval.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.

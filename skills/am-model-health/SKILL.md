@@ -135,6 +135,18 @@ Run the script. Then write, in plain words for an architect:
 
 The check list and the warning thresholds are adapted from `audit-model` and `linked-model-check` in [Utopia5327/claude-plugin-for-revit-bim](https://github.com/Utopia5327/claude-plugin-for-revit-bim/tree/08545c1a6e2cca1ca6cd9d5a1ae6567393f573de/skills) at commit `08545c1a6e2cca1ca6cd9d5a1ae6567393f573de`, by Manas Bhatia, MIT License (see `LICENSE-utopia5327.txt` in this folder). Changes in archi-magic: renamed to `am-model-health`; rewrote the Dynamo Python scripts as one pyRevit Agent Runtime `run_query` script (no DocumentManager, no `OUT`, no CSV writes); added room, duplicate-Mark, view and file-size checks; the dashboard; and the archi-magic house rules below.
 
+## Publish-set preflight checker (issue #135)
+
+Run preflight checks on sheets and views in export or publish sets before exporting to PDF, DWG, or IFC:
+
+- **Run preflight**:
+  `python skills/am-model-health/scripts/publish_preflight.py check --data <publish_set.json> [--out <preflight.json>]`
+- **Preflight checks**:
+  - `PRE-01 (Error)`: empty sheets with zero placed viewports.
+  - `PRE-02 (Warning)`: missing title block metadata (Sheet Number, Sheet Name, Drawn By, Checked By).
+  - `PRE-03 (Warning)`: visible crop boundaries on placed views.
+  - `PRE-04 (Info)`: documentation views not placed on any sheet.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.

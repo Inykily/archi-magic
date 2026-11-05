@@ -1,0 +1,34 @@
+{
+  "name": "Sheet Quality and Metadata",
+  "version": "1.0",
+  "description": "Checks title block parameters and sheet issuance metadata",
+  "rules": [
+    {
+      "id": "SHEET-01",
+      "category": "OST_Sheets",
+      "parameter": "Sheet Name",
+      "condition": "not_empty",
+      "severity": "error",
+      "message": "Sheet name is missing",
+      "fix_hint": "Provide standard sheet title"
+    },
+    {
+      "id": "SHEET-02",
+      "category": "OST_Sheets",
+      "parameter": "Drawn By",
+      "condition": "not_empty",
+      "severity": "warning",
+      "message": "Drawn By initials are empty",
+      "fix_hint": "Enter author initials"
+    },
+    {
+      "id": "SHEET-03",
+      "category": "OST_Sheets",
+      "parameter": "Checked By",
+      "condition": "not_empty",
+      "severity": "warning",
+      "message": "Checked By initials are empty",
+      "fix_hint": "Enter reviewer initials"
+    }
+  ]
+}
