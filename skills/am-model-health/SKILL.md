@@ -147,6 +147,17 @@ Run preflight checks on sheets and views in export or publish sets before export
   - `PRE-03 (Warning)`: visible crop boundaries on placed views.
   - `PRE-04 (Info)`: documentation views not placed on any sheet.
 
+## CAD and DWG audit (issue #188 Phase 1)
+
+Audit a DWG or DXF drawing before you link or import it. The audit is read-only. It needs no AutoCAD session.
+
+- `CAD-LAY-01`: layer names against the AIA discipline-group pattern.
+- `CAD-XREF-01`: missing, circular, or drive-letter xref paths.
+- `CAD-BLK-01`: anonymous blocks and blank required attributes.
+- `CAD-UNIT-01`: `$INSUNITS` is unspecified, or does not match `$MEASUREMENT`.
+- Run: `python skills/am-model-health/scripts/dwg_cad_audit.py <drawing.json> [--output <findings.json>]`
+- The input is a JSON export with `header`, `layers`, `xrefs`, and `blocks`.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.

@@ -149,6 +149,18 @@ Teams can define custom quality checks as JSON packs without writing code. Each 
 - **Hand-off to issue board**:
   Findings convert directly to issue board items via `to_issue_board_findings()`.
 
+## MEP QA audit engine (issue #186 Phase 1)
+
+Audits mechanical, electrical, and plumbing elements for system compliance and connectivity:
+
+- **Audit checks**:
+  - `MEP-SYS-01`: System classification and naming convention.
+  - `MEP-CON-01`: Open connectors and broken distribution ends.
+  - `MEP-FLOW-01`: Missing duct/pipe dimensions and zero calculated flow.
+  - `MEP-CLR-01`: Mechanical equipment maintenance clearance zones.
+- **Run audit**:
+  `python skills/am-issue-board/scripts/mep_qa.py <extracted_elements.json> [--output <findings.json>]`
+
 ## Rules
 
 - Never renumber issues. Never reuse a number.

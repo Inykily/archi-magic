@@ -1,0 +1,25 @@
+{
+  "name": "mep-data",
+  "title": "MEP System & Connector Checks",
+  "category": "MEP",
+  "target_category": "Ducts",
+  "rules": [
+    {
+      "id": "MEP-SYS-01",
+      "severity": "error",
+      "title": "Missing system assignment",
+      "field": "System Type",
+      "operator": "not_empty",
+      "message": "Duct element has no assigned MEP System Type."
+    },
+    {
+      "id": "MEP-FLOW-01",
+      "severity": "warning",
+      "title": "Zero flow on distribution run",
+      "field": "Flow",
+      "operator": "not_equals",
+      "value": "0 CFM",
+      "message": "Duct run indicates zero airflow calculation."
+    }
+  ]
+}
