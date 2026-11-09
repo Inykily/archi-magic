@@ -164,6 +164,16 @@ Build one read-only HTML page that shows the latest audit results and a change p
 - Audit inputs: output of `mep_qa.py`, `dwg_cad_audit.py`, or other audits with a `findings` list.
 - The page escapes all model text. It sets a strict content policy.
 
+## 3D-anchored labels, category framing, and hidden-pane screenshots (issue #199)
+
+- **Rhino navigation in custom three.js viewers**: `am-bim-viewer` uses Rhino mouse controls by default. When configuring a custom three.js `OrbitControls` viewer, set `controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }` (right-drag orbits, `Shift` + right-drag pans automatically, left-click selects, wheel zooms).
+- **3D-anchored labels (`scripts/viewer_labels.py`)**:
+  - **Fixed site anchor**: `{"text": "Main Entry", "position": [x, y, z]}` for site features that stay fixed across options.
+  - **Category/layer bounding-box anchor**: `{"text": "Tower", "category": "Mass", "rel": [0.5, 0.5, 1.0], "offset": [0, 0, 5]}` so the label follows whichever design option is shown (`resolve_label_anchor`).
+  - **Pin tool**: click the model to capture a 3D hit point and format it with `python skills/am-bim-viewer/scripts/viewer_labels.py <view.json> --pin x,y,z --label-text "<text>"`.
+- **Category-scoped framing**: frame the camera on named building categories or layers (`bounds_for_categories`), not on all visible objects, so a far-away site element cannot pull framing off the building.
+- **Hidden browser pane screenshots**: CSS transitions freeze while an in-app browser pane is hidden, making screenshots look dark or half-faded. Disable transitions (`* { transition: none !important; animation: none !important; }`) before capturing a screenshot.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -204,3 +214,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

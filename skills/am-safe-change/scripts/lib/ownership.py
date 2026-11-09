@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Worksharing ownership check for the am-safe-change skill (issue #97).
+"""Worksharing ownership check for the am-safe-change skill (issue #97, #195).
 
 In a workshared model, Revit refuses to change an element that another
 user borrows. The refusal rolls back the whole run, after the user has
@@ -74,20 +74,27 @@ def check(read):
 
     Returns a dict with keys: workshared, total, others ([{id, owner,
     category, name}]), mine, not_owned, missing ([id]), updated
-    ([id], UpdatedInCentral), blocked, line (one sentence).
+    ([id], UpdatedInCentral), id_changed ([{from, to, category, name}]),
+    blocked, line (one sentence).
     """
     read = unwrap(read)
     if not read.get("workshared"):
         return {"workshared": False, "total": 0, "others": [], "mine": 0,
-                "not_owned": 0, "missing": [], "updated": [], "blocked": False,
+                "not_owned": 0, "missing": [], "updated": [], "id_changed": [],
+                "blocked": False,
                 "line": "The model is not workshared. No ownership check is needed."}
     els = read.get("elements") or []
-    others, missing, updated = [], [], []
+    others, missing, updated, id_changed = [], [], [], []
     mine = not_owned = 0
     for e in els:
         if not e.get("exists", True):
             missing.append(e["id"])
             continue
+        if e.get("id_changed"):
+            id_changed.append({"from": e.get("requested_id", e["id"]),
+                               "to": e["id"],
+                               "category": e.get("category", ""),
+                               "name": e.get("name", "")})
         status = e.get("status")
         if status == "OwnedByOtherUser":
             others.append({"id": e["id"], "owner": e.get("owner") or "another user",
@@ -101,10 +108,11 @@ def check(read):
     total = len(els) - len(missing)
     line = "%d of %d elements owned by others." % (len(others), total)
     if others:
-        line ="%d of %d elements owned by others. Owners: %s." % (
+        line = "%d of %d elements owned by others. Owners: %s." % (
             len(others), total, _owner_counts(others))
     return {"workshared": True, "total": total, "others": others, "mine": mine,
             "not_owned": not_owned, "missing": missing, "updated": updated,
+            "id_changed": id_changed,
             "blocked": bool(others or updated), "line": line}
 
 
@@ -197,6 +205,9 @@ def text_table(summary, limit=20):
     if summary["updated"]:
         out.append("Updated in central (Reload Latest first): %s."
                    % ", ".join(str(i) for i in summary["updated"]))
+    if summary.get("id_changed"):
+        out.append("Ids changed since the run (likely Sync with Central): %s."
+                   % ", ".join("%s -> %s" % (c["from"], c["to"]) for c in summary["id_changed"]))
     if summary["missing"]:
         out.append("Not in the model: %s." % ", ".join(str(i) for i in summary["missing"]))
     if summary["workshared"]:

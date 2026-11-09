@@ -306,6 +306,11 @@ A read query can run for many minutes on a large model. Keep each query inside a
 - When code must run on several Revit years, check each one with `-AllYears` and branch on the differences.
 - pyRevit scripts run on IronPython 2.7 by default: no f-strings. For element ids, use the pattern in "Revit 2026 differences" above.
 
+## `capture_view` argument check and post-sync element IDs (issue #195)
+
+- **`capture_view` argument name**: pass `view` (view name or id), never `view_id` or `viewId`. The MCP tool ignores unknown arguments and silently captures the active view. Always verify that the returned `view_name` matches the requested view (`python skills/am-revit-api-docs/scripts/mcp_guards.py`).
+- **Post-sync element IDs**: after Synchronize with Central, Revit can assign new `ElementId` values to newly created elements when central already used the temporary ids. Before reporting that committed elements "no longer exist (undone or deleted)", re-find them by `UniqueId`, `SharedParameterElement.Lookup(doc, guid)`, or a stable key such as `(level, location)` (`reconcile_post_sync_elements` in `mcp_guards.py`).
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -346,3 +351,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

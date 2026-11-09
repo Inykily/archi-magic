@@ -59,6 +59,15 @@ Use this workflow to create presentation department diagrams with rounded-corner
 
 Adapted from the `analyze-rooms` skill of [Utopia5327/claude-plugin-for-revit-bim](https://github.com/Utopia5327/claude-plugin-for-revit-bim/tree/08545c1a6e2cca1ca6cd9d5a1ae6567393f573de/skills/analyze-rooms) at commit `08545c1a6e2cca1ca6cd9d5a1ae6567393f573de`, MIT License, copyright (c) 2025 Manas Bhatia. See `LICENSE-utopia5327.txt`. The Dynamo Python scripts were rewritten for the pyRevit Agent Runtime, and area-plan totals and room status checks were added.
 
+## Pre-delete area scheme dependent check (issue #197)
+
+Deleting an `AreaScheme` in Revit deletes every element in `AreaScheme.GetDependentElements()`, which can include placed areas that belong to **another** active area scheme.
+
+- **Run before any area scheme delete**:
+  `python skills/am-area-report/scripts/area_scheme_dependents.py <schemes.json> [--out <report.json>] [--export-restore <bundle.json>]`
+- Lists each scheme's dependents by category, groups dependent `Areas` by their own `AreaScheme`, and warns with counts per scheme and level when deleting scheme X would delete areas of scheme Y.
+- When clean, reports `"No cross-scheme areas (scheme '<X>' has <N> own area(s))."` as a positive control.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -99,3 +108,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

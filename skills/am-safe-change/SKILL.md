@@ -185,6 +185,20 @@ Transfer project standards (view templates, wall types, filters, materials) betw
 4. **Copy execution**: copy selected element types into target model using `ElementTransformUtils.CopyElements(src_doc, element_ids, target_doc, Transform.Identity, copy_options)`.
 5. **Read-back verification**: confirm copied types exist in target model and verify parameter consistency.
 
+## Recipe: restore deleted areas and area tags (issue #197)
+
+Use this workflow to check area scheme dependents before deleting a scheme, or to restore deleted areas and their tags from an earlier model version:
+
+1. **Pre-delete cross-scheme check and backup**: run `skills/am-area-report/scripts/area_scheme_dependents.py` with `--export-restore` to record each area's scheme, level, location point, area, perimeter, workset, name, filled parameters, and each tag's owner view (by `UniqueId`, not name), tag type, head position, and leader state.
+2. **Even-odd boundary hole test**: when testing if a target point is already covered by an existing area (`GetBoundarySegments`), count how many loops of that area contain the point (`point_in_area_loops` in `area_scheme_dependents.py`). A point inside an outer loop and inside an interior courtyard/hole loop is inside 2 loops (even) and is not covered.
+3. **Re-place areas**: call `doc.Create.NewArea(view, UV)` in one non-dependent area plan per level, then restore number, name, workset, and parameters.
+4. **Re-place area tags (Revit 2026 rules)**:
+   - `doc.Create.NewAreaTag(view, area, UV)` ignores the UV point and places the tag head at `(0, 0)`.
+   - **Tag without leader**: call `doc.Regenerate()`, then `ElementTransformUtils.MoveElement(doc, tag.Id, target - tag.TagHeadPosition)` (setting `TagHeadPosition` directly fails when `(0, 0)` is outside the area).
+   - **Tag with leader**: call `tag.MoveToReferenceLocation()`, `doc.Regenerate()`, set `tag.HasLeader = True`, then set `tag.TagHeadPosition = target` (so the leader end stays on the area location point).
+5. **Five pre-commit guards**: run `verify_restore_guards()` in `area_scheme_dependents.py` inside the transaction: count guard, per-area size check (`0.0 sf` tolerance), parameter read-back, a self-test that plants one wrong value and requires 1 difference, and an "all other areas unchanged" check. Only then commit and present Keep/Discard.
+6. **Post-sync verification**: after Synchronize with Central, Revit can assign new `ElementId` values to newly created areas and tags. Re-find restored elements by stable key (`level + location point`), not by pre-sync `ElementId`.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -225,3 +239,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.
