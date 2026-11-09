@@ -1,6 +1,6 @@
 ---
 name: am-markup-intake
-description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". Also turns a local narrated MP4 into a numbered draft task list with timestamped frames and explicit review, and checks local project document tables against a Revit schedule snapshot. NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
+description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". Also turns a local narrated MP4 into a numbered draft task list with timestamped frames and explicit review, prepares confirmed product PDF dimensions for family authoring, and checks local project document tables against a Revit schedule snapshot. NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
 ---
 
 # am-markup-intake
@@ -173,6 +173,38 @@ The comparison lists each changed value with the file, sheet or table, and docum
 The CLI compares trimmed display text. Enter leading-zero room IDs as text. Normalize units and formatted numbers in the source before you compare. Duplicate keys, formulas, merged cells, and scanned PDFs require a clean source table. The PDF reader supports selectable-text tables with visible rules.
 
 Exit code 0 means extraction worked or the inputs match. Exit code 1 means the comparison found differences. Exit code 2 means the inputs could not be checked.
+
+## Confirm dimensions from a local product PDF
+
+Run this workflow on your own computer. Keep the PDF and output files private. Use the same local document requirements as the schedule comparison. The PDF must have a selectable-text table. Choose one product variant. Find the exact table cells that describe it.
+
+1. Make a mapping JSON file. Give each field a one-based page, table, row and column. Count the header as a row. Supply the source unit for a number whose label has the unit. Length units are mm, cm, m, in and ft. Use one decimal number per cell.
+2. Map width, depth and height. Also map a connector field, such as connector_service, or all six clearance sides. The sides are clearance_left, clearance_right, clearance_front, clearance_back, clearance_below and clearance_above. Enter each side as its own nonnegative offset from the equipment face. A zero offset must come from the mapped source. Additional product fields start with parameter_.
+3. Generate and inspect the preview and decision template. Show the numbered rows as a table with field, PDF cell, extracted text and confirmed units. Compare each row with the original PDF. To correct a field, fix its mapping and generate a new preview. Set each decision action to "accept" only after checking that row. Keep the decision order.
+
+```sh
+python scripts/spec_family_cli.py preview Equipment.pdf --mapping mapping.json > preview.json
+python scripts/spec_family_cli.py template --preview preview.json > decisions.json
+python scripts/spec_family_cli.py confirm Equipment.pdf --mapping mapping.json --preview preview.json --decisions decisions.json > confirmed.json
+```
+
+Example mapping for one product variant.
+
+```json
+{
+  "product": "Example unit",
+  "variant": "Demo-1",
+  "fields": [
+    {"name": "width", "page": 1, "table": 1, "row": 2, "column": 2},
+    {"name": "depth", "page": 1, "table": 1, "row": 3, "column": 2, "unit": "cm"},
+    {"name": "height", "page": 1, "table": 1, "row": 4, "column": 2},
+    {"name": "connector_service", "page": 2, "table": 1, "row": 2, "column": 2}
+  ]
+}
+```
+
+The confirmed report gives lengths as decimal strings in millimetres. It includes the PDF name and each value's page and table position. It authorizes no model writes. Family geometry, RFA load and project placement are separate Revit steps that still need live qualification.
+
 
 ## House rules (all am-* skills)
 

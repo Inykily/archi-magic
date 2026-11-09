@@ -107,6 +107,7 @@ Optional add-ons, installed only when the user needs them:
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | "send feedback to archi-magic", "reflect on this session", "report this to the archi-magic team" | `am-feedback` | Reflect read-only, remove private data, check duplicates, show the draft, post only after the user says yes |
+| "confirm dimensions from this product PDF" | `am-markup-intake` | Review mapped PDF values and record their source pages before family authoring |
 | "compare room data from Excel", "check a local project document" | `am-markup-intake` | Extract a local XLSX, DOCX, or PDF table and compare selected values against an itemized Revit schedule snapshot |
 | "turn this narrated screen recording into tasks" | `am-markup-intake` | Transcribe a local MP4, sample frames, and review the numbered proposals locally |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
