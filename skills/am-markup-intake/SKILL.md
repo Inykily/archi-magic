@@ -1,6 +1,6 @@
 ---
 name: am-markup-intake
-description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". Also checks local project document tables against a Revit schedule snapshot. NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
+description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". Also turns a local narrated MP4 into a numbered draft task list with timestamped frames and explicit review, and checks local project document tables against a Revit schedule snapshot. NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
 ---
 
 # am-markup-intake
@@ -19,7 +19,28 @@ A "markup" is one reviewer mark: a cloud, a callout, a text box, a strike-out, a
 
 Run these scripts. Do not rewrite them.
 
-## Steps
+## Review a local narrated MP4
+
+Use this section for a narrated screen recording. Run the commands in a terminal on your computer. Keep the recording, frames, narration and reports in a private local folder. Open them locally for review. Share only a redacted summary you approve. The provider warning in the still-markup steps below applies to that separate workflow.
+
+1. Prepare a local MP4, up to five minutes and 256 MiB, with English narration and one video and one audio stream starting together. Name each view or element ID as you point at it. You need Python 3.8 or later, local FFmpeg and ffprobe, a local whisper.cpp CLI, and a compatible local English model. Use trusted installed executables. The CLI has no installer or download step. The validation used FFmpeg 8.1.2 and whisper.cpp 1.9.5.
+2. Create the draft in a new local folder.
+
+   ```sh
+   python scripts/narrated_recording_cli.py preview "review.mp4" --out "local-preview" --model "/path/to/ggml-tiny.en.bin" --whisper "/path/to/whisper-cli"
+   ```
+
+   Add `--click-time 90.5` for a known click, in seconds from the start. Repeat for each known click. The tool also samples speech, pauses and scene changes. `preview.json` lists numbered proposals with the original narration, estimated times, local PNG names and candidate references. Check every item and frame, including the sampled pauses and view changes. Correct missed or combined requests with the task text, or rerun with separate narrated requests. The tool proposes references from what it hears. Supply an exact view, sheet or element ID when the image shows one and the narration omits it.
+3. Copy `review-template.json` to `decisions.json`. Keep its preview digest and item numbers. Set each action to `accept`, `reject` or `edit`. An edit also needs the full corrected `text` and a `references` list, for example `{"id":2,"action":"edit","text":"Verify the floor finish","references":["view A102"]}`. An item with an unresolved target needs an edit with a concrete reference or a rejection.
+4. Run the separate review command. Read the reviewed tasks locally.
+
+   ```sh
+   python scripts/narrated_recording_cli.py review "review.mp4" --preview "local-preview/preview.json" --decisions "local-preview/decisions.json"
+   ```
+
+   The result lists the accepted and edited tasks with their evidence. An all-rejected review produces an empty list. Keep recording reports out of the still-markup consolidator. Use the separate `am-safe-change` preview, dry run and Keep/Discard before any later change to the model.
+
+## Steps for still markups
 
 1. **Get the files.** Ask for the folder or the files, unless the user gave them. Then run:
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<skill dir>\scripts\inventory.ps1" -Path "<folder>" -Json "<work>\inventory.json"`
@@ -126,7 +147,7 @@ If the user's computer has no Python, do the same work in chat:
 - Keep the markup files unchanged. Write only to the work folder, and to the markup folder only after the user says yes.
 - A sheet number from the PDF text layer (`sheetCandidates`) is a hint. The title block on the page image decides.
 - If a page or an image is unreadable, say which one. Do not skip it in silence.
-- Everything read from the markups and the model goes to the AI provider. Use this skill only on projects where that is allowed.
+- In the still-markup workflow, everything read from the markups and the model goes to the AI provider. Use this skill only on projects where that is allowed.
 
 ## Tests
 

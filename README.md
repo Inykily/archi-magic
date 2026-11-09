@@ -108,6 +108,7 @@ Optional add-ons, installed only when the user needs them:
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
 | "send feedback to archi-magic", "reflect on this session", "report this to the archi-magic team" | `am-feedback` | Reflect read-only, remove private data, check duplicates, show the draft, post only after the user says yes |
 | "compare room data from Excel", "check a local project document" | `am-markup-intake` | Extract a local XLSX, DOCX, or PDF table and compare selected values against an itemized Revit schedule snapshot |
+| "turn this narrated screen recording into tasks" | `am-markup-intake` | Transcribe a local MP4, sample frames, and review the numbered proposals locally |
 | markups, redlines, review comments (PDF, photos) | `am-markup-intake` | Inventory the files; data warning; extract in parallel |
 | "set up Rhino", Rhino questions | `am-rhino-setup` | Run `-Verify`, then the setup |
 | "check my Rhino model", Rhino tolerance, bad objects | `am-rhino-model-health` | Read-only script via `run_python` |
