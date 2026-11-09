@@ -21,17 +21,17 @@ Measured tile grids, drain points and user decisions are project data. Keep them
 ## Steps
 
 1. **Context.** Call `get_context` and `get_skill("revit-scripting")`. If Revit reports a modal dialog, stop. Tell the user which dialog blocks Revit. Never close it yourself. If `get_context` reports two Revit sessions, check the Windows process list: one of them can be a process that is not Revit.
-2. **Ask first.** Use AskUserQuestion before any change. Ask which level (default: the active view), which rooms (default: toilet rooms), and the offset (default: 18 in past the bowl). Skip a question when the project notes already answer it.
+2. **Ask first.** Follow the preview and confirmation steps in `am-safe-change`. Use AskUserQuestion before any change. Ask which level (default: the active view), which rooms (default: toilet rooms), and the offset (default: 18 in past the bowl). Skip a question when the project notes already answer it.
 3. **Find the rooms.** List the rooms on the level with TOILET, RESTROOM, WC, SHOWER, PANTRY or CUSTODIAL in the name. Ask about shower rooms, pantries and custodial closets (see "Placement rules").
-4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, distance past the bowl, snap mode. Ask about every room in `ASK_USER`.
+4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, `room_ids` for a selected subset, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, distance past the bowl, snap mode. Ask about every room in `ASK_USER`.
 5. **Apply.** Run the same script without `dry_run`. Revit asks the user for Keep or Discard. Never set the agent policy to `auto`. Check `z_above_level_should_be_0`: every value must be 0.
-6. **Measure the tile grid.** For each floor in `NEEDS_GRID_MEASURE`, measure the grid (see "How to measure a tile grid"). Then run the script with `grid_offsets` and `resnap: true`. This moves the drains to the tile intersections.
+6. **Measure the tile grid.** For each floor in `NEEDS_GRID_MEASURE`, measure the grid (see "How to measure a tile grid"). Preview the move with `grid_offsets`, `resnap: true` and `resnap_drain_ids`. Use only the IDs returned in `created` for the approved placement. Use a dry run for the preview. Confirm it, then run with Keep or Discard.
 7. **Verify.** Call `show_elements` with `zoom: true` on the new drains. Take a picture with `capture_view` (mode `screen`). Check that each drain is visible and sits on a tile intersection. Tell the user about drains that sit under a tag.
 8. **Learn.** Write the new grid offsets, drain points and user decisions to the project notes.
 
 ## Placement rules (confirmed by a user)
 
-**Code basis.** Many plumbing codes require at least one floor drain in a public toilet room with 3 or more WCs and/or urinals. The drain needs a trap primer (a device that keeps water in the trap, so sewer gas cannot come out). Check the local code with the user.
+Confirm floor drain and trap protection requirements for the project with the user. This skill does not check code compliance.
 
 **Single-user toilet rooms**
 - Put the drain on the WC center line, **18 in past the front of the bowl** (`target_past` 1.5 ft). The script gets the bowl length from the WC bounding box. Wall-hung WCs stick out about 25 to 29 in.
@@ -44,7 +44,7 @@ Measured tile grids, drain points and user decisions are project data. Keep them
   - Men's room: in the aisle between the WC row and the urinal row. Urinals splash, so this is the best spot.
   - Women's room: in the aisle between two stall rows.
 - **How to find the point:** get the entry door. Put the eye 1.5 ft inside the door. Test 1 ft grid points in the room. A point is hidden when the line from the eye crosses the room boundary. Keep hidden points that are at least 1 ft from walls and not inside a stall (more than 5.5 ft from a WC). Pick the aisle center of the stall block. Show the point to the user before you place it.
-- Place it with the script input `points` (for example `{"<room number>": [x, y]}`). The script places the single-user rooms in the same run.
+- Place it with the script input `points` (for example `{"<room element ID>": [x, y]}`). The point must be inside the selected room and clear of its boundary. Check door visibility and stall clearance before approving the point. The script can place single-user drains in the same run.
 
 **Other rooms**
 - **Shower rooms:** the drain goes in the shower. The script does not do showers. It lists them in `ASK_USER`.
@@ -52,7 +52,7 @@ Measured tile grids, drain points and user decisions are project data. Keep them
 - **Custodial closets with a mop sink:** skip. The mop sink is the drain point.
 
 **Tile grid**
-- Snap the drain to the nearest tile intersection that passes the limits. A 12 x 24 in tile can move the drain up to 1 ft along the 24 in side.
+- Check the tile intersections around the target on the same floor. Use the nearest point that passes the limits. Ask the user if none passes.
 - Small tiles and resinous floors (no model pattern): no snap. The drain goes on the exact target.
 - Do not move tags without asking. A drain can sit under a room tag or a material tag.
 
@@ -63,7 +63,7 @@ The Revit API cannot read where a model pattern starts. Each floor element can h
 A floor element's tile grid has X lines at `x = ox + n * gx` and Y lines at `y = oy + m * gy` (internal coordinates, feet). The script reads `gx` and `gy` from the floor material. You must give `ox` and `oy` in `grid_offsets`, one entry for each floor element id.
 
 1. Place the drains first (step 5). They sit on the exact target, not on the grid.
-2. Call `show_elements` with `ids: [<one drain>]` and `zoom: true`. Revit zooms in close. A "no open view" dialog can appear; the tool closes it.
+2. Call `show_elements` with `ids: [<one drain>]` and `zoom: true`. Revit zooms in close. If a dialog blocks Revit, stop and tell the user.
 3. Call `capture_view` with `mode: "screen"`. The drain symbol is at the image center.
 4. Read pixel positions: the drain center (`cx`, `cy`), the nearest vertical tile line (`vx`), the nearest horizontal tile line (`hy`), and one more horizontal line (`hy2`).
 5. Compute: `scale = abs(hy2 - hy) / gy` (pixels per foot). `x_line = drain_x + (vx - cx) / scale`. `y_line = drain_y + (cy - hy) / scale` (the screen Y axis points down). Then `ox = x_line mod gx` and `oy = y_line mod gy`.

@@ -14,12 +14,9 @@
 #   target_past  float optional, ft past the bowl front (default 1.5 = 18")
 #   min_past     float optional, ft past the bowl front, minimum after snap (default 1.0 = 12")
 #   wall_clear   float optional, ft from the room boundary (default 1.0)
-#   moves        dict  optional, {"<drain id>": [x, y]}: only move these drains, place nothing
-#   points       dict  optional, {"<label, e.g. room number>": [x, y]}: also place drains at these
-#                      exact points (multi-stall rooms, where the user chose a hidden aisle point)
-#   ignore_existing bool optional, true = also do rooms that already have a drain (test only, dry run)
-#   resnap       bool  optional, true = move the one existing drain in each room to the snapped point
-#                      (use after you measured grid_offsets); places nothing new
+#   points       dict  optional, {"<room id>": [x, y]}: approved aisle points in selected rooms
+#   resnap       bool  optional, true = move only approved drains onto measured grids
+#   resnap_drain_ids list required with resnap, drain ids from the approved placement's "created" map
 # Python 2.7 syntax (IronPython).
 from pyrevit.api import DB
 import math, System
@@ -33,16 +30,8 @@ view = doc.GetElement(EID(inputs["view_id"]))
 level = view.GenLevel
 phase = doc.GetElement(view.get_Parameter(DB.BuiltInParameter.VIEW_PHASE).AsElementId())
 
-# ---- Move mode: only move existing drains (used after measuring the tile grid). ----------
-if inputs.get("moves"):
-    t = DB.Transaction(doc, "Move floor drains"); t.Start()
-    out = {}
-    for k, xy in inputs["moves"].items():
-        fi = doc.GetElement(EID(k)); p = fi.Location.Point
-        fi.Location.Move(DB.XYZ(xy[0] - p.X, xy[1] - p.Y, 0))
-        out[k] = [round(xy[0] - p.X, 3), round(xy[1] - p.Y, 3)]
-    t.Commit()
-    result = {"moved": out}
+if "moves" in inputs or "ignore_existing" in inputs:
+    raise ValueError("This skill does not support arbitrary moves or bypassing existing drains.")
 else:
     FAM = inputs.get("family_name", "PLBG-FLOOR DRAIN-2D")
     TYP = inputs.get("type_name", "Floor Drain-2D")
@@ -53,6 +42,12 @@ else:
     MINP = float(inputs.get("min_past", 1.0))
     CLR = float(inputs.get("wall_clear", 1.0))
     RESNAP = bool(inputs.get("resnap", False))
+    RESNAP_IDS = set(int(x) for x in inputs.get("resnap_drain_ids", []))
+    POINTS = dict((int(k), v) for k, v in (inputs.get("points") or {}).items())
+    if RESNAP and not RESNAP_IDS:
+        raise ValueError("Resnap requires resnap_drain_ids from the approved placement.")
+    if RESNAP and POINTS:
+        raise ValueError("Resnap does not place new drains; omit points.")
 
     sym = None
     for s in DB.FilteredElementCollector(doc).OfClass(DB.FamilySymbol):
@@ -61,7 +56,10 @@ else:
 
     fixtures = [f for f in DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_PlumbingFixtures)
                 .WhereElementIsNotElementType() if isinstance(f, DB.FamilyInstance) and isinstance(f.Location, DB.LocationPoint)]
-    drains = [f for f in fixtures if f.Symbol.Id == sym.Id]
+    def is_drain(f):
+        name = (f.Symbol.Family.Name + " " + DB.Element.Name.GetValue(f.Symbol)).upper()
+        return f.Symbol.Id == sym.Id or "FLOOR DRAIN" in name or "FLOOR-DRAIN" in name
+    drains = [f for f in fixtures if f.LevelId == level.Id and is_drain(f)]
     def is_wc(f):
         n = (f.Symbol.Family.Name + " " + DB.Element.Name.GetValue(f.Symbol)).upper()
         return ("TOILET" in n or "WATER CLOSET" in n) and f.Symbol.Id != sym.Id
@@ -115,23 +113,44 @@ else:
         return best
 
     report, plan, needs = [], [], {}
-    for r in DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_Rooms):
+    used_points = set()
+    boundary_options = DB.SpatialElementBoundaryOptions()
+    for r in DB.FilteredElementCollector(doc, view.Id).OfCategory(DB.BuiltInCategory.OST_Rooms):
         if r.Area <= 0 or r.LevelId != level.Id: continue
         if ONLY and r.Id.Value not in ONLY: continue
         name = (r.get_Parameter(DB.BuiltInParameter.ROOM_NAME).AsString() or "").upper()
         if not ONLY and not any(k in name for k in KEYS): continue
         bb = r.get_BoundingBox(None); z = bb.Min.Z + 1.0
         x0, y0, x1, y1 = bb.Min.X, bb.Min.Y, bb.Max.X, bb.Max.Y
-        rep = {"room": r.Number, "name": asc(name), "room_id": r.Id.Value}
+        room_id = r.Id.Value
+        rep = {"room": r.Number, "name": asc(name), "room_id": room_id}
+        point = POINTS.get(room_id)
+        if room_id in POINTS:
+            used_points.add(room_id)
         inroom = [dd for dd in drains if r.IsPointInRoom(DB.XYZ(dd.Location.Point.X, dd.Location.Point.Y, z))]
         if RESNAP:
+            selected = [d for d in inroom if d.Id.Value in RESNAP_IDS and d.Symbol.Id == sym.Id]
+            if not selected:
+                continue
             if len(inroom) != 1:
-                rep["skip"] = "resnap: room has %d drains" % len(inroom); report.append(rep); continue
-            rep["drain_id"] = inroom[0].Id.Value
-        elif inroom and not inputs.get("ignore_existing"):
+                rep["skip"] = "ASK: resnap room has more than one drain"; report.append(rep); continue
+            rep["drain_id"] = selected[0].Id.Value
+        elif inroom:
             rep["skip"] = "already has a drain"; report.append(rep); continue
         if any(is_shower(f) and near(f, bb, 0.3) for f in fixtures):
             rep["skip"] = "ASK: room has a shower; drain goes in the shower (not automated)"; report.append(rep); continue
+        curves = [segment.GetCurve() for loop in (r.GetBoundarySegments(boundary_options) or []) for segment in loop]
+        boundaries = [(curve, curve.GetEndPoint(0).Z) for curve in curves]
+        def clear_room(x, y):
+            return (r.IsPointInRoom(DB.XYZ(x, y, z)) and bool(boundaries)
+                    and all(curve.Distance(DB.XYZ(x, y, height)) >= CLR for curve, height in boundaries))
+        if room_id in POINTS:
+            x, y = (float(v) for v in point)
+            if any(math.isnan(v) or math.isinf(v) for v in (x, y)) or not clear_room(x, y):
+                rep["skip"] = "ASK: approved point fails the selected room's boundary clearance"; report.append(rep); continue
+            rep.update({"mode": "user point", "xy": [round(x, 3), round(y, 3)]})
+            report.append(rep); plan.append((str(room_id), x, y, None))
+            continue
         wcs = [f for f in wcs_all if near(f, bb, 0.75)]
         if len(wcs) > 1: wcs = [f for f in wcs if near(f, bb, 0.3)]    # back-to-back WCs on a shared wall
         if len(wcs) != 1:
@@ -162,9 +181,8 @@ else:
             else:
                 boxes.append((dp.X - w - 0.5, dp.Y - w / 2 - 0.25, dp.X + w + 0.5, dp.Y + w / 2 + 0.25))
         def ok(cx, cy):
-            if not r.IsPointInRoom(DB.XYZ(cx, cy, z)): return None
-            if min(cx - x0, x1 - cx, cy - y0, y1 - cy) < CLR: return None
-            past = abs((cx if dx else cy) - wall) - bowl
+            if not clear_room(cx, cy): return None
+            past = dx * (cx - wall) + dy * (cy - wall) - bowl
             if past < MINP - 1e-6: return None
             if any(b[0] <= cx <= b[2] and b[1] <= cy <= b[3] for b in boxes): return None
             return past
@@ -175,11 +193,14 @@ else:
         best = None
         if g and g.get("gx") and g.get("gy") and str(g["floor_id"]) in GRID:
             ox, oy = GRID[str(g["floor_id"])]; gx, gy = g["gx"], g["gy"]
-            for i in range(int(math.floor((x0 - ox) / gx)), int(math.ceil((x1 - ox) / gx)) + 1):
-                for j in range(int(math.floor((y0 - oy) / gy)), int(math.ceil((y1 - oy) / gy)) + 1):
+            ix, iy = (tx - ox) / gx, (ty - oy) / gy
+            for i in range(int(math.floor(ix)), int(math.ceil(ix)) + 1):
+                for j in range(int(math.floor(iy)), int(math.ceil(iy)) + 1):
                     cx, cy = ox + i * gx, oy + j * gy
                     past = ok(cx, cy)
                     if past is None: continue
+                    under_point = tile_grid(cx, cy, bb.Min.Z)
+                    if not under_point or under_point["floor_id"] != g["floor_id"]: continue
                     dist = math.hypot(cx - tx, cy - ty)
                     if best is None or dist < best[0]: best = (dist, cx, cy, past)
             rep["mode"] = "snapped"
@@ -195,37 +216,50 @@ else:
                 needs.setdefault(str(g["floor_id"]), []).append(r.Number)
             else:
                 rep["mode"] = "exact (no model tile pattern)"
+        if RESNAP and rep["mode"] != "snapped":
+            rep["skip"] = "ASK: resnap requires the measured tile grid"; report.append(rep); continue
         rep.update({"xy": [round(best[1], 3), round(best[2], 3)], "moved_ft": round(best[0], 2), "past_bowl_in": round(best[3] * 12, 1)})
-        report.append(rep); plan.append((r.Number, best[1], best[2], rep.get("drain_id")))
+        report.append(rep); plan.append((str(room_id), best[1], best[2], rep.get("drain_id")))
 
-    if not RESNAP:
-        for lab, xy in (inputs.get("points") or {}).items():
-            plan.append((str(lab), float(xy[0]), float(xy[1]), None))
-            report.append({"room": str(lab), "mode": "user point", "xy": [round(xy[0], 3), round(xy[1], 3)]})
+    for room_id in sorted(set(POINTS) - used_points):
+        report.append({"room_id": room_id, "skip": "ASK: point does not identify a selected room in the target view"})
+    if RESNAP:
+        planned_ids = set(row[3] for row in plan)
+        for drain_id in sorted(RESNAP_IDS - planned_ids):
+            report.append({"drain_id": drain_id, "skip": "ASK: drain is not eligible for resnap in the target view"})
 
-    made = {}
-    if plan and RESNAP:
-        t = DB.Transaction(doc, "Snap floor drains to tile grid"); t.Start()
-        for num, x, y, did in plan:
-            fi = doc.GetElement(EID(did)); p = fi.Location.Point
-            if abs(p.X - x) > 1e-4 or abs(p.Y - y) > 1e-4:
-                fi.Location.Move(DB.XYZ(x - p.X, y - p.Y, 0)); made[num] = did
+    made, zs = {}, {}
+    if plan:
+        title = "Snap floor drains to tile grid" if RESNAP else "Place floor drains"
+        t = DB.Transaction(doc, title)
+        t.Start()
+        try:
+            if RESNAP:
+                for room_id, x, y, did in plan:
+                    fi = doc.GetElement(EID(did)); p = fi.Location.Point
+                    if abs(p.X - x) > 1e-4 or abs(p.Y - y) > 1e-4:
+                        if not fi.Location.Move(DB.XYZ(x - p.X, y - p.Y, 0)):
+                            raise RuntimeError("Could not move the approved drain: %s" % did)
+                        made[room_id] = did
+            else:
+                if not sym.IsActive: sym.Activate(); doc.Regenerate()
+                for room_id, x, y, _ in plan:
+                    # With a Level, NewFamilyInstance reads Z as an offset from that level.
+                    fi = doc.Create.NewFamilyInstance(DB.XYZ(x, y, 0), sym, level, DB.Structure.StructuralType.NonStructural)
+                    prm = fi.get_Parameter(DB.BuiltInParameter.INSTANCE_ELEVATION_PARAM) or fi.get_Parameter(DB.BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM)
+                    if prm and not prm.IsReadOnly: prm.Set(0.0)
+                    made[room_id] = fi.Id.Value
+                doc.Regenerate()
+                zs = dict((n, round(doc.GetElement(EID(i)).Location.Point.Z - level.Elevation, 3)) for n, i in made.items())
+                if any(z != 0 for z in zs.values()):
+                    raise RuntimeError("A drain is not at the target level. Placement was rolled back.")
+        except Exception:
+            t.RollBack()
+            raise
         t.Commit()
-        result = {"level": level.Name, "moved": made, "NEEDS_GRID_MEASURE": needs,
-                  "ASK_USER": [x for x in report if str(x.get("skip", "")).startswith("ASK")], "rooms": report}
-    elif plan:
-        t = DB.Transaction(doc, "Place floor drains"); t.Start()
-        if not sym.IsActive: sym.Activate(); doc.Regenerate()
-        for num, x, y, _ in plan:
-            # Z = 0: with a Level, NewFamilyInstance reads Z as the offset from that level.
-            fi = doc.Create.NewFamilyInstance(DB.XYZ(x, y, 0), sym, level, DB.Structure.StructuralType.NonStructural)
-            prm = fi.get_Parameter(DB.BuiltInParameter.INSTANCE_ELEVATION_PARAM) or fi.get_Parameter(DB.BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM)
-            if prm and not prm.IsReadOnly: prm.Set(0.0)
-            made[num] = fi.Id.Value
-        doc.Regenerate()
-        zs = dict((n, round(doc.GetElement(EID(i)).Location.Point.Z - level.Elevation, 3)) for n, i in made.items())
-        t.Commit()
-    if not RESNAP:
-        result = {"level": level.Name, "placed": len(made), "created": made, "NEEDS_GRID_MEASURE": needs,
-                  "ASK_USER": [x for x in report if str(x.get("skip", "")).startswith("ASK")],
-                  "z_above_level_should_be_0": zs if made else None, "rooms": report}
+    result = {"level": level.Name, "NEEDS_GRID_MEASURE": needs,
+              "ASK_USER": [x for x in report if str(x.get("skip", "")).startswith("ASK")], "rooms": report}
+    if RESNAP:
+        result["moved"] = made
+    else:
+        result.update({"placed": len(made), "created": made, "z_above_level_should_be_0": zs or None})
