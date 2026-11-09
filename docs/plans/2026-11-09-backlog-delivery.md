@@ -46,3 +46,7 @@ The audit checked 31 open ideas against existing consumers at the baseline SHA. 
 | #171 | Local dictionary and wording preview implemented on the backlog branch. Validate the documented live note-read to preview path and then publish. |
 | #174 | Folder runner with read-only Revit audits, combined output, and a five-model acceptance case with unchanged source models. |
 | #175 | Local journal report implemented on the backlog branch. Validate its time/model attribution against sanitized real journals before issue closure. The current estimates use a 60-second default window cap. |
+
+## Closure receipt
+
+- #155 completed on GitHub. On merged main 9ec93d4731be4193219aa1875e6524a4b6a09bc7, the documented schedule CSV exporter and carbon CLI reported 200 kgCO2e of known carbon, 1.25 m3 unmapped and a separate zero-factor group from a synthetic takeoff. Adding the missing factor produced a complete 212.5 kgCO2e report. All five focused tests passed. This verifies the calculation and missing-factor behavior. Native quantity extraction and the real Revit schedule comparison remain under #154.
