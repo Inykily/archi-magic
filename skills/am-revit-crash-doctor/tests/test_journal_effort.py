@@ -79,3 +79,60 @@ def test_reports_partial_unreadable_undated_and_outside_range(tmp_path):
     assert data["status"] == "incomplete"
     assert data["coverage"] == {"partial": 1, "unreadable": 1, "undated": 1, "outside_range": 1}
     assert data["activity_windows"] == []
+
+
+def test_revit_wall_command_and_app_exit_have_different_attribution(tmp_path):
+    journal(tmp_path / "journal.0001.txt",
+            marker("12:00:00") + model(r"C:\project.rvt") + marker("12:00:01")
+            + command("OBJECTS_WALL") + marker("12:00:04")
+            + command("APP_EXIT") + marker("12:00:06"))
+    code, data = report(tmp_path)
+    assert code == 0
+    assert data["activity_windows"] == [
+        {"model": "model-1", "command_family": "wall", "estimated_ms": 3000},
+    ]
+    assert data["unassigned_ms"] == {"ambiguous_or_no_command": 3000}
+
+
+def test_exact_document_activation_assigns_windows_in_multimodel_session(tmp_path):
+    journal(tmp_path / "journal.0001.txt",
+            marker("12:00:00") + model(r"C:\one.rvt") + marker("12:00:01")
+            + model(r"C:\two.rvt") + marker("12:00:02")
+            + 'Jrn.Activate "[one]", "View A"\n' + marker("12:00:03")
+            + command("OBJECTS_WALL") + marker("12:00:05")
+            + 'Jrn.Activate "[two.rvt]", "View B"\n' + marker("12:00:06")
+            + command("OBJECTS_FLOOR") + marker("12:00:09"))
+    code, data = report(tmp_path)
+    assert code == 0
+    assert data["activity_windows"] == [
+        {"model": "model-1", "command_family": "wall", "estimated_ms": 2000},
+        {"model": "model-2", "command_family": "floor", "estimated_ms": 3000},
+    ]
+
+
+def test_same_basename_does_not_disambiguate_document_activation(tmp_path):
+    journal(tmp_path / "journal.0001.txt",
+            marker("12:00:00") + model(r"C:\first\same.rvt") + marker("12:00:01")
+            + 'Jrn.Activate "[same]", "View A"\n' + marker("12:00:02")
+            + command("OBJECTS_WALL") + marker("12:00:04")
+            + model(r"C:\second\same.rvt") + marker("12:00:05")
+            + 'Jrn.Activate "[same]", "View B"\n' + marker("12:00:06")
+            + command("OBJECTS_FLOOR") + marker("12:00:09"))
+    code, data = report(tmp_path)
+    assert code == 0
+    assert data["activity_windows"] == [
+        {"model": None, "command_family": "floor", "estimated_ms": 3000},
+        {"model": None, "command_family": "wall", "estimated_ms": 2000},
+    ]
+
+
+def test_activation_can_be_matched_to_path_reported_later(tmp_path):
+    journal(tmp_path / "journal.0001.txt",
+            marker("12:00:00") + 'Jrn.Activate "[first]", "View A"\n' + marker("12:00:01")
+            + command("OBJECTS_WALL") + marker("12:00:04")
+            + model(r"C:\first.rvt") + marker("12:00:05"))
+    code, data = report(tmp_path)
+    assert code == 0
+    assert data["activity_windows"] == [
+        {"model": "model-1", "command_family": "wall", "estimated_ms": 3000},
+    ]

@@ -2,7 +2,7 @@
 
 import argparse
 import codecs
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from io import TextIOWrapper
 import json
@@ -23,6 +23,7 @@ MONTHS = {name: index for index, name in enumerate(
 COMMAND = re.compile(r'^\s*Jrn\.Command\s+"[^"]*"\s*,\s*"[^"]*?,\s*(ID_[A-Z0-9_]+)\s*"')
 EXTERNAL = re.compile(r'^\s*Jrn\.RibbonEvent\s+"Execute external command:', re.IGNORECASE)
 MODEL_OPEN = re.compile(r"\[ISL\] On open, Adler Checksum: \S+ \[(.+\.(?:rvt|rfa))\]", re.IGNORECASE)
+DOCUMENT_ACTIVATION = re.compile(r'^\s*Jrn\.Activate\s+"\[([^"\[\]]+)\]"\s*,', re.IGNORECASE)
 CONTEXT_CHANGE = re.compile(r"^\s*Jrn\.(?:Activate|Close)", re.IGNORECASE)
 MAX_LINE = 1024 * 1024
 MILLISECOND = timedelta(milliseconds=1)
@@ -47,7 +48,8 @@ def scan_journal(path, start, end, max_gap, encoding):
         elif bom.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
             encoding = "utf-16"
         observed_models = set()
-        active_model = None
+        models_by_name = defaultdict(set)
+        active_model = active_name = None
         commands = set()
         ambiguous = False
         attributed = Counter()
@@ -91,9 +93,13 @@ def scan_journal(path, start, end, max_gap, encoding):
                             elif ambiguous or len(commands) != 1:
                                 unassigned["ambiguous_or_no_command"] += milliseconds
                             else:
-                                family = next(iter(commands)).split("_", 1)[0]
+                                parts = next(iter(commands)).split("_")
+                                family = parts[0]
+                                if (family in {"OBJECTS", "ANNOTATIONS"} and len(parts) > 1
+                                        and parts[1] in FAMILIES):
+                                    family = parts[1]
                                 family = family.lower() if family in FAMILIES else "other"
-                                attributed[active_model, family] += milliseconds
+                                attributed[active_model, active_name, family] += milliseconds
                     if previous is None or current != previous:
                         commands.clear()
                         ambiguous = False
@@ -104,11 +110,20 @@ def scan_journal(path, start, end, max_gap, encoding):
                 if model:
                     raw = model.group(1)
                     active_model = ntpath.normcase(ntpath.normpath(raw)) if ntpath.isabs(raw) else None
+                    active_name = None
                     if active_model:
                         observed_models.add(active_model)
+                        filename = ntpath.basename(active_model).casefold()
+                        models_by_name[filename].add(active_model)
+                        models_by_name[ntpath.splitext(filename)[0]].add(active_model)
                     ambiguous = True
-                if CONTEXT_CHANGE.match(line):
+                activation = DOCUMENT_ACTIVATION.match(line)
+                if activation:
+                    active_name = activation.group(1).casefold()
                     active_model = None
+                    ambiguous = True
+                elif CONTEXT_CHANGE.match(line):
+                    active_model = active_name = None
                     ambiguous = True
 
                 command = COMMAND.match(line)
@@ -116,12 +131,12 @@ def scan_journal(path, start, end, max_gap, encoding):
                     command_id = command.group(1)[3:]
                     family = command_id.split("_", 1)[0]
                     commands.add(command_id)
-                    if family in {"REVIT", "FILE", "WINDOW", "CLOSE"}:
-                        active_model = None
+                    if command_id == "APP_EXIT" or family in {"REVIT", "FILE", "WINDOW", "CLOSE"}:
+                        active_model = active_name = None
                         ambiguous = True
                 elif EXTERNAL.match(line):
                     commands.add("EXTERNAL")
-                    active_model = None
+                    active_model = active_name = None
             final = os.fstat(stream.fileno())
             partial |= (initial.st_size, initial.st_mtime_ns) != (final.st_size, final.st_mtime_ns)
     if partial:
@@ -130,13 +145,17 @@ def scan_journal(path, start, end, max_gap, encoding):
         return "undated", Counter(), Counter()
     if not observed and not attributed and not unassigned:
         return "outside_range", Counter(), Counter()
-    # An open record alone cannot identify the active document in a multi-model session.
-    if len(observed_models) > 1:
-        unattributed_models = Counter()
-        for (_, family), duration in attributed.items():
-            unattributed_models[None, family] += duration
-        attributed = unattributed_models
-    return "read", attributed, unassigned
+    qualified = Counter()
+    for (model, name, family), duration in attributed.items():
+        if name:
+            # Revit can log the path after the first activation. Match against
+            # the complete journal so later collisions also stay unassigned.
+            candidates = models_by_name.get(name, ())
+            model = next(iter(candidates)) if len(candidates) == 1 else None
+        elif len(observed_models) > 1:
+            model = None
+        qualified[model, family] += duration
+    return "read", qualified, unassigned
 
 
 def summarize(root, start, end, max_gap, encoding):

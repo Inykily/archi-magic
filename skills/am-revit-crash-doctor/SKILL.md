@@ -49,7 +49,7 @@ python scripts/journal_effort.py --root "<Journals folder>" --from 2026-11-01 --
 
 Dates are local. The report includes November 1 through November 7 in this example. It uses recorded times instead of file dates. Omit `--root` to use the default Revit journal folder on Windows. Use `--encoding cp1252` for legacy Western Windows journals if the default UTF-8 reader cannot read them.
 
-Each estimate is a short window between two logged timestamps with one recognized command ID. The report skips ambiguous windows and gaps longer than 60 seconds by default. A model label refers to a single observed model path in a journal. The label is anonymous and applies only to this report. A blank model means the tool could not assign a model. Do not use these estimates as billing time. Exit code 2 means the report has incomplete coverage or no in-range data. Check the coverage counts before you interpret the totals.
+Each estimate is a short window between two logged timestamps with one recognized command ID. The report leaves ambiguous windows, application shutdown, and gaps over 60 seconds unassigned by default. A model label refers to an observed model path. In a journal with several models, the tool requires an exact document activation that matches one model. The label is anonymous and applies only to this report. A blank model means the tool could not assign a model. Do not use these estimates as billing time. Exit code 2 means the report has incomplete coverage or no in-range data. Check the coverage counts before you interpret the totals.
 
 ## House rules (all am-* skills)
 
