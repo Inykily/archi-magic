@@ -1,6 +1,6 @@
 ---
 name: am-model-health
-description: Read-only health check of the open Revit model through the pyRevit Agent Runtime, as a short ranked report in plain words or as an interactive HTML dashboard with trends across saved snapshots. Checks Revit warnings by type, linked models (loaded, pinned, shared-coordinates hints), in-place families, unplaced, not-enclosed and redundant rooms, duplicate Marks, a CAD link audit (path, status, personal sync folders, placement, views that show it), views with heavy 2D content ranked by severity, views not on sheets, file size, and color fill scheme usage by view, template and legend. Use when the user asks "check my model", "model health", "is my model clean", "how many warnings", "BIM QC", "link status", "where are the DWG files", "CAD link audit", "heavy 2D views", "model dashboard", "what is using these color schemes", before a submission or when the model is slow. NOT for checking that required parameter values are filled in (use am-param-qa), NOT for worksets (use am-workset-audit), NOT for a Revit crash (use am-revit-crash-doctor), and NOT for setting up the Revit connection (use am-pyrevit7-setup).
+description: Read-only health check of the open Revit model through the pyRevit Agent Runtime, as a short ranked report in plain words or as an interactive HTML dashboard with trends across saved snapshots. Checks Revit warnings by type, linked models (loaded, pinned, shared-coordinates hints), in-place families, unplaced, not-enclosed and redundant rooms, duplicate Marks, a CAD link audit (path, status, personal sync folders, placement, views that show it), views with heavy 2D content ranked by severity, views not on sheets, file size, and color fill scheme usage by view, template and legend. Use when the user asks "check my model", "model health", "is my model clean", "how many warnings", "BIM QC", "link status", "where are the DWG files", "CAD link audit", "heavy 2D views", "model dashboard", "what is using these color schemes", before a submission or when the model is slow. Also reads local DWG and DXF files for layer, external reference, block and unit audits. Use when the user asks "audit this DWG file". NOT for checking that required parameter values are filled in (use am-param-qa), NOT for worksets (use am-workset-audit), NOT for a Revit crash (use am-revit-crash-doctor), and NOT for setting up the Revit connection (use am-pyrevit7-setup).
 ---
 
 # am-model-health
@@ -149,14 +149,14 @@ Run preflight checks on sheets and views in export or publish sets before export
 
 ## CAD and DWG audit (issue #188 Phase 1)
 
-Audit a DWG or DXF drawing before you link or import it. The audit is read-only. It needs no AutoCAD session.
+Audit a local drawing before linking it. This workflow reads the drawing without starting AutoCAD. Keep drawing data and audit results private.
 
-- `CAD-LAY-01`: layer names against the AIA discipline-group pattern.
-- `CAD-XREF-01`: missing, circular, or drive-letter xref paths.
-- `CAD-BLK-01`: anonymous blocks and blank required attributes.
-- `CAD-UNIT-01`: `$INSUNITS` is unspecified, or does not match `$MEASUREMENT`.
-- Run: `python skills/am-model-health/scripts/dwg_cad_audit.py <drawing.json> [--output <findings.json>]`
-- The input is a JSON export with `header`, `layers`, `xrefs`, and `blocks`.
+- DXF. Use local Python with ezdxf 1.4.5. Run `python scripts/dwg_cad_audit.py drawing.dxf`.
+- DWG. Use a trusted local LibreDWG 0.14 `dwgread` executable. Run `python scripts/dwg_cad_audit.py drawing.dwg --dwgread "/absolute/path/to/dwgread"`. The qualified DWG versions are AC1015 and AC1032.
+- Add `--output findings.json` to save the report at a new path. Without it, the command prints JSON. Existing inventory JSON inputs still work.
+- Check the inventory for layers, external references, block definitions and attributes, and unit settings. The report gives layer colors and linetypes, attribute definitions and stored values. It does not assess office policies or determine purge safety.
+- An external reference is an Xref. The audit checks regular files under the drawing directory. It identifies a direct self-reference. Nested Xrefs and unsafe paths remain unchecked.
+- Exit 0 means the supported checks ran with no errors. Exit 1 means they ran and found an error. Exit 2 means the audit failed. Exit 3 means the report has incomplete coverage. Read its notes and findings.
 
 ## Area scheme cross-dependent standing check (issue #197)
 

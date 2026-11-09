@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import re
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -259,13 +260,45 @@ def run_cad_audit(drawing_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+
+def audit_file(args):
+    from cad_file_inventory import FILE_LIMIT, inspect_drawing, local_path
+
+    try:
+        drawing = inspect_drawing(args.input, args.dwgread)
+        result = run_cad_audit(drawing)
+        result.update(status="incomplete" if drawing["notes"] else "audited",
+                      inventory=drawing)
+        report = result if args.output or not args.summary else {
+            key: result[key] for key in ("drawing_name", "status", "summary")
+        } | {"notes": drawing["notes"], "coverage": drawing["coverage"]}
+        encoded = (json.dumps(report, ensure_ascii=True, indent=2) + "\n").encode()
+        if len(encoded) > FILE_LIMIT:
+            raise ValueError("Audit report exceeds the supported size.")
+        if args.output:
+            with local_path(args.output).open("xb") as destination:
+                destination.write(encoded)
+        else:
+            sys.stdout.write(encoded.decode("ascii"))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
+        print(f"CAD audit failed: {error}", file=sys.stderr)
+        return 2
+    if drawing["notes"]:
+        return 3
+    return int(result["summary"]["errors"] > 0)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="AutoCAD / DWG & DXF Audit Tool (Issue #188 Phase 1)")
-    parser.add_argument("input", help="Path to JSON file containing extracted CAD drawing data")
+    parser.add_argument("input", help="Path to a local DWG, DXF or JSON drawing inventory")
     parser.add_argument("--output", help="Path to write issue findings JSON")
     parser.add_argument("--summary", action="store_true", help="Print summary only")
 
+    parser.add_argument("--dwgread", help="Absolute path to trusted LibreDWG 0.14 dwgread")
     args = parser.parse_args()
+
+    if Path(args.input).suffix.lower() in {".dxf", ".dwg"}:
+        return audit_file(args)
 
     if not os.path.isfile(args.input):
         print(f"Error: input file '{args.input}' not found.", file=sys.stderr)
