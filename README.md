@@ -94,11 +94,13 @@ Optional add-ons, installed only when the user needs them:
 | add floor drains to toilet rooms, "where does the floor drain go" | `am-floor-drain` | Read the private project notes, ask level and rooms, then dry run and show the table. Multi-stall rooms: find a point out of sight from the door and show it first |
 | "check my model", "model health", "dashboard", "where are the DWG files", "heavy 2D views" | `am-model-health` | Read-only query; offer the dashboard |
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
+| "material quantities by level", "estimate embodied carbon" | `am-material-audit` | Read selected material quantities or report carbon from takeoff volumes and user-supplied factors |
 | "which materials are unused", "list materials", "material colors" | `am-material-audit` | Read-only query; lists materials by name prefix with colors and patterns, flags duplicates and low contrast |
 | "fill standards", "filled region check", "which fill types are unused", "reference view sync", "check my hatch names" | `am-fill-standards` | Read-only query; renames and sync go through dry run + Keep/Discard |
 | "reference sample view", "one sample per type", "sample drawn with that type" | `am-reference-samples` | Run the coverage check first (read only); then fix samples, then labels; dry run, then Keep/Discard |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
 | "issue board", keep findings and to-dos in the model, add or close an issue in a text note | `am-issue-board` | Ask which view; read the note (read only); plan an in-place edit; dry run, then Keep/Discard |
+| "find missing keynote keys", "edit the keynote file" | `am-shared-text-check` | Compare verified tag keys with the keynote tree and stage edits in a new file with a backup |
 | "shared model text check", "check text notes for a second firm", internal wording or personal paths in the model | `am-shared-text-check` | Ask for the views and the terms; read every matching view (read only); show the change list; changes go through am-safe-change |
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |

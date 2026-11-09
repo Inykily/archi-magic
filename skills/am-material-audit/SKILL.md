@@ -1,6 +1,6 @@
 ---
 name: am-material-audit
-description: Read-only audit of Revit materials whose names start with a prefix you give (for example "Floor Finish"), through the pyRevit Agent Runtime. Lists each material with its Shading color, Transparency, Surface Pattern foreground and background (pattern name and RGB color) and Cut pattern, all in RGB by default, and flags duplicates (two materials with the same colors) and low pattern contrast (foreground too close to background). Detects unused materials with a scoped check (compound-structure layers of floor, wall, roof and ceiling types, then family materials) and reports what it did not check, so "which Floor Finish materials are unused" gets an answer without a full-model scan. Use when the user asks "which materials are unused", "list materials by name", "material colors", "material audit", "audit table", "what is the shading color of", or for a material cleanup before a purge. Also audits texture image paths in appearance assets: missing files, Autodesk library resolution, and empty or unreadable assets. Use when the user asks about missing textures or texture paths. NOT for changing materials (use am-safe-change; texture repaths use its repath-texture-images recipe), NOT for whole-model health (use am-model-health), and NOT for Rhino materials.
+description: Read-only audit of Revit materials whose names start with a prefix you give (for example "Floor Finish"), through the pyRevit Agent Runtime. Lists each material with its Shading color, Transparency, Surface Pattern foreground and background (pattern name and RGB color) and Cut pattern, all in RGB by default, and flags duplicates (two materials with the same colors) and low pattern contrast (foreground too close to background). Detects unused materials with a scoped check (compound-structure layers of floor, wall, roof and ceiling types, then family materials) and reports what it did not check, so "which Floor Finish materials are unused" gets an answer without a full-model scan. Use when the user asks "which materials are unused", "list materials by name", "material colors", "material audit", "audit table", "what is the shading color of", or for a material cleanup before a purge. Also audits texture image paths in appearance assets: missing files, Autodesk library resolution, and empty or unreadable assets. Use when the user asks about missing textures or texture paths. Also estimates embodied carbon from material volumes and a user factor table. NOT for changing materials (use am-safe-change; texture repaths use its repath-texture-images recipe), NOT for whole-model health (use am-model-health), and NOT for Rhino materials.
 ---
 
 # am-material-audit
@@ -129,6 +129,24 @@ python "<skill dir>\scripts\audit_report.py" --read read.json --out audit.json
 ```
 
 Both engines work. Under IronPython, the agent runtime cannot return non-ASCII text (for example "Café"). The read script smuggles it through as Latin-1 bytes (see `jsonable` in `scripts/read_materials.py`, same method as `am-model-health`). The compute step restores the original text when a result says `"escaped": true`.
+
+## Read material quantities by category and level
+
+Run `scripts/read_material_quantities.py` with `run_query`. Pass `element_ids` for 1 to 500 host elements. For more elements, use disjoint batches.
+
+Decode the `payload` JSON. The report groups geometry and compound-layer areas and volumes by material, category, and level IDs. Report missing quantities and unknown levels separately. Do not substitute zero for a failed read. Paint and linked documents are outside this report.
+
+Before using the totals, compare them to a material takeoff with the same elements and scope. Investigate any difference above 1%.
+
+## Estimate embodied carbon from a material takeoff
+
+1. Export the material takeoff with `am-schedule-view`. Keep one detail row per material quantity. Exclude subtotal and group rows.
+2. Prepare a UTF-8 CSV with `material,category,level,volume_m3`. Use decimal numbers in cubic metres. Use the same material key in both files.
+3. Prepare a second CSV with `material,kg_co2e_per_m3`. Use one factor per material and a consistent life-cycle scope. Ask the user to supply the factors.
+4. Run `python scripts/carbon_report.py --volumes <takeoff.csv> --factors <factors.csv>`. The JSON gives known carbon and mapped volume per category and level. Numeric totals are decimal strings.
+5. Show the unmapped material rows and their volumes before showing carbon totals. A missing factor never counts as zero. A null total means the tool had no mapped rows in that group.
+
+Exit code 0 means every supplied row has a factor. Exit code 1 means the report has unmapped materials. Exit code 2 means an input error. The report covers the supplied takeoff rows and factors. Keep the files outside the public repository.
 
 ## House rules (all am-* skills)
 

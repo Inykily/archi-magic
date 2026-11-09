@@ -1,6 +1,6 @@
 ---
 name: am-shared-text-check
-description: Read-only check of Revit text notes before a model goes to a second firm. It finds internal wording, personal file paths and email addresses in the standards view, reference views, start or sync views, issue board notes, or every text note. It reads every view that matches a name, never only the first match. Use when the user asks "shared model text check", "check text notes for a second firm", "internal wording in the model", "personal paths in text notes". It also checks spelling and abbreviations against the office dictionary. NOT for changing the model (use am-safe-change), NOT for the issue board itself (use am-issue-board).
+description: Read-only check of Revit text notes before a model goes to a second firm. It finds internal wording, personal file paths and email addresses in the standards view, reference views, start or sync views, issue board notes, or every text note. It reads every view that matches a name, never only the first match. Use when the user asks "shared model text check", "check text notes for a second firm", "internal wording in the model", "personal paths in text notes". It also checks spelling and abbreviations against the office dictionary. It also audits a local Revit keynote file against supplied tag keys. NOT for changing the model (use am-safe-change), NOT for the issue board itself (use am-issue-board).
 ---
 
 # am-shared-text-check
@@ -78,6 +78,17 @@ Use this recipe to rewrite reference text notes into Simplified Technical Englis
 - Never change the model with this skill. It reads only.
 - Never post firm terms, paths or names to issues or pull requests. Terms can be firm-internal. Keep them in the session.
 - Scripts run on IronPython 2.7: no f-strings. Element ids use `ElementId.Value` and `DB.ElementId(System.Int64(n))` in Revit 2026.
+
+## Audit and edit a keynote text file
+
+1. Find the local keynote text file in Revit's Keynoting Settings. Use a copy for an edit.
+2. Read the actual keynote keys from the tags in scope. Displayed tag text can be a description or a sheet number. Do not use it as the key without verification. Keep tags with unknown keys on a separate list.
+3. Save the verified tag keys outside this repository as JSON, for example `[{"tag_id": 10, "key": "A-01"}]`. Include every tag in scope before you report a key as unused. Use `[]` for a tree-only audit.
+4. Run `python scripts/keynote_file.py audit --keynotes <keynotes.txt> --usage <tag-keys.json>`. Show the tree, missing keys with tag IDs, and unused leaf keys within the supplied scope.
+5. To edit, change the copy in a text editor. Run `python scripts/keynote_file.py stage --keynotes <source.txt> --usage <tag-keys.json> --candidate <edited-copy.txt> --output <new.txt> --backup <backup.txt>`. This validates the edit, blocks removal of known tagged keys, saves a backup, and writes a new file. Use new paths for output and backup.
+6. Review the report before you select or reload the new file in Revit. The tool never reloads a project or replaces the original file.
+
+The script reads UTF-8 or BOM-marked UTF-16 tab-delimited files. Exit code 1 means the report found missing keys. Exit code 2 means the check or staging failed.
 
 ## House rules (all am-* skills)
 
