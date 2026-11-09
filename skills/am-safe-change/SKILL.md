@@ -199,6 +199,16 @@ Use this workflow to check area scheme dependents before deleting a scheme, or t
 5. **Five pre-commit guards**: run `verify_restore_guards()` in `area_scheme_dependents.py` inside the transaction: count guard, per-area size check (`0.0 sf` tolerance), parameter read-back, a self-test that plants one wrong value and requires 1 difference, and an "all other areas unchanged" check. Only then commit and present Keep/Discard.
 6. **Post-sync verification**: after Synchronize with Central, Revit can assign new `ElementId` values to newly created areas and tags. Re-find restored elements by stable key (`level + location point`), not by pre-sync `ElementId`.
 
+## Check room boundaries before planning finishes
+
+Use this query to check whether selected rooms have usable floor or ceiling boundaries. Call `get_context`. Use Revit 2026 and the active project.
+
+Run `scripts/read_room_finish_boundaries.py` with `run_query`. Pass `room_ids` for up to 20 rooms. Decode the JSON in `payload`. Show excluded rooms with their reasons.
+
+The query checks actual boundary loops on the finish face. It keeps separate loops and source IDs. Loop order alone does not establish which loops are holes. The endpoints are for inspection. Revit must read the original curves before it can build a finish.
+
+This query does not create finishes. Do not use its result as approval to change the model.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
