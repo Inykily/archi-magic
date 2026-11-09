@@ -1,6 +1,6 @@
 ---
 name: am-markup-intake
-description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
+description: Use when the user has review markups/redlines/comments (PDF, Bluebeam, photos, scans) to turn into an action list - reads every markup file, extracts each comment verbatim (PDF annotation layer plus a visual read of each page and image), removes duplicates, flags conflicts between reviewers and low-confidence reads, optionally checks sheet, room and door references against the open Revit model (read only), and writes a prioritized tracker (JSON, CSV and an interactive table). Triggers on "go through these markups", "what do the redlines say", "make an action list from the review comments", "intake the Bluebeam set". Also checks local project document tables against a Revit schedule snapshot. NOT for applying changes (am-safe-change) or schedules (am-schedule-view).
 ---
 
 # am-markup-intake
@@ -131,6 +131,27 @@ If the user's computer has no Python, do the same work in chat:
 ## Tests
 
 `python tests/test_markup_intake.py` runs the tests on the synthetic set in `tests/fixtures/` (no real project data; sheet, room and door numbers are from the Snowdon Towers sample). `python tests/mutate.py` breaks one rule at a time and checks that the tests fail. `tests/fixtures/make_fixtures.py` rebuilds the PDF and PNG.
+
+## Compare a local project document with a Revit schedule
+
+Run this workflow on your own computer. Use a local XLSX, DOCX, or PDF file. A file already synced from ACC or SharePoint is also local. Do not send files, raw cell values, or raw reports to chat or any external service. The CLI reads only local files and makes no model changes.
+
+1. Install the local reader dependencies with `python -m pip install -r requirements-documents.txt`.
+2. Read the matching itemized schedule through `am-schedule-view`. Save its full, non-truncated JSON outside this repository.
+3. Select the document table. Use `--sheet <name>` for XLSX, `--table <number>` for DOCX, or `--page <number> --table <number>` for PDF. These numbers start at 1. Use `--header-row <number>` if the headers are below the first row.
+4. Match each identifying column and compared column by name. Repeat `--key` for a composite key, such as room number and level. Repeat `--field` for each compared value.
+
+```powershell
+python scripts/project_document_cli.py compare "Room data.xlsx" --sheet "Room Data" --schedule-json "schedule.json" --schedule "Room Finish Schedule" --key "Room=Room Number" --field "Floor=Floor Finish" --field "Wall=Wall Finish"
+```
+
+Use `extract` instead of `compare` to read the selected table alone. Omit the schedule, key, and field arguments in that mode. Save the JSON locally if you need a copy.
+
+The comparison lists each changed value with the file, sheet or table, and document row. The schedule row is a position in the saved snapshot. It also lists missing expected keys and rows found only in the snapshot. The check covers those two inputs. It cannot identify rooms excluded by the schedule filter.
+
+The CLI compares trimmed display text. Enter leading-zero room IDs as text. Normalize units and formatted numbers in the source before you compare. Duplicate keys, formulas, merged cells, and scanned PDFs require a clean source table. The PDF reader supports selectable-text tables with visible rules.
+
+Exit code 0 means extraction worked or the inputs match. Exit code 1 means the comparison found differences. Exit code 2 means the inputs could not be checked.
 
 ## House rules (all am-* skills)
 
