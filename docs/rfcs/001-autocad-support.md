@@ -17,6 +17,7 @@ archi-magic currently interfaces with Revit and Rhino. Many architectural office
 
 ### Decision
 - **Read-only audits (Phase 1)** use headless Python parsing (`ezdxf` with DXF/ODA conversion) for instant layer, xref, block, and unit audits without launching AutoCAD.
+- **Phase 1 decoder update**: Use ezdxf 1.4.5 for DXF and an explicitly selected local LibreDWG 0.14 reader for DWG. The seeded R2000 fixture retained its Xref path in native DWG JSON. LibreDWG's DWG-to-DXF export omitted that path. Native decoding supports AC1015 and AC1032 as validated formats. The read-only product reports incomplete scope when nested Xrefs, units or other applicable records cannot be checked.
 - **Interactive modifications (Phase 2)** use a lightweight `.NET` agent connector running inside AutoCAD, adhering strictly to the `am-safe-change` model: change preview, dry-run, and explicit Keep/Discard prompt in the AutoCAD viewport.
 
 ## 3. Phased Implementation Roadmap
