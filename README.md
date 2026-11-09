@@ -84,6 +84,7 @@ Optional add-ons, installed only when the user needs them:
 | "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help") | `am-welcome` | Run its setup check, then show the skill table it builds |
 | "set up pyRevit", "connect Claude to Revit", Revit shows pyRevit 6.x | `am-pyrevit7-setup` | Data warning, then ask the user to close Revit, then run the script |
 | "Claude can't see my Revit", any setup error, after a pyRevit update | `am-doctor` | Run `doctor.ps1` (read-only) and explain each finding |
+| "time spent by model", "summarize Revit journal activity" | `am-revit-crash-doctor` | Run the local journal effort report for the date range and show coverage before interpreting estimated windows |
 | "Revit crashed / froze / closed" | `am-revit-crash-doctor` | Run `crash-doctor.ps1` (read-only, Revit may be closed) |
 | ANY change to the Revit model (renumber, rename, set parameters, move elements, material colors, patterns, graphics overrides, view templates, filters) | `am-safe-change` | Read, then show the before/after preview, ask, dry run, then Keep/Discard |
 | Paste 3D-viewer changes, or move or rotate elements | `am-safe-change` (element-transforms recipe) | Check the JSON, show the before/after preview, dry run, then Keep/Discard |

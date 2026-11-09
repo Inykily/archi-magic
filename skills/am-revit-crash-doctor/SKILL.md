@@ -1,6 +1,6 @@
 ---
 name: am-revit-crash-doctor
-description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when the user says "Revit crashed", "Revit froze", "Revit closed by itself", "Revit has experienced a fatal error", or "Revit keeps crashing". NOT for pyRevit or Claude connection problems (use am-doctor), and NOT for model QA (use am-model-health).
+description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when the user says "Revit crashed", "Revit froze", "Revit closed by itself", "Revit has experienced a fatal error", or "Revit keeps crashing". Also summarizes local journal activity by model and command family. NOT for pyRevit or Claude connection problems (use am-doctor), and NOT for model QA (use am-model-health).
 ---
 
 # am-revit-crash-doctor
@@ -38,6 +38,18 @@ Finds the crash evidence on this computer, analyzes it, and explains it. The tes
    - `RADAR_PRE_LEAK` events: Windows saw Revit memory grow fast. This is a warning, not a crash.
 5. Offer a support pack for IT or Autodesk. Ask first (AskUserQuestion), and say that nothing is uploaded automatically. Only after a yes, run step 2 again with `-SupportPack "<folder the user picks, default Desktop>"`. Tell the user to read the zip before they send it, because redaction cannot catch every project name.
 6. Offer to check again after the user tries the fix. Run step 2 again and compare.
+
+## Estimate effort from local journals
+
+Use this read-only report when the user asks for time by model or command family. Keep journal files on the machine. Run the command on a local Revit journal root or a folder of copied journals.
+
+```powershell
+python scripts/journal_effort.py --root "<Journals folder>" --from 2026-11-01 --to 2026-11-08
+```
+
+Dates are local. The report includes November 1 through November 7 in this example. It uses recorded times instead of file dates. Omit `--root` to use the default Revit journal folder on Windows. Use `--encoding cp1252` for legacy Western Windows journals if the default UTF-8 reader cannot read them.
+
+Each estimate is a short window between two logged timestamps with one recognized command ID. The report skips ambiguous windows and gaps longer than 60 seconds by default. A model label refers to a single observed model path in a journal. The label is anonymous and applies only to this report. A blank model means the tool could not assign a model. Do not use these estimates as billing time. Exit code 2 means the report has incomplete coverage or no in-range data. Check the coverage counts before you interpret the totals.
 
 ## House rules (all am-* skills)
 
