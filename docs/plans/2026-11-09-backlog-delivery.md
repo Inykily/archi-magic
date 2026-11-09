@@ -30,3 +30,19 @@ Baseline: GitHub main f07bc1d28b6f28b46ba1ba25dd9fa0ed258198c2. The GitHub open 
 ## Completion and non-goals
 
 Success is 47 evidenced dispositions and a readback of the remaining open queue. The tracker and epics need child or phase evidence. A reduced-scope implementation, synthetic passing fixture, or repository CI alone leaves host acceptance open. A governance decision may resolve a decision item if the accountable owner records it. Keep public commits and issues free of project and office data. Avoid broad refactors, production model edits, new paid services, and publication on vendor marketplaces without separate authorization. If journal qualification cannot start, record the missing artifact and advance other local work.
+
+## Acceptance audit at the baseline
+
+The audit checked 31 open ideas against existing consumers at the baseline SHA. Existing components are useful starting points, but none of these items met its full acceptance. The following gaps still need evidence.
+
+| Issues | Missing behavior or verification |
+|---|---|
+| #138, #141–#145 | Sheet and cloud revision reconciliation, filter and override writes, batch view creation/placement, and creation of sheets with title-block values. Existing schedule and detail-view tools cover parts of the read/preview steps. |
+| #147, #172 | Automatic in-use type inventory, labels and refresh for door/window legends; finish layer tables and total-width reconciliation for wall/floor legends. Reuse the existing seeded legend-component recipe where supported. |
+| #139, #149, #150, #157, #173 | Repair and handoff for model warnings, Navisworks issue import, RVT/IFC path and visibility checks, architecture/structure comparison, and picking/reading linked elements. |
+| #151–#153, #159–#165 | Element splits, penetration lifecycle, family search and placement, hidden-element diagnosis/unhide, room elevations, parameter formulas and bulk editing, family transfer, previews, and batch loading. |
+| #154–#156 | Material quantities by category and level, project-specific carbon factors, and occupancy and path/width checks. Read actual Revit material quantities before qualifying the takeoff or carbon report. |
+| #158, #167–#169 | Native Revit padded section boxes and crops, topo changes, reference-based alignment and datum creation. Existing browser zoom and explicit moves cover related actions. |
+| #171 | Local dictionary and wording preview implemented on the backlog branch. Validate the documented live note-read to preview path and then publish. |
+| #174 | Folder runner with read-only Revit audits, combined output, and a five-model acceptance case with unchanged source models. |
+| #175 | Local journal report implemented on the backlog branch. Validate its time/model attribution against sanitized real journals before issue closure. The current estimates use a 60-second default window cap. |
