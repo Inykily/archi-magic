@@ -7,6 +7,8 @@ Use it twice in the skill:
   dry run, to find what the current user now borrows.
 
 inputs: {"ids": [123, 456],                       (target element ids)
+         "unique_ids": {"123": "<unique_id>"},    (optional: re-find after sync renumbers ids)
+         "guids": {"456": "<guid>"},              (optional: re-find SharedParameterElement by GUID)
          "categories": ["Views", "Text Notes"],   (optional: scan these for borrowed elements)
          "max_elements": 5000}                    (optional: scan limit, see am-revit-api-docs)
     ownership.py inputs --preview <preview.json> [--dryrun <dryrun.json>] writes this file.
@@ -95,11 +97,40 @@ def element_name(el):
         return ""
 
 
+def find_fallback(i):
+    uid_map = inputs.get("unique_ids") or {}
+    uid = uid_map.get(str(i)) or uid_map.get(i)
+    if uid:
+        try:
+            el = doc.GetElement(str(uid))
+            if el is not None:
+                return el
+        except Exception:
+            pass
+    guid_map = inputs.get("guids") or {}
+    guid_str = guid_map.get(str(i)) or guid_map.get(i)
+    if guid_str:
+        try:
+            import System
+            el = DB.SharedParameterElement.Lookup(doc, System.Guid(str(guid_str)))
+            if el is not None:
+                return el
+        except Exception:
+            pass
+    return None
+
+
 def describe(i):
     eid = make_id(i)
     el = doc.GetElement(eid)
+    id_changed = False
     if el is None:
-        return {"id": i, "exists": False}
+        el = find_fallback(i)
+        if el is None:
+            return {"id": i, "exists": False}
+        eid = el.Id
+        id_changed = True
+    actual_id = eid_int(eid)
     status = enum_name(DB.WorksharingUtils.GetCheckoutStatus(doc, eid), CHECKOUT)
     owner = ""
     if status == "OwnedByOtherUser":
@@ -111,8 +142,12 @@ def describe(i):
         updates = enum_name(DB.WorksharingUtils.GetModelUpdatesStatus(doc, eid), UPDATES)
     except Exception:
         updates = ""
-    return {"id": i, "exists": True, "status": status, "owner": owner,
-            "updates": updates, "category": category_name(el), "name": element_name(el)}
+    out = {"id": actual_id, "exists": True, "status": status, "owner": owner,
+           "updates": updates, "category": category_name(el), "name": element_name(el)}
+    if id_changed or actual_id != i:
+        out["requested_id"] = i
+        out["id_changed"] = True
+    return out
 
 
 def scan(names, limit):

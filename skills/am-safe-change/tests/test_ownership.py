@@ -85,6 +85,17 @@ def test_check_updated_in_central_blocks():
     assert s["line"] == "0 of 1 elements owned by others."
 
 
+def test_check_id_changed_at_sync_reports_renumbered_not_missing():
+    e_renum = {"id": 9001, "requested_id": 5001, "id_changed": True, "exists": True,
+               "status": "NotOwned", "owner": "", "updates": "CurrentWithCentral",
+               "category": "Shared Parameters", "name": "ParamA"}
+    s = ow.check(read([e_renum]))
+    assert s["missing"] == []
+    assert s["total"] == 1
+    assert s["id_changed"] == [{"from": 5001, "to": 9001, "category": "Shared Parameters", "name": "ParamA"}]
+    assert "Ids changed since the run (likely Sync with Central): 5001 -> 9001." in ow.text_table(s)
+
+
 def test_check_missing_not_counted():
     s = ow.check(read([el(1), {"id": 2, "exists": False}]))
     assert s["missing"] == [2]

@@ -78,3 +78,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

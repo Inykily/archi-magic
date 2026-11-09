@@ -102,6 +102,17 @@ Find and clean up `.0001`-style Revit backup files (`*.0001.rvt`, `*.0002.rfa`, 
 - **Safe archive**: `python skills/am-doctor/scripts/cleanup_backups.py <directory> --archive <archive_dir>`
 - **Confirmed delete**: `python skills/am-doctor/scripts/cleanup_backups.py <directory> --delete --confirm`
 
+## Revit turn-holder file for multi-session coordination (issue #200)
+
+Manage the local Revit turn-holder file (`%LOCALAPPDATA%\archi-magic\state\revit-turn.json`) so any session can check who holds Revit and since when without asking the coordinator:
+
+- **Check turn status (and detect stale relayed messages)**:
+  `python skills/am-doctor/scripts/revit_turn.py status [--message-time <iso_or_epoch>]`
+- **Claim the turn before using Revit**:
+  `python skills/am-doctor/scripts/revit_turn.py claim --session "<name>" --task "<task>"`
+- **Release the turn when done or while waiting for the user**:
+  `python skills/am-doctor/scripts/revit_turn.py release --session "<name>"`
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -142,3 +153,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

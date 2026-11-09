@@ -65,6 +65,15 @@ The repo is public. Anyone can read what you post. Remove all private data first
 - Add one environment line: Windows version, Revit year, pyRevit version, Claude Code version. Do not add the user name or the machine name.
 - A "dry run" request means: write the draft and the scan result, and do not post.
 
+## Multi-session feedback: archived sessions, date slice, and "Sessions read" (issue #201)
+
+When the user asks for feedback on more than the current session (for example "all sessions today"):
+
+1. **Include archived sessions by default**: list sessions with archived ones included (`include_archived=True` in `scripts/feedback_sessions.py`). Match sessions by title and last activity date as well as IDs, because child sessions are often archived as soon as their work finishes and a hand-off brief ID can be wrong.
+2. **Read only the asked date**: page backward from the newest event and stop at the first event of an earlier day (`slice_events_for_date` in `scripts/feedback_sessions.py`), so a long multi-day session is read only for the asked date.
+3. **Start the draft with "Sessions read"**: use `format_sessions_read_header` (`python skills/am-feedback/scripts/feedback_sessions.py <sessions.json> --date <YYYY-MM-DD>`) to list each session title, whether it is archived or active, and the date range read, followed by which sessions were skipped and why.
+4. **Deduplicate against same-day posts**: before drafting, read the issues and comments already posted that day by other feedback sessions (`filter_already_posted_today`), so the same point is not posted twice.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -105,3 +114,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.

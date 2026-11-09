@@ -158,6 +158,12 @@ Audit a DWG or DXF drawing before you link or import it. The audit is read-only.
 - Run: `python skills/am-model-health/scripts/dwg_cad_audit.py <drawing.json> [--output <findings.json>]`
 - The input is a JSON export with `header`, `layers`, `xrefs`, and `blocks`.
 
+## Area scheme cross-dependent standing check (issue #197)
+
+Check whether any `AreaScheme.GetDependentElements()` list contains `Areas` belonging to a different `AreaScheme` (`AREA-DEP-01`: `"Scheme '<X>' will take <N> area(s) of scheme '<Y>' with it"`).
+
+- Run: `python skills/am-area-report/scripts/area_scheme_dependents.py <schemes.json>`
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
@@ -198,3 +204,7 @@ When several agent sessions share one Revit, follow these rules.
 - With more than one Revit open, ask the user once which Revit to use.
 - Then pass `revit=<pid>` on every pyRevit call.
 - The pid is the process number of that Revit.
+- Write the turn holder file (`revit_turn.py claim`) when you take the Revit turn, and remove it (`revit_turn.py release`) when you finish.
+- Check the holder file (`revit_turn.py status`) and `get_context` before any Revit call; ignore any turn message older than the holder file.
+- Free the Revit turn (`revit_turn.py release`) whenever you wait for the user, and claim it again later.
+- When a child session gets user approval for work its brief excluded, state that approval first in its report.
