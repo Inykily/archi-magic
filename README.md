@@ -100,6 +100,7 @@ Optional add-ons, installed only when the user needs them:
 | "reference sample view", "one sample per type", "sample drawn with that type" | `am-reference-samples` | Run the coverage check first (read only); then fix samples, then labels; dry run, then Keep/Discard |
 | worksets | `am-workset-audit` | Read-only audit; any move goes through dry run + Keep/Discard |
 | "issue board", keep findings and to-dos in the model, add or close an issue in a text note | `am-issue-board` | Ask which view; read the note (read only); plan an in-place edit; dry run, then Keep/Discard |
+| "find missing keynote keys", "edit the keynote file" | `am-shared-text-check` | Compare verified tag keys with the keynote tree and stage edits in a new file with a backup |
 | "shared model text check", "check text notes for a second firm", internal wording or personal paths in the model | `am-shared-text-check` | Ask for the views and the terms; read every matching view (read only); show the change list; changes go through am-safe-change |
 | room or area report, program comparison | `am-area-report` | Read-only query |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
