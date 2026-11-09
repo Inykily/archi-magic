@@ -240,3 +240,50 @@ def check_fact_preservation(original_text, rewritten_text):
     rewritten_tokens = set(t.strip(".,;:!?'()[]{}").strip('"') for t in (rewritten_text or "").split())
     missing = sorted(list(orig_facts - rewritten_tokens))
     return len(missing) == 0, missing
+
+
+WORDING_TOKEN = re.compile(r"[^\W\d_]+(?:['-][^\W\d_]+)*", re.UNICODE)
+
+
+def preview_wording(notes, dictionary, replacements):
+    """Preview explicit wording replacements and report unknown words locally."""
+    accepted = {term.lower() for term in dictionary}
+    rules = [
+        (re.compile(r"(?<!\w)" + re.escape(old) + r"(?!\w)", re.UNICODE), new)
+        for old, new in sorted(replacements.items(), key=lambda row: (-len(row[0]), row[0]))
+        if old != new
+    ]
+    previews, review = [], []
+    for note in notes:
+        text = note.get("text", "")
+        protected = [(a, b) for a, b, _, _ in find_paths(text)]
+        protected.extend((a, b) for a, b, _ in find_emails(text))
+        protected.extend((m.start(), m.end()) for m in
+                         re.finditer(r"https?://\S+|[\w.-]*[0-9_][\w.-]*", text, re.UNICODE))
+        for term in sorted(accepted):
+            if " " in term:
+                protected.extend((m.start(), m.end()) for m in re.finditer(
+                    r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE | re.UNICODE))
+        tokens = list(WORDING_TOKEN.finditer(text))
+        protected.extend(m.span() for m in tokens if m.group().lower() in accepted)
+
+        changes = []
+        for pattern, new in rules:
+            for match in pattern.finditer(text):
+                a, b = match.span()
+                if _spans_overlap(a, b, protected):
+                    continue
+                protected.append((a, b))
+                changes.append((a, b, new))
+        if accepted:
+            unknown = sorted({m.group() for m in tokens if not _spans_overlap(
+                m.start(), m.end(), protected)})
+            if unknown:
+                review.append({"note_id": note.get("id"), "words": unknown})
+        if changes:
+            after = text
+            for a, b, new in sorted(changes, reverse=True):
+                after = after[:a] + new + after[b:]
+            previews.append({"note_id": note.get("id"), "view": note.get("view"),
+                             "before": text, "after": after})
+    return {"preview": previews, "review": review}

@@ -15,6 +15,7 @@ each change, and changes go through am-safe-change.
 Runs under CPython 3 and IronPython 2.7 (no f-strings, ASCII only).
 Every file handle uses a with statement.
 """
+import io
 import json
 import os
 import sys
@@ -24,24 +25,33 @@ import shared_text as st
 
 
 def load_json(path):
-    with open(path, "r") as f:
+    with io.open(path, "r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 
 def main(argv):
-    if len(argv) != 4 or argv[1] != "check":
-        sys.stderr.write("usage: shared_text_cli.py check <notes.json> <terms.json>\n")
+    if len(argv) != 4 or argv[1] not in ("check", "wording"):
+        sys.stderr.write("usage: shared_text_cli.py {check|wording} <notes.json> <rules.json>\n")
         return 2
-    with open(argv[2], "r") as f:
-        notes_doc = json.load(f)
-    with open(argv[3], "r") as f:
-        terms_doc = json.load(f)
-    if isinstance(notes_doc, list):
-        notes = notes_doc
+    notes_doc = load_json(argv[2])
+    rules = load_json(argv[3])
+    notes = notes_doc if isinstance(notes_doc, list) else notes_doc.get("notes", [])
+    if argv[1] == "wording":
+        try:
+            text_type = basestring
+        except NameError:
+            text_type = str
+        words, replacements = rules.get("accepted", []), rules.get("replacements", {})
+        if (not isinstance(words, list) or not isinstance(replacements, dict)
+                or any(not isinstance(word, text_type) or not word.strip() for word in words)
+                or any(not isinstance(old, text_type) or not st.WORDING_TOKEN.search(old) or
+                       not isinstance(new, text_type) or not new.strip()
+                       for old, new in replacements.items())):
+            sys.stderr.write("wording rules require accepted words and explicit corrections with nonempty text\n")
+            return 2
+        result = st.preview_wording(notes, words, replacements)
     else:
-        notes = notes_doc.get("notes", [])
-    result = st.check_notes(notes, terms_doc.get("terms", []),
-                            terms_doc.get("first_names", []))
+        result = st.check_notes(notes, rules.get("terms", []), rules.get("first_names", []))
     sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return 0
 
