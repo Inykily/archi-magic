@@ -180,6 +180,30 @@ Use `scripts/bcf_cli.py` with local files. Read the board note with `read_board.
 
 The exchange preserves titles, mapped status, camera data, and explicit IFC selections. It reports unsupported visibility overrides, clipping, images, comments, attachments, and other extended fields. The CLI does not open embedded links or change the model.
 
+## Compare architecture and structure (issue #157)
+
+Select one loaded structural link in a saved Revit project. Review the phase, levels and design scope in both models. Collect the column, wall and slab IDs for that scope. Use the ID from the link document for each linked element.
+
+1. Call `get_context` and `get_skill("revit-scripting")`. Run `read_structural_geometry.py` with the board scripts folder as the workspace. Example inputs are `{"link_instance_id":"5","host_ids":["1","2"],"link_ids":["10"],"scope":"Main model, Level 1, New Construction"}`.
+2. Use `get_run` to recover a truncated response. Save the contents of `snapshot_json` to a local file named `geometry.json`. Keep the geometry and board data private. Stop if the query reports an error.
+3. Run `(Get-FileHash .\geometry.json -Algorithm SHA256).Hash.ToLowerInvariant()`. Put the result in the review file. Give each inventory item one disposition. Pair reviewed counterparts. Mark an item missing only when you checked the intended scope. Defer any uncertain item.
+
+```json
+{
+  "snapshot_sha256": "<sha256 of geometry.json>",
+  "center_tolerance_mm": 10,
+  "extent_tolerance_mm": 10,
+  "dispositions": [
+    {"kind":"pair","host":"1","link":"10"},
+    {"kind":"missing","host":"2"}
+  ]
+}
+```
+
+4. Run `python structural_compare_cli.py geometry.json review.json`. Report sampled envelope center shifts and extent differences in millimeters. These measurements use sampled surfaces. They do not establish a match of exact shape or model coverage.
+5. To log findings, read the active note with `read_board.py` and `include_identity: true`. Read the archive the same way if available. Save each full result. Add `--board board.json` and, when available, `--archive archive.json` to the CLI. The preview skips findings already present in the supplied notes.
+6. Re-read the scoped geometry and notes before the dry run and again before the real run. If any evidence changed, rebuild the review and plan. Use the board preview and the normal dry run, Keep or Discard, and readback steps. Pass `{plan, note_id}` to `apply_board.py`. The plan checks the saved project and exact note identities before it starts a transaction.
+
 ## Preview Navisworks clash results (issue #149)
 
 Use a local Navisworks XML report. Include the Item ID, Revit Element ID Quick Property, and full Selection Tree path. Include individual results when the test uses groups. The XML parser was exercised against public report fixtures. HTML intake and end-to-end Revit qualification are pending.
