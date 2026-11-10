@@ -158,6 +158,15 @@ Audit a local drawing before linking it. This workflow reads the drawing without
 - An external reference is an Xref. The audit checks regular files under the drawing directory. It identifies a direct self-reference. Nested Xrefs and unsafe paths remain unchecked.
 - Exit 0 means the supported checks ran with no errors. Exit 1 means they ran and found an error. Exit 2 means the audit failed. Exit 3 means the report has incomplete coverage. Read its notes and findings.
 
+## Stage a batch of model audits (issue #174)
+
+This is a development workflow for standalone Revit 2026 files. Use only disposable local models in a qualified offline Windows test host. The automatic Revit launcher still needs native verification.
+
+1. Prepare copies with `python scripts/batch_model_audit.py prepare models --workspace batch-work --revit 2026 > batch-plan.json`. Keep the plan outside the workspace. This copies regular RVT files without opening them. Numbered Revit backups stay out of the batch.
+2. Keep the host workspace private. It has a read-only worker, copies, and a manifest that omits the original paths. The worker checks local file metadata before opening each copy. It uses the existing health and parameter audits. It closes each opened document without saving.
+3. Collect only after the qualified host has exited. Use `python scripts/batch_model_audit.py collect --plan batch-plan.json --host-exited > batch-report.json`. The report checks the original file identities and the original and staged hashes again. Each original gets a row, including missing, failed, and partial audits.
+4. Read the status and coverage for each row. The report gives health metric counts and parameter offender counts. Keep the workspace until the host exits. Keep model files, plan, and reports private.
+
 ## Preview a CAD layout (issue #166)
 
 Use the local geometry planner to review a CAD layout before any model work. It accepts a prepared geometry snapshot, and the CAD audit report is a different input. Keep the geometry and results private.
