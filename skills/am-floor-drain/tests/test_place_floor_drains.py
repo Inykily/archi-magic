@@ -209,6 +209,30 @@ def test_corner_mode_asks_when_wc_is_far_from_both_side_walls(run):
     assert edits == []
 
 
+def _shower():
+    shower = FamilyInstance(NS(Id=Id(5), Family=NS(Name="Shower"), Name="3x3"), Id(1))
+    shower.Id = Id(7)
+    return shower
+
+
+def test_room_with_shower_is_not_placed_by_rule(run):
+    execute, edits, items, _ = run
+    items["fixtures"] = [_wc(1.5), _shower()]
+    result = execute()
+    assert result["created"] == {}
+    assert result["ASK_USER"][0]["room_id"] == 42
+    assert edits == []
+
+
+def test_approved_point_places_drain_in_room_with_shower(run):
+    execute, edits, items, _ = run
+    items["fixtures"] = [_wc(1.5), _shower()]
+    result = execute(points={"42": [2, 2]})
+    assert result["created"] == {"42": 9}
+    assert result["rooms"][0]["mode"] == "user point"
+    assert edits == ["Place floor drains"]
+
+
 def test_resnap_with_unmatched_id_returns_actionable_result(run):
     execute, edits, _, _ = run
     result = execute(resnap=True, resnap_drain_ids=[9])

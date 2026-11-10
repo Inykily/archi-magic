@@ -45,13 +45,19 @@ Confirm floor drain and trap protection requirements for the project with the us
 **Multi-stall toilet rooms**
 - **One drain per room.** Put it where a person who walks in through the door cannot see it (a reviewer asked for "out of direct sight on entry"). Walls and stall rows must block the line from the door to the drain.
 - **Default (from a reviewer's markup): a corner of the lavatory alcove.** Many rooms have an entry passage, and an alcove with the lavatory counter that opens off it. Use the alcove corner that is nearest the entry and behind the passage wall, at the end of the lavatory counter. Put the drain center **6 in from both walls** of that corner. The passage wall hides it from the door.
+- **Room with no alcove:** the lavatory counter can run along a wall beside the entry passage. Use the corner at the end of that counter that is nearest the entry and behind the passage wall (often where the wall steps). Keep 6 in from both walls. The drain can sit under the end of the counter. Ask the user the first time this layout appears.
+- **Check each floor.** Upper floors can have smaller rooms and a different layout. Read the room outline on every floor before you reuse a point from another floor. A wall step can move the corner by a few inches.
 - **Alternative: a stall aisle.** Put the drain in the aisle of a stall area that branches off the entry passage, centered on the middle fixture of the row. In a men's room, use the aisle between the WC row and the urinal row. Use this only when the room has no hidden corner near the lavatories, or when the user asks. A reviewer replaced this position with the alcove corner on one project.
 - **How to check that a point is hidden:** get the entry door. Put the eye 1.5 ft inside the door. The point is hidden when the line from the eye to the point crosses the room boundary. Show the point to the user before you place it.
 - A corner point is closer to the walls than the default `wall_clear` (1 ft). Pass `wall_clear: 0.4` in the run that places it.
 - Place it with the script input `points` (for example `{"<room element ID>": [x, y]}`). The point must be inside the selected room and clear of its boundary. Check door visibility and stall clearance before approving the point. The script can place single-user drains in the same run.
 
 **Other rooms**
-- **Shower rooms:** the drain goes in the shower. The script does not do showers. It lists them in `ASK_USER`.
+- **Rooms with a shower:** the script never places these by rule. It lists them in `ASK_USER`. Ask the user.
+  - A single-user toilet room with one shower: the shower has its own drain. If the user agrees, treat the room like a single-user room. Compute the WC corner point (same rule as corner mode), check that it is not in the shower, and pass it in `points`.
+  - A locker room with several showers: skip it until the user gives a markup.
+- **Lactation rooms:** skip. A WC that looks near the room can belong to the room next to it. Check with `IsPointInRoom`.
+- **A WC in a linked model** (for example an existing-conditions link): the script reads only the host model, so it reports 0 WCs. Read the WC from the link, compute the corner point, and pass it in `points` after the user agrees.
 - **Pantries and fridges:** skip unless the user asks. A drain under a fridge is not common. A drain pan or a leak detector is the usual solution, and a trap that dries out smells.
 - **Custodial closets with a mop sink:** skip. The mop sink is the drain point.
 
@@ -83,6 +89,8 @@ At a close zoom the scale is about 350 pixels per foot, so the error is less tha
 - **The visible WC can be a Generic Model** (a toilet-with-grab-bars family), and a tag can hide the plumbing fixture WC. The script uses the plumbing fixture. If a WC does not show in the plan, ask the user to check that room.
 - **Duplicate WCs.** Some models have two WCs at the same spot. Tell the user: this double counts in schedules.
 - **Fixtures above the level.** Urinals and wall-hung fixtures can sit 1 to 2 ft above the level. Use a Z tolerance of about 4 ft when you collect fixtures for a room.
+- **Element IDs can change.** In a workshared model, the IDs of new drains can change after a reload or a sync. Find a drain by its level and room, not by an ID from an earlier run. Check each drain before you move it.
+- **Run one floor at a time.** If you call the script twice in one run, do not reuse its names (`inputs`, `result`, `made`, `zs`) for your own data.
 - `Door.ToRoom` is an indexed property in IronPython. Use `door.get_ToRoom(phase)` with the view phase.
 - `DB.ElementId(int)` is ambiguous in IronPython. Use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
 - Names with a degree sign break the JSON result. Encode names to ASCII before you return them.
@@ -90,7 +98,7 @@ At a close zoom the scale is about 350 pixels per foot, so the error is less tha
 
 ## Open questions (ask, do not guess)
 
-- Shower rooms: where in the shower (center, or a linear drain at the wall)?
+- Locker rooms with several showers: where do the drains go?
 - Pantries: does the user want drains on a floor that has pantries?
 
 ## House rules (all am-* skills)

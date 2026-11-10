@@ -19,7 +19,8 @@
 #   target_past  float optional, front mode: ft past the bowl front (default 1.5 = 18")
 #   min_past     float optional, ft past the bowl front, minimum after snap (default 1.0 = 12")
 #   wall_clear   float optional, ft from the room boundary (default 1.0)
-#   points       dict  optional, {"<room id>": [x, y]}: approved aisle points in selected rooms
+#   points       dict  optional, {"<room id>": [x, y]}: approved points in selected rooms (multi-stall
+#                      rooms, and rooms with a shower, which the rules never place)
 #   resnap       bool  optional, true = move only approved drains onto measured grids
 #   resnap_drain_ids list required with resnap, drain ids from the approved placement's "created" map
 # Python 2.7 syntax (IronPython).
@@ -146,8 +147,9 @@ else:
             rep["drain_id"] = selected[0].Id.Value
         elif inroom:
             rep["skip"] = "already has a drain"; report.append(rep); continue
-        if any(is_shower(f) and near(f, bb, 0.3) for f in fixtures):
-            rep["skip"] = "ASK: room has a shower; drain goes in the shower (not automated)"; report.append(rep); continue
+        # A room with a shower is never placed by rule. An approved point is the user's decision.
+        if room_id not in POINTS and any(is_shower(f) and near(f, bb, 0.3) for f in fixtures):
+            rep["skip"] = "ASK: room has a shower; pass an approved point in `points`, or skip the room"; report.append(rep); continue
         curves = [segment.GetCurve() for loop in (r.GetBoundarySegments(boundary_options) or []) for segment in loop]
         boundaries = [(curve, curve.GetEndPoint(0).Z) for curve in curves]
         def clear_room(x, y):
