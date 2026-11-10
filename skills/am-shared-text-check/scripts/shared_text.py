@@ -248,6 +248,11 @@ WORDING_TOKEN = re.compile(r"[^\W\d_]+(?:['-][^\W\d_]+)*", re.UNICODE)
 def preview_wording(notes, dictionary, replacements):
     """Preview explicit wording replacements and report unknown words locally."""
     accepted = {term.lower() for term in dictionary}
+    protected_literals = [
+        re.compile(r"(?<!\w)" + re.escape(term) + r"(?!\w)", re.IGNORECASE | re.UNICODE)
+        for term in sorted(accepted)
+        if WORDING_TOKEN.findall(term) != [term]
+    ]
     rules = [
         (re.compile(r"(?<!\w)" + re.escape(old) + r"(?!\w)", re.UNICODE), new)
         for old, new in sorted(replacements.items(), key=lambda row: (-len(row[0]), row[0]))
@@ -260,10 +265,8 @@ def preview_wording(notes, dictionary, replacements):
         protected.extend((a, b) for a, b, _ in find_emails(text))
         protected.extend((m.start(), m.end()) for m in
                          re.finditer(r"https?://\S+|[\w.-]*[0-9_][\w.-]*", text, re.UNICODE))
-        for term in sorted(accepted):
-            if " " in term:
-                protected.extend((m.start(), m.end()) for m in re.finditer(
-                    r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE | re.UNICODE))
+        for pattern in protected_literals:
+            protected.extend(match.span() for match in pattern.finditer(text))
         tokens = list(WORDING_TOKEN.finditer(text))
         protected.extend(m.span() for m in tokens if m.group().lower() in accepted)
 
