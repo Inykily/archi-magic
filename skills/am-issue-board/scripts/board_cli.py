@@ -46,7 +46,10 @@ def load(path):
 
 
 def read_note(path):
-    note = load(path)
+    return decode_note(load(path))
+
+
+def decode_note(note):
     if "note" in note and isinstance(note["note"], dict):
         note = note["note"]
     return ib.unescape(note["text"]), note.get("formats")
