@@ -264,6 +264,248 @@ def personal_path_kind(path):
     return "sync", user
 
 
+def link_read(read):
+    """Unavailable Revit evidence stays null, without returning raw exception text."""
+    try:
+        return read()
+    except Exception:
+        return None
+
+
+def link_path_kind(path, local=None):
+    if not path:
+        return None
+    if personal_path_kind(path)[0]:
+        return "personal"
+    lower = path.lower()
+    if lower.startswith("rsn://"):
+        return "revit_server"
+    if lower.startswith(("bim 360://", "autodesk docs://", "acc://")):
+        return "cloud"
+    if lower.startswith(("//", "\\\\")):
+        return "network"
+    if local is True:
+        return "local"
+    if re.match(r"^[a-zA-Z]:[/\\]", path):
+        return "drive_letter"
+    return None
+
+
+def link_enum(value, accepted):
+    label = str(value)
+    return label if label in accepted else None
+
+
+def link_type_details(link_type):
+    ref = link_read(lambda: link_type.GetExternalFileReference())
+    absolute = link_read(lambda: ref.GetAbsolutePath())
+    saved = link_read(lambda: ref.GetPath())
+    model_path = absolute if absolute is not None else saved
+    path = link_read(lambda: DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(model_path))
+    if not path:
+        path = link_read(lambda: link_type.GetExternalResourceReference(
+            DB.ExternalResourceTypes.BuiltInExternalResourceTypes.RevitLink).InSessionPath)
+    local = link_read(lambda: bool(link_type.IsFromLocalPath()))
+    if link_read(lambda: bool(model_path.CloudPath)):
+        model_kind = "cloud"
+    elif link_read(lambda: bool(model_path.ServerPath)) or link_read(
+            lambda: bool(link_type.IsFromRevitServer())):
+        model_kind = "revit_server"
+    else:
+        model_kind = link_path_kind(path, local)
+    path_type = link_read(lambda: link_type.PathType)
+    if path_type is None:
+        path_type = link_read(lambda: ref.PathType)
+
+    ifc_ref = link_read(lambda: link_type.GetExternalResourceReference(
+        DB.ExternalResourceTypes.BuiltInExternalResourceTypes.IFCLink))
+    source = link_read(lambda: link_type.GetConversionData().Path)
+    ifc_path = link_read(lambda: ifc_ref.InSessionPath)
+    ifc = ifc_ref is not None or any(p and p.lower().endswith((".ifc", ".ifczip", ".ifcxml"))
+                                     for p in (source, path))
+    cache_hint = bool(path and path.lower().endswith((".ifc.rvt", ".ifczip.rvt", ".ifcxml.rvt")))
+    kind = "IFC" if ifc else ("RVT" if path and path.lower().endswith(".rvt") and not cache_hint else None)
+    if ifc:
+        locations = set(k for k in (link_path_kind(source), link_path_kind(ifc_path)) if k)
+        if path and path.lower().endswith((".ifc", ".ifczip", ".ifcxml")):
+            locations.update([model_kind] if model_kind else [])
+        source_kind = next(iter(locations)) if len(locations) == 1 else None
+    else:
+        source_kind = None if cache_hint else model_kind
+
+    status = link_read(lambda: link_type.GetLinkedFileStatus())
+    if status is None:
+        status = link_read(lambda: ref.GetLinkedFileStatus())
+    return {
+        "id": str(eid(link_type.Id)),
+        "format": kind,
+        "ifc_evidence": "resource" if ifc_ref is not None else (
+            "source_extension" if ifc else ("cache_name" if cache_hint else None)),
+        "saved_model_path_type": link_enum(path_type, ("Absolute", "Relative", "Server")),
+        "model_path_kind": model_kind,
+        "source_path_kind": source_kind,
+        "path_risk": source_kind if source_kind in ("personal", "local", "drive_letter") else None,
+        "status": link_enum(status, ("Loaded", "Unloaded", "LocallyUnloaded", "NotFound",
+                                     "Invalid", "InClosedWorkset", "Imported", "CanBeUpgraded")),
+        "loaded": link_read(lambda: bool(DB.RevitLinkType.IsLoaded(doc, link_type.Id))),
+        "nested": link_read(lambda: bool(link_type.IsNestedLink)),
+    }
+
+
+def link_site(instance):
+    parameter = link_read(lambda: instance.get_Parameter(DB.BuiltInParameter.GEO_LOCATION))
+    if parameter is None:
+        return {"state": "unavailable", "label": None}
+    value = link_read(lambda: parameter.AsString() if parameter.StorageType == DB.StorageType.String
+                      else parameter.AsValueString())
+    if not value:
+        return {"state": "unavailable", "label": None}
+    if (len(value) > 80 or any(ord(c) < 32 or ord(c) == 127 or c in "/\\:" for c in value)
+            or re.search(r"(?:^www\.|\.(?:rvt|ifc|ifczip|ifcxml)\b)", value, re.I)):
+        return {"state": "withheld", "label": None}
+    return {"state": "reported", "label": value}
+
+
+def link_instance_details(instance):
+    def origin_coords():
+        origin = instance.GetTotalTransform().Origin
+        return [float(origin.X), float(origin.Y), float(origin.Z)]
+
+    coords = link_read(origin_coords)
+    if coords and any(math.isnan(n) or math.isinf(n) for n in coords):
+        coords = None
+    return {
+        "id": str(eid(instance.Id)),
+        "type_id": link_read(lambda: str(eid(instance.GetTypeId()))),
+        "pinned": link_read(lambda: bool(instance.Pinned)),
+        "shared_site": link_site(instance),
+        "origin_ft": coords,
+    }
+
+
+def link_view_inputs(raw, year):
+    if raw is None:
+        active = link_read(lambda: eid(doc.ActiveView.Id))
+        return [] if active is None else [active]
+    if not isinstance(raw, list) or not 1 <= len(raw) <= 10:
+        raise ValueError("Specify one to ten view IDs.")
+    maximum = 2**63 - 1 if year >= 2024 else 2**31 - 1
+    numbers = []
+    for value in raw:
+        if isinstance(value, bool) or not re.match(r"^[1-9][0-9]{0,18}\Z", str(value)):
+            raise ValueError("Specify positive decimal view IDs.")
+        number = int(value)
+        if number > maximum or number in numbers:
+            raise ValueError("Specify distinct view IDs in the Revit version's range.")
+        numbers.append(number)
+    return numbers
+
+
+def link_view_observations(view_id, instances, loaded, stopwatch, remaining, year):
+    row = {"id": str(view_id), "reason": None, "observations": [],
+           "omitted": len(instances), "collector_checked": False}
+    if not remaining or stopwatch.ElapsedMilliseconds >= 10000:
+        row["reason"] = "observation_limit" if not remaining else "time_limit"
+        return row
+    typed = System.Int64(view_id) if year >= 2024 else System.Int32(view_id)
+    identifier = DB.ElementId(typed)
+    view = link_read(lambda: doc.GetElement(identifier))
+    valid = link_read(lambda: isinstance(view, DB.View) and not view.IsTemplate and
+                      DB.FilteredElementCollector.IsViewValidForElementIteration(doc, identifier))
+    if not valid:
+        row["reason"] = "view_unavailable" if valid is None else "invalid_view"
+        return row
+
+    if stopwatch.ElapsedMilliseconds >= 10000:
+        row["reason"] = "time_limit"
+        return row
+    visible = link_read(lambda: set(eid(x) for x in DB.FilteredElementCollector(
+        doc, identifier).OfClass(DB.RevitLinkInstance).ToElementIds()))
+    row["collector_checked"] = visible is not None
+    if visible is None:
+        row["reason"] = "collector_unavailable"
+    hidden_categories = {}
+    for item, instance in instances:
+        if not remaining or stopwatch.ElapsedMilliseconds >= 10000:
+            row["reason"] = "observation_limit" if not remaining else "time_limit"
+            break
+        member = None if visible is None else int(item["id"]) in visible
+        instance_hidden = link_read(lambda: bool(instance.IsHidden(view)))
+        category = link_read(lambda: instance.Category.Id)
+        category_hidden = None
+        if category is not None:
+            category_key = eid(category)
+            if category_key not in hidden_categories:
+                hidden_categories[category_key] = link_read(lambda: bool(view.GetCategoryHidden(category)))
+            category_hidden = hidden_categories[category_key]
+        is_loaded = loaded.get(item["type_id"])
+        if is_loaded is False:
+            state = "unloaded"
+        elif instance_hidden is True or category_hidden is True:
+            state = "explicitly_hidden"
+        elif member is True and is_loaded is True and instance_hidden is False and category_hidden is False:
+            state = "potentially_visible"
+        elif member is False:
+            state = "not_returned"
+        else:
+            state = "unknown"
+        row["observations"].append({"instance_id": item["id"], "state": state, "collector_member": member,
+                                    "instance_hidden": instance_hidden, "category_hidden": category_hidden})
+        remaining -= 1
+    row["omitted"] -= len(row["observations"])
+    return row
+
+
+def link_inventory(cls, detail, stopwatch):
+    if stopwatch.ElapsedMilliseconds >= 10000:
+        return [], {"total": None, "emitted": 0, "omitted": None, "reason": "time_limit"}
+    ids = link_read(lambda: sorted(DB.FilteredElementCollector(doc).OfClass(cls).ToElementIds(), key=eid))
+    if ids is None:
+        return [], {"total": None, "emitted": 0, "omitted": None, "reason": "collector_unavailable"}
+    rows = []
+    reason = "inventory_limit" if len(ids) > 200 else None
+    for identifier in ids[:200]:
+        if stopwatch.ElapsedMilliseconds >= 10000:
+            reason = "time_limit"
+            break
+        element = link_read(lambda: doc.GetElement(identifier))
+        item = link_read(lambda: detail(element)) if element is not None else None
+        if item is None:
+            reason = "element_unavailable"
+        else:
+            rows.append((item, element))
+    return rows, {"total": len(ids), "emitted": len(rows), "omitted": len(ids) - len(rows), "reason": reason}
+
+
+def read_revit_link_audit():
+    year = int(app.VersionNumber)  # noqa: F821
+    view_inputs = INPUTS.get("link_view_ids")
+    try:
+        views = link_view_inputs(view_inputs, year)
+    except ValueError:
+        return {"error": "invalid_link_view_ids", "revit_year": str(year)}
+    stopwatch = System.Diagnostics.Stopwatch.StartNew()
+    types, type_coverage = link_inventory(DB.RevitLinkType, link_type_details, stopwatch)
+    instances, instance_coverage = link_inventory(DB.RevitLinkInstance, link_instance_details, stopwatch)
+    placed = set(item["type_id"] for item, _ in instances)
+    complete_instances = instance_coverage["omitted"] == 0 and None not in placed
+    loaded = {}
+    for item, _ in types:
+        item["placed"] = True if item["id"] in placed else (False if complete_instances else None)
+        loaded[item["id"]] = item["loaded"]
+    view_rows = []
+    remaining = 1000
+    for view_id in views:
+        row = link_view_observations(view_id, instances, loaded, stopwatch, remaining, year)
+        remaining -= len(row["observations"])
+        view_rows.append(row)
+    return {"revit_year": str(year), "revit_links": {
+        "types": [item for item, _ in types], "instances": [item for item, _ in instances],
+        "type_coverage": type_coverage, "instance_coverage": instance_coverage, "views": view_rows,
+        "view_scope": "requested" if view_inputs is not None else ("active" if views else "no_active_view"),
+    }}
+
+
 def cad_status(is_linked, status_text):
     """Status label for one CAD instance: Imported, unreadable, or the LinkedFileStatus name."""
     if not is_linked:
@@ -1019,6 +1261,8 @@ def file_size_mb():
 if doc is None or doc.IsFamilyDocument:  # noqa: F821
     result = {"error": "no_project_document",
               "message": "Open a Revit project (.rvt), not a family, then run again."}
+elif INPUTS.get("revit_link_audit") is True:
+    result = jsonable(read_revit_link_audit())
 else:
     metrics = []
     w_total, w_rows = check_warnings()

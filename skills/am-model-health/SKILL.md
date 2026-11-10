@@ -61,6 +61,17 @@ The two link hints are not proof. The Revit API has no simple "uses shared coord
 - Report them grouped: by pattern (ARCHIVE views, copies with the same counts) and by `creator`.
 - A view on a sheet is part of a printed drawing. Tell the user before they delete or clean it. Fixes go through `am-safe-change`.
 
+### RVT and IFC link audit
+
+Use this report for Revit links, IFC links, or a Manage Links path and visibility check. Run the same script with `{"revit_link_audit": true}`. It checks the active view. To check other views, add `"link_view_ids": ["12345", "23456"]` using IDs from the current project. Start with one view. Use no more than ten views per run. Keep the IDs as decimal strings.
+
+- Read `revit_links.types` for source format, saved model path type, path classification, load status, and path flags. Show the type ID next to each flag. A drive-letter path can point to a mapped share. For IFC, report the source path class separately from the intermediate Revit model path class.
+- Read `revit_links.instances` for the instance ID, type ID, pin state, Shared Site, and origin in feet. Shared Site is a reported property. The label and origin alone cannot establish the placement mode.
+- Read `revit_links.views` for per-view observations. Report explicit hiding, an unloaded link, potential visibility, or unknown. The host collector gives potential visibility only. An instance absent from the collector can need more inspection.
+- Report the coverage totals and reasons before drawing conclusions from missing rows. This report has a soft ten-second budget, 200 rows per inventory, and 1,000 view observations. If the transport truncates the result, call `get_run`. Report incomplete coverage if the full result is unavailable.
+
+Use the focused report in chat. Keep it out of the dashboard snapshot flow. It classifies link paths without returning the path strings. Compare the flagged link in Manage Links before proposing a repath or reload.
+
 ### CAD link audit
 
 `result.cad_links[]` has one row for each CAD instance (`ImportInstance`): `name` (file name), `kind` (`linked` or `imported`), `path`, `path_kind`, `status`, `workset`, `pinned`, `view_specific`, `owner_view`, `origin_ft` and `rotation_deg` (insertion point and angle from `GetTotalTransform()`), `extent_ft` (bounding box width and depth), `views`, `creator` and `flags[]`.
