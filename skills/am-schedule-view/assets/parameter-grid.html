@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Schedule parameter grid</title>
+<style>
+  :root { color-scheme: light dark; font: 1rem system-ui, sans-serif; }
+  body { margin: 2rem auto; padding: 0 1rem; max-width: 90rem; }
+  h1 { margin: 0 0 .5rem; }
+  .tools, nav { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; margin-block: 1rem; }
+  button, input, textarea { font: inherit; padding: .35rem .5rem; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  .scroller { overflow: auto; max-height: 65vh; }
+  table { border-collapse: collapse; min-width: 100%; }
+  th, td { text-align: start; padding: .5rem; border-bottom: 1px solid GrayText; vertical-align: top; }
+  thead { position: sticky; top: 0; background: Canvas; }
+  td { white-space: pre-wrap; overflow-wrap: anywhere; }
+  textarea { width: 12rem; min-height: 2.6em; resize: vertical; }
+  textarea.staged { outline: 2px solid LinkText; outline-offset: -2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Schedule parameter grid</h1>
+  <p>Edit the values and download the edits for a change preview. Revit stays unchanged.</p>
+</header>
+<div class="tools">
+  <label for="filter">Filter elements</label>
+  <input id="filter" type="search">
+  <button id="download" type="button">Download edits</button>
+  <output id="edit-count" aria-live="polite"></output>
+</div>
+<div class="scroller" tabindex="0" role="region" aria-label="Schedule parameters">
+  <table><thead><tr id="headers"><th scope="col">Element ID</th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<nav aria-label="Grid pages">
+  <button id="previous" type="button">Previous</button>
+  <button id="next" type="button">Next</button>
+  <output id="page" aria-live="polite"></output>
+</nav>
+<p id="error" role="alert"></p>
+
+<script type="application/json" id="grid-data">__GRID_DATA__</script>
+<script>
+"use strict";
+const get = id => document.getElementById(id);
+const data = JSON.parse(get("grid-data").textContent);
+const readOnly = new Set(data.readOnly);
+const staged = new Map();
+const pageSize = 25;
+let pageIndex = 0;
+
+for (const field of data.fields) {
+  const header = document.createElement("th");
+  header.scope = "col";
+  header.textContent = readOnly.has(field) ? field + " (read-only)" : field;
+  get("headers").append(header);
+}
+
+function updateCount() {
+  get("edit-count").textContent = staged.size + " staged cells";
+  get("download").disabled = staged.size === 0;
+  get("error").textContent = "";
+}
+
+function draw() {
+  const search = get("filter").value.trim().toLowerCase();
+  const matching = data.rows.filter(([id, values]) => {
+    return id.includes(search) || data.fields.some((field, column) => {
+      const edit = staged.get(id + ":" + column);
+      return (edit ? edit.value : values[field]).toLowerCase().includes(search);
+    });
+  });
+  const pages = Math.max(1, Math.ceil(matching.length / pageSize));
+  pageIndex = Math.min(pageIndex, pages - 1);
+  const rows = get("rows");
+  rows.replaceChildren();
+  for (const [id, values] of matching.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize)) {
+    const row = rows.insertRow();
+    const identity = document.createElement("th");
+    identity.scope = "row";
+    identity.textContent = id;
+    row.append(identity);
+    data.fields.forEach((field, column) => {
+      const cell = row.insertCell();
+      if (readOnly.has(field)) {
+        cell.textContent = values[field];
+        return;
+      }
+      const key = id + ":" + column;
+      const input = document.createElement("textarea");
+      input.setAttribute("aria-label", field + " for " + id);
+      input.value = staged.has(key) ? staged.get(key).value : values[field];
+      input.classList.toggle("staged", staged.has(key));
+      input.addEventListener("input", () => {
+        const value = input.value;
+        if (value === values[field]) staged.delete(key);
+        else staged.set(key, {id, field, value});
+        input.classList.toggle("staged", staged.has(key));
+        updateCount();
+      });
+      cell.append(input);
+    });
+  }
+  get("previous").disabled = pageIndex === 0;
+  get("next").disabled = pageIndex + 1 >= pages;
+  get("page").textContent = "Page " + (pageIndex + 1) + " of " + pages + " · " + matching.length + " elements";
+}
+
+get("filter").addEventListener("input", () => { pageIndex = 0; draw(); });
+get("previous").addEventListener("click", () => { pageIndex -= 1; draw(); });
+get("next").addEventListener("click", () => { pageIndex += 1; draw(); });
+get("download").addEventListener("click", () => {
+  const edits = Array.from(staged.values());
+  if (edits.some(edit => Array.from(edit.value).length > data.maxValueLength || edit.value.includes("\0"))) {
+    get("error").textContent = "Use up to 2,000 characters per cell and remove any NUL characters.";
+    return;
+  }
+  const packet = {kind: "schedule-grid-edits", snapshot_sha256: data.snapshotSha256, edits};
+  const file = new Blob([JSON.stringify(packet)], {type: "application/json"});
+  if (file.size > data.maxBytes) {
+    get("error").textContent = "The edit file exceeds 2 MiB. Download smaller batches from separate snapshots.";
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "schedule-grid-edits.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+draw();
+updateCount();
+</script>
+</body>
+</html>
