@@ -1,0 +1,9 @@
+{
+  "kind": "parameter-grid-snapshot",
+  "columns": ["Mark", "Comments", "Area"],
+  "rows": [
+    {"id": "9007199254740993", "Mark": "D01", "Comments": "Review", "Area": "25 m²"},
+    {"id": "102", "Mark": "D02", "Comments": "", "Area": "31 m²"}
+  ],
+  "read_only_fields": ["Area"]
+}

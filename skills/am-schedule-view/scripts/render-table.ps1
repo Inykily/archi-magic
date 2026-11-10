@@ -124,6 +124,10 @@ $title = switch ($p1.Kind) {
     default { 'Schedules' }
 }
 $html = [IO.File]::ReadAllText($template, $utf8)
+$reviewOnly = Get-Field $p1.Obj 'review_only'
+if ($p1.Kind -eq 'change-preview' -and $reviewOnly -is [bool] -and $reviewOnly) {
+    $html = $html -replace '(?s)<!-- online-fonts:start -->.*?<!-- online-fonts:end -->', ''
+}
 $html = $html.Replace('__PAGE_TITLE__', $title)
 $html = $html.Replace('__DATA2_JSON__', $(if ($p2) { $p2.Raw } else { 'null' }))
 $html = $html.Replace('__DATA_JSON__', $p1.Raw)

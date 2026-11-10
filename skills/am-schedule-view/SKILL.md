@@ -1,6 +1,6 @@
 ---
 name: am-schedule-view
-description: Use when the user wants to see/compare/export a Revit schedule from the open model - show a door, room, area, sheet or any schedule as Revit displays it, search/sort/filter it, copy it as TSV, export CSV, or compare two schedules or two snapshots of one schedule. Also renders the before/after change-preview table for am-safe-change. Read only. Use when the user asks "show me the door schedule", "open the room schedule", "export the area schedule to CSV", "compare these schedules", "what changed in the schedule". NOT for room or area totals by level or department (use am-area-report), NOT for building new schedules (use pyRevit's scheduling skill), and NOT for model QA (use am-model-health).
+description: Use when the user wants to see/compare/export a Revit schedule from the open model - show a door, room, area, sheet or any schedule as Revit displays it, search/sort/filter it, copy it as TSV, export CSV, or compare two schedules or two snapshots of one schedule. Also opens the bulk parameter editor for identity-bearing snapshots and renders previews for am-safe-change. Read only in Revit. Use when the user asks "show me the door schedule", "open the room schedule", "export the area schedule to CSV", "compare these schedules", "what changed in the schedule". NOT for room or area totals by level or department (use am-area-report), NOT for building new schedules (use pyRevit's scheduling skill), and NOT for model QA (use am-model-health).
 ---
 
 # am-schedule-view
@@ -73,18 +73,40 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
 - Anything read from the model goes to the AI provider. Use this only on projects where that is allowed.
 - The interactive page is a web page, not a panel inside Claude Code. A mod pane draws only the engine's own elements, with no HTML. The optional `am-schedule-view` mod (a separate plugin in this marketplace) adds `/am-schedule-view <file.json>`. It shows the same JSON in a pane: a paged table, a filter and Copy as TSV.
 
-## Excel round trip for schedules (issue #128)
+## Bulk parameter grid and Excel round trip
 
-Export schedule data to CSV for spreadsheet editing, and safely preview edits before writing back to the model:
+Use Python 3.8 or later. Use the same snapshot file for both routes.
 
-- **Export schedule to spreadsheet CSV**:
-  `python skills/am-schedule-view/scripts/schedule_roundtrip.py export --schedule <data.json> --out <schedule.csv>`
-- **Validate and preview re-imported edits**:
-  `python skills/am-schedule-view/scripts/schedule_roundtrip.py preview --original <orig.json> --edited <edited.csv> --out <preview.json>`
-- **Safe write-back rules**:
-  - Automatically identifies changed cells with old and new values.
-  - Blocks edits to read-only or calculated parameters (such as `Area`, `Volume`, `Level`, `Count`).
-  - Formats output as an `am-safe-change` preview for dry-run verification and Revit Keep/Discard approval.
+1. Call `get_context`. Read the selected elements and their parameter values with the pyRevit agent in query mode. Use `inspect_elements` for spot checks of up to 50 elements. For a larger batch, use a scoped `run_query` that reads the selected elements by ID. Resolve each selected parameter unambiguously and keep empty values. Record the ID as decimal text at the source. Use the parameter's editability information to mark read-only fields. Mark uncertain fields read-only.
+2. Save an identity-bearing JSON snapshot. Copy the shape from [parameter-grid.sample.json](assets/fixtures/parameter-grid.sample.json). List up to 20 parameter columns and 500 elements. Give each row an `id` string and one text value for each column. Put read-only or calculated fields in `read_only_fields`. Use separate snapshots for fields with different editability across elements. Keep the snapshot and edit file below 2 MiB each.
+3. Use one of the editing routes below. Match rows by element ID. Display schedule tables can contain groups and totals. Use those tables for viewing.
+
+### Edit in the browser
+
+```sh
+python3 skills/am-schedule-view/scripts/schedule_roundtrip.py grid --schedule snapshot.json --out grid.html
+python3 skills/am-schedule-view/scripts/schedule_roundtrip.py preview-grid --original snapshot.json --edited schedule-grid-edits.json --out preview.json
+```
+
+Open `grid.html` in a browser. Edit the cells and click **Download edits**. Then run the second command. Keep the original snapshot file unchanged so its digest still matches the downloaded edits. The grid runs locally and keeps edits while you filter or move between pages.
+
+### Edit in Excel
+
+```sh
+python3 skills/am-schedule-view/scripts/schedule_roundtrip.py export --schedule snapshot.json --out schedule.csv
+python3 skills/am-schedule-view/scripts/schedule_roundtrip.py preview --original snapshot.json --edited edited.csv --out preview.json
+```
+
+Use Excel's text import with UTF-8 and a comma delimiter. Set every column to **Text** before loading. This preserves long IDs and literal values. Keep the original column order. Save the edited sheet as CSV UTF-8. Keep parameter values at 2,000 characters or fewer. Both routes normalize line endings and disregard leading and trailing whitespace during comparison. Existing unmarked Excel snapshots still produce the legacy report.
+
+### Review the edits
+
+```sh
+pwsh -NoProfile -File skills/am-schedule-view/scripts/render-table.ps1 -Json preview.json -Out preview.html
+python3 skills/am-safe-change/scripts/ownership.py inputs --preview preview.json --out own-inputs.json
+```
+
+Open `preview.html` and check the before and after values. The preview flags edits to read-only fields. Its Element ID column links the warnings to the correct rows. The preview contains review data and has an empty steps list. For any model write, start the [am-safe-change](../am-safe-change/SKILL.md) workflow with an explicit recipe. Recheck the model, parameter identity, value type, and ownership in Revit. Use a dry run and the Keep/Discard approval.
 
 ## House rules (all am-* skills)
 
