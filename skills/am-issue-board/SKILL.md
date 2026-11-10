@@ -180,6 +180,15 @@ Use `scripts/bcf_cli.py` with local files. Read the board note with `read_board.
 
 The exchange preserves titles, mapped status, camera data, and explicit IFC selections. It reports unsupported visibility overrides, clipping, images, comments, attachments, and other extended fields. The CLI does not open embedded links or change the model.
 
+## Preview Navisworks clash results (issue #149)
+
+Use a local Navisworks XML report. Include the Item ID, Revit Element ID Quick Property, and full Selection Tree path. Include individual results when the test uses groups. The XML parser was exercised against public report fixtures. HTML intake and end-to-end Revit qualification are pending.
+
+- Run `python scripts/navisworks_clash_cli.py report.xml` to review clashes and unresolved IDs. The script does not fetch linked content.
+- Add `--snapshot elements.json` to propose section bounds. Use a `host_id` and a `coordinate_frame` of `revit_host_internal_feet`. List sources under `sources`. Each source needs a `model_id`, an exact `path_prefix` array, and `elements` keyed by decimal Revit Element ID. Each element needs a `unique_id` and `min` and `max` XYZ arrays in host internal feet. Give each link instance its own identity. Keep this data private.
+- Add `--board board.json` to prepare a board plan. Add `--archive archive.json` to check archived clashes. Review all proposed additions. The offline report contains section bounds, and it creates no views or model changes.
+- Use the existing board preview, dry run, Keep or Discard, and readback before applying any board plan. Live creation and activation of Revit section views still need qualification.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
