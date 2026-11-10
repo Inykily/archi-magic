@@ -158,6 +158,15 @@ Audit a local drawing before linking it. This workflow reads the drawing without
 - An external reference is an Xref. The audit checks regular files under the drawing directory. It identifies a direct self-reference. Nested Xrefs and unsafe paths remain unchecked.
 - Exit 0 means the supported checks ran with no errors. Exit 1 means they ran and found an error. Exit 2 means the audit failed. Exit 3 means the report has incomplete coverage. Read its notes and findings.
 
+## Preview a CAD layout (issue #166)
+
+Use the local geometry planner to review a CAD layout before any model work. It accepts a prepared geometry snapshot, and the CAD audit report is a different input. Keep the geometry and results private.
+
+1. Prepare a geometry JSON file for one linked drawing and one level. Set `coordinate_frame` to `revit_internal_axes_mm`. Record `link_id`, `level_id` and `level_mm`. Use exact IDs and model-space coordinates. Each item in `segments` has `id`, `layer`, `start` and `end`. A room in `room_loops` has `id`, `layer`, `closed`, `vertices` and `interior_point`. Use XYZ points in millimetres. For a room, set `closed` to true and list the vertices once.
+2. Prepare a mapping JSON file. Set `tolerance_mm`, `minimum_overlap_mm` and `door_setback_mm`. In `walls` and `doors`, map each exact layer name to a `type_id` and `width_mm`. Add room boundary layers to `room_layers`. Map each layer to one role.
+3. Run `python scripts/cad_layout_preview.py snapshot.json --mapping mapping.json`. Review the wall axes, maximum face errors, uncovered lengths, door spans, and room outlines. The door marker must lie along its proposed host wall. Check each unresolved item. Exit 1 means geometry needs review. Exit 2 means the input or calculation failed.
+4. Treat this JSON as a proposal. It contains no Revit write instructions. The linked DWG reader and guarded Revit creation still require live qualification.
+
 ## Area scheme cross-dependent standing check (issue #197)
 
 Check whether any `AreaScheme.GetDependentElements()` list contains `Areas` belonging to a different `AreaScheme` (`AREA-DEP-01`: `"Scheme '<X>' will take <N> area(s) of scheme '<Y>' with it"`).
