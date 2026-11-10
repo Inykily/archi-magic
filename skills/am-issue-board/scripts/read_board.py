@@ -10,6 +10,7 @@ inputs (all optional):
     {"note_id": 456}          read one note: text, sha1, per-paragraph format, parsed board
     {"creator_ids": [1, 2]}   creator of each element (WorksharingUtils tooltip), for "@"
     {"counts_only": true}     with note_id: return only the parsed counts, no text
+    {"include_identity": true} with note_id: return the saved project and note identities
 
 Non-ASCII text is escaped as \\uXXXX (the runtime JSON encoder is ASCII-only in
 IronPython). Decode it with issue_board.unescape() before you parse or show it.
@@ -105,6 +106,10 @@ if inputs.get("note_id"):  # noqa: F821
         info = {"id": eid_int(note.Id), "view_id": eid_int(note.OwnerViewId),
                 "sha1": ib.text_sha1(text), "length": len(text),
                 "summary": ib.summary(board)}
+        if inputs.get("include_identity"):  # noqa: F821
+            info["id"] = str(eid_int(note.Id))
+            info["unique_id"] = str(note.UniqueId)
+            result["host_identity"] = ib.saved_document_identity(doc)
         if not inputs.get("counts_only"):  # noqa: F821
             info["text"] = txt(text)
             info["formats"] = formats

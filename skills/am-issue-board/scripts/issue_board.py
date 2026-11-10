@@ -85,6 +85,15 @@ def text_sha1(text):
     return hashlib.sha1(text).hexdigest()
 
 
+def saved_document_identity(document):
+    path = document.PathName
+    project = document.ProjectInformation
+    if not path or project is None or not project.UniqueId:
+        raise ValueError("Open the saved project used for this plan.")
+    return {"project_uid": str(project.UniqueId),
+            "path_sha256": hashlib.sha256(path.encode("utf-8")).hexdigest()}
+
+
 def id_spans(text):
     """[(offset, length)] of every element id written as id<number>."""
     return [(m.start(), m.end() - m.start()) for m in ID_RE.finditer(text)]
