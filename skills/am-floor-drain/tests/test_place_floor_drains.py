@@ -180,6 +180,35 @@ def test_drain_on_other_level_does_not_block_approved_point(run):
     assert edits == ["Place floor drains"]
 
 
+def _wc(y):
+    wc = FamilyInstance(NS(Id=Id(4), Family=NS(Name="Water Closet"), Name="WC"), Id(1))
+    wc.Id = Id(8)
+    wc.Location.Point = XYZ(0, y, 0)
+    wc.get_BoundingBox = lambda _: NS(Min=XYZ(0, y - 0.6, 0), Max=XYZ(2, y + 0.6, 2))
+    return wc
+
+
+def test_corner_mode_places_drain_between_wc_and_nearer_side_wall(run):
+    execute, edits, items, _ = run
+    items["fixtures"] = [_wc(1.5)]
+    result = execute()
+    assert result["created"] == {"42": 9}
+    row = result["rooms"][0]
+    assert row["mode"] == "corner"
+    assert row["xy"][0] == 0.5
+    assert 0.4 < row["xy"][1] < 0.5
+    assert edits == ["Place floor drains"]
+
+
+def test_corner_mode_asks_when_wc_is_far_from_both_side_walls(run):
+    execute, edits, items, _ = run
+    items["fixtures"] = [_wc(4)]
+    result = execute()
+    assert result["created"] == {}
+    assert result["ASK_USER"][0]["room_id"] == 42
+    assert edits == []
+
+
 def test_resnap_with_unmatched_id_returns_actionable_result(run):
     execute, edits, _, _ = run
     result = execute(resnap=True, resnap_drain_ids=[9])

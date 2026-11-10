@@ -1,6 +1,6 @@
 ---
 name: am-floor-drain
-description: "Use to add floor drains to the toilet rooms on one Revit floor plan (for example \"put floor drains on the 3rd floor\"). Single-user rooms: the drain goes in front of the WC (water closet), outside the door swing, snapped to the floor tile grid. Multi-stall rooms: one drain in a stall aisle, out of sight from the entry door. It dry runs first, then Keep/Discard in Revit. NOT for roof drains, shower drains, area drains, or other plumbing families, and NOT for reading a model (use am-model-health)."
+description: "Use to add floor drains to the toilet rooms on one Revit floor plan (for example \"put floor drains on the 3rd floor\"). Single-user rooms: the drain goes in the corner between the WC (water closet) and the nearer side wall (or, on request, in front of the WC, snapped to the floor tile grid). Multi-stall rooms: one drain in a stall aisle, out of sight from the entry door. It dry runs first, then Keep/Discard in Revit. NOT for roof drains, shower drains, area drains, or other plumbing families, and NOT for reading a model (use am-model-health)."
 ---
 
 # am-floor-drain
@@ -21,12 +21,12 @@ Measured tile grids, drain points and user decisions are project data. Keep them
 ## Steps
 
 1. **Context.** Call `get_context` and `get_skill("revit-scripting")`. If Revit reports a modal dialog, stop. Tell the user which dialog blocks Revit. Never close it yourself. If `get_context` reports two Revit sessions, check the Windows process list: one of them can be a process that is not Revit.
-2. **Ask first.** Follow the preview and confirmation steps in `am-safe-change`. Use AskUserQuestion before any change. Ask which level (default: the active view), which rooms (default: toilet rooms), and the offset (default: 18 in past the bowl). Skip a question when the project notes already answer it.
+2. **Ask first.** Follow the preview and confirmation steps in `am-safe-change`. Use AskUserQuestion before any change. Ask which level (default: the active view), which rooms (default: toilet rooms), and the position in single-user rooms (default: the corner between the WC and the side wall). Skip a question when the project notes already answer it.
 3. **Find the rooms.** List the rooms on the level with TOILET, RESTROOM, WC, SHOWER, PANTRY or CUSTODIAL in the name. Ask about shower rooms, pantries and custodial closets (see "Placement rules").
-4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, `room_ids` for a selected subset, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, distance past the bowl, snap mode. Ask about every room in `ASK_USER`.
+4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, `room_ids` for a selected subset, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, mode, and the gap to the side wall (corner mode) or the distance past the bowl (front mode). Ask about every room in `ASK_USER`.
 5. **Apply.** Run the same script without `dry_run`. Revit asks the user for Keep or Discard. Never set the agent policy to `auto`. Check `z_above_level_should_be_0`: every value must be 0.
-6. **Measure the tile grid.** For each floor in `NEEDS_GRID_MEASURE`, measure the grid (see "How to measure a tile grid"). Preview the move with `grid_offsets`, `resnap: true` and `resnap_drain_ids`. Use only the IDs returned in `created` for the approved placement. Use a dry run for the preview. Confirm it, then run with Keep or Discard.
-7. **Verify.** Call `show_elements` with `zoom: true` on the new drains. Take a picture with `capture_view` (mode `screen`). Check that each drain is visible and sits on a tile intersection. Tell the user about drains that sit under a tag.
+6. **Measure the tile grid (front mode only).** For each floor in `NEEDS_GRID_MEASURE`, measure the grid (see "How to measure a tile grid"). Preview the move with `grid_offsets`, `resnap: true` and `resnap_drain_ids`. Use only the IDs returned in `created` for the approved placement. Use a dry run for the preview. Confirm it, then run with Keep or Discard.
+7. **Verify.** Call `show_elements` with `zoom: true` on the new drains. Take a picture with `capture_view` (mode `screen`). Check that each drain is visible. In corner mode, check that it sits between the WC and the side wall. In front mode, check that it sits on a tile intersection. Tell the user about drains that sit under a tag.
 8. **Learn.** Write the new grid offsets, drain points and user decisions to the project notes.
 
 ## Placement rules (confirmed by a user)
@@ -34,9 +34,13 @@ Measured tile grids, drain points and user decisions are project data. Keep them
 Confirm floor drain and trap protection requirements for the project with the user. This skill does not check code compliance.
 
 **Single-user toilet rooms**
-- Put the drain on the WC center line, **18 in past the front of the bowl** (`target_past` 1.5 ft). The script gets the bowl length from the WC bounding box. Wall-hung WCs stick out about 25 to 29 in.
-- Limits after the snap: at least **12 in past the bowl** (`min_past`), at least **1 ft from the room boundary** (`wall_clear`), and **outside the door swing**. The script treats the door swing as a box of door width by door width on both sides of the door, to be safe.
-- The whole room is visible from the door, so the drain cannot be hidden. Keep it in front of the WC.
+- Ask the user for a markup or a sample before the first floor. The position is a design decision, and reviewers differ.
+- **Default (`single_mode: "corner"`, from a reviewer's markup):** put the drain in the corner **between the WC and the nearer side wall**. Center it in the gap between the WC edge and the side wall. Put its center **6 in from the wall behind the WC** (`back_clear` 0.5 ft). The drain is then out of the walking path and hard to see from the door.
+- The gap is usually about 9 in. The script asks (`ASK_USER`) when the gap is less than 4 in or more than 3 ft. Tell the user about gaps below 8 in: the drain is tight against the WC.
+- Corner mode does not snap to the tile grid. The gap is narrower than a tile.
+- **Alternative (`single_mode: "front"`):** put the drain on the WC center line, **18 in past the front of the bowl** (`target_past` 1.5 ft). The script gets the bowl length from the WC bounding box. Wall-hung WCs stick out about 25 to 29 in.
+- Limits in front mode, after the snap: at least **12 in past the bowl** (`min_past`), at least **1 ft from the room boundary** (`wall_clear`), and **outside the door swing**. The script treats the door swing as a box of door width by door width on both sides of the door, to be safe.
+- Use front mode only when the user asks for it. A reviewer rejected this position on one project.
 
 **Multi-stall toilet rooms**
 - **One drain per room.** Put it where a person who walks in through the door cannot see it (a reviewer asked for "out of direct sight on entry"). Walls and stall rows must block the line from the door to the drain.
@@ -51,7 +55,7 @@ Confirm floor drain and trap protection requirements for the project with the us
 - **Pantries and fridges:** skip unless the user asks. A drain under a fridge is not common. A drain pan or a leak detector is the usual solution, and a trap that dries out smells.
 - **Custodial closets with a mop sink:** skip. The mop sink is the drain point.
 
-**Tile grid**
+**Tile grid (front mode only)**
 - Check the tile intersections around the target on the same floor. Use the nearest point that passes the limits. Ask the user if none passes.
 - Small tiles and resinous floors (no model pattern): no snap. The drain goes on the exact target.
 - Do not move tags without asking. A drain can sit under a room tag or a material tag.
@@ -78,6 +82,7 @@ At a close zoom the scale is about 350 pixels per foot, so the error is less tha
 - **The WC location point is on the wall face.** Two WCs back to back on a shared wall are both near each room. The script then keeps only WCs within 0.3 ft of the room.
 - **The visible WC can be a Generic Model** (a toilet-with-grab-bars family), and a tag can hide the plumbing fixture WC. The script uses the plumbing fixture. If a WC does not show in the plan, ask the user to check that room.
 - **Duplicate WCs.** Some models have two WCs at the same spot. Tell the user: this double counts in schedules.
+- **Fixtures above the level.** Urinals and wall-hung fixtures can sit 1 to 2 ft above the level. Use a Z tolerance of about 4 ft when you collect fixtures for a room.
 - `Door.ToRoom` is an indexed property in IronPython. Use `door.get_ToRoom(phase)` with the view phase.
 - `DB.ElementId(int)` is ambiguous in IronPython. Use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
 - Names with a degree sign break the JSON result. Encode names to ASCII before you return them.

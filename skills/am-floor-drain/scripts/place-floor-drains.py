@@ -11,7 +11,12 @@
 #                      X lines at x = ox + n*gx and Y lines at y = oy + m*gy (internal feet).
 #                      Measure them with the procedure in SKILL.md. A floor with a tile pattern but
 #                      no entry is placed at the exact target and listed in NEEDS_GRID_MEASURE.
-#   target_past  float optional, ft past the bowl front (default 1.5 = 18")
+#   single_mode  str   optional, single-user rooms: "corner" (default) = between the WC and the nearer
+#                      side wall, back_clear ft from the wall behind the WC, no tile snap;
+#                      "front" = in front of the bowl, snapped to the tile grid.
+#                      Resnap always uses the "front" rules.
+#   back_clear   float optional, corner mode: ft from the wall behind the WC (default 0.5 = 6")
+#   target_past  float optional, front mode: ft past the bowl front (default 1.5 = 18")
 #   min_past     float optional, ft past the bowl front, minimum after snap (default 1.0 = 12")
 #   wall_clear   float optional, ft from the room boundary (default 1.0)
 #   points       dict  optional, {"<room id>": [x, y]}: approved aisle points in selected rooms
@@ -42,6 +47,10 @@ else:
     MINP = float(inputs.get("min_past", 1.0))
     CLR = float(inputs.get("wall_clear", 1.0))
     RESNAP = bool(inputs.get("resnap", False))
+    MODE = inputs.get("single_mode", "corner")
+    if MODE not in ("corner", "front"):
+        raise ValueError("single_mode must be 'corner' or 'front'.")
+    BACK = float(inputs.get("back_clear", 0.5))
     RESNAP_IDS = set(int(x) for x in inputs.get("resnap_drain_ids", []))
     POINTS = dict((int(k), v) for k, v in (inputs.get("points") or {}).items())
     if RESNAP and not RESNAP_IDS:
@@ -167,6 +176,26 @@ else:
         tx, ty = p.X, p.Y
         if dx: tx = wall + dx * (bowl + PAST)
         if dy: ty = wall + dy * (bowl + PAST)
+        if MODE == "corner" and not RESNAP:
+            # Between the WC and the nearer side wall, BACK ft from the wall behind the WC.
+            lx, ly = (0, 1) if dx else (1, 0)
+            bx = wall + dx * BACK if dx else p.X
+            by = wall + dy * BACK if dy else p.Y
+            def reach(sgn):
+                t = 0.0
+                while t < 12 and r.IsPointInRoom(DB.XYZ(bx + sgn * lx * (t + 0.05), by + sgn * ly * (t + 0.05), z)): t += 0.05
+                return t
+            half = ((wbb.Max.Y - wbb.Min.Y) if dx else (wbb.Max.X - wbb.Min.X)) / 2.0
+            if not 0.4 < half < 1.2: half = 0.62
+            dpos, dneg = reach(1), reach(-1)
+            sgn = 1 if dpos <= dneg else -1
+            gap = min(dpos, dneg) - half
+            nx = bx + sgn * lx * (half + gap / 2.0); ny = by + sgn * ly * (half + gap / 2.0)
+            rep.update({"wc_id": wc.Id.Value, "wc_wall": side, "mode": "corner", "gap_in": round(gap * 12, 1),
+                        "xy": [round(nx, 3), round(ny, 3)]})
+            if gap < 0.33 or gap > 3.0 or not r.IsPointInRoom(DB.XYZ(nx, ny, z)):
+                rep["skip"] = "ASK: gap between WC and side wall is %.1f in" % (gap * 12); report.append(rep); continue
+            report.append(rep); plan.append((str(room_id), nx, ny, None)); continue
         boxes = []                               # door swing, as a box on both sides (conservative)
         for dr in doors:
             dp = dr.Location.Point
