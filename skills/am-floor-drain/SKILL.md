@@ -1,6 +1,6 @@
 ---
 name: am-floor-drain
-description: "Use to add floor drains to the toilet rooms on one Revit floor plan (for example \"put floor drains on the 3rd floor\"). Single-user rooms: the drain goes in the corner between the WC (water closet) and the nearer side wall (or, on request, in front of the WC, snapped to the floor tile grid). Multi-stall rooms: one drain in a stall aisle, out of sight from the entry door. It dry runs first, then Keep/Discard in Revit. NOT for roof drains, shower drains, area drains, or other plumbing families, and NOT for reading a model (use am-model-health)."
+description: "Use to add floor drains to the toilet rooms on one Revit floor plan (for example \"put floor drains on the 3rd floor\"). Single-user rooms: the drain goes in the corner between the WC (water closet) and the nearer side wall (or, on request, in front of the WC, snapped to the floor tile grid). Multi-stall rooms: one drain in a corner of the lavatory alcove (or in a stall aisle), out of sight from the entry door. It dry runs first, then Keep/Discard in Revit. NOT for roof drains, shower drains, area drains, or other plumbing families, and NOT for reading a model (use am-model-health)."
 ---
 
 # am-floor-drain
@@ -44,10 +44,10 @@ Confirm floor drain and trap protection requirements for the project with the us
 
 **Multi-stall toilet rooms**
 - **One drain per room.** Put it where a person who walks in through the door cannot see it (a reviewer asked for "out of direct sight on entry"). Walls and stall rows must block the line from the door to the drain.
-- Put it in the aisle of a stall area that branches off the entry passage. Center it on the middle fixture of the row, so the pipe is short.
-  - Men's room: in the aisle between the WC row and the urinal row. Urinals splash, so this is the best spot.
-  - Women's room: in the aisle between two stall rows.
-- **How to find the point:** get the entry door. Put the eye 1.5 ft inside the door. Test 1 ft grid points in the room. A point is hidden when the line from the eye crosses the room boundary. Keep hidden points that are at least 1 ft from walls and not inside a stall (more than 5.5 ft from a WC). Pick the aisle center of the stall block. Show the point to the user before you place it.
+- **Default (from a reviewer's markup): a corner of the lavatory alcove.** Many rooms have an entry passage, and an alcove with the lavatory counter that opens off it. Use the alcove corner that is nearest the entry and behind the passage wall, at the end of the lavatory counter. Put the drain center **6 in from both walls** of that corner. The passage wall hides it from the door.
+- **Alternative: a stall aisle.** Put the drain in the aisle of a stall area that branches off the entry passage, centered on the middle fixture of the row. In a men's room, use the aisle between the WC row and the urinal row. Use this only when the room has no hidden corner near the lavatories, or when the user asks. A reviewer replaced this position with the alcove corner on one project.
+- **How to check that a point is hidden:** get the entry door. Put the eye 1.5 ft inside the door. The point is hidden when the line from the eye to the point crosses the room boundary. Show the point to the user before you place it.
+- A corner point is closer to the walls than the default `wall_clear` (1 ft). Pass `wall_clear: 0.4` in the run that places it.
 - Place it with the script input `points` (for example `{"<room element ID>": [x, y]}`). The point must be inside the selected room and clear of its boundary. Check door visibility and stall clearance before approving the point. The script can place single-user drains in the same run.
 
 **Other rooms**
