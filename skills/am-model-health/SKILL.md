@@ -49,6 +49,8 @@ It drives the `pyrevit` MCP tools (the pyRevit Agent Runtime). If those tools ar
 | `color_schemes` | Color fill schemes with no users (see "Color fill scheme usage") | 0 / - |
 | `file_size` | Size of the local .rvt file, in MB | 300 / 600 |
 
+For hidden elements in one view, use the [visibility recipe](../am-safe-change/recipes/hidden-elements.md). It separates direct hides from category, filter and template settings.
+
 The two link hints are not proof. The Revit API has no simple "uses shared coordinates" flag. Say "hint" when you report them.
 
 ### Heavy 2D views
