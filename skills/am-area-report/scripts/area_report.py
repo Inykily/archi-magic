@@ -69,6 +69,88 @@ def room_status(room, opts):
     return "redundant"
 
 
+def room_elements():
+    return (DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_Rooms)
+            .WhereElementIsNotElementType())
+
+
+def occupancy_snapshot():
+    import json
+    import math
+    import re
+    from System import Int64
+    from System.Diagnostics import Stopwatch
+
+    def element_id(value, expected):
+        if not re.match(r"^[1-9][0-9]{0,18}\Z", str(value)) or int(value) > 2**63 - 1:
+            raise ValueError()
+        element = doc.GetElement(DB.ElementId(Int64(int(value))))
+        if not isinstance(element, expected):
+            raise ValueError()
+        return str(eid_int(element.Id))
+
+    try:
+        level_values = inputs.get("level_ids")
+        if not isinstance(level_values, list) or not 1 <= len(level_values) <= 20:
+            raise ValueError()
+        levels = [element_id(value, DB.Level) for value in level_values]
+        phase = element_id(inputs.get("phase_id"), DB.Phase)
+        if len(set(levels)) != len(levels):
+            raise ValueError()
+        parameter_name = inputs.get("occupancy_parameter")
+        if parameter_name is not None and (
+                not hasattr(parameter_name, "strip") or not parameter_name.strip() or len(parameter_name) > 80):
+            raise ValueError()
+    except (ValueError, TypeError, OverflowError):
+        return {"status": "invalid_occupancy_scope"}
+
+    clock = Stopwatch.StartNew()
+    if DB.FilteredElementCollector(doc).OfClass(DB.DesignOption).GetElementCount():
+        return {"status": "design_options_require_review"}
+    options = DB.SpatialElementBoundaryOptions()
+    selected = set(levels)
+    rows = []
+    for count, room in enumerate(room_elements(), 1):
+        if count > 20000 or clock.ElapsedMilliseconds >= 10000:
+            return {"status": "occupancy_scan_limit"}
+        level_id = str(eid_int(room.LevelId))
+        if int(level_id) > 0 and level_id not in selected:
+            continue
+        phase_parameter = room.get_Parameter(DB.BuiltInParameter.ROOM_PHASE_ID)
+        if phase_parameter is None or phase_parameter.StorageType != DB.StorageType.ElementId:
+            return {"status": "room_phase_unavailable"}
+        room_phase = str(eid_int(phase_parameter.AsElementId()))
+        if int(room_phase) <= 0:
+            return {"status": "room_phase_unavailable"}
+        if room_phase != phase:
+            continue
+        if level_id not in selected or room.DesignOption is not None:
+            return {"status": "room_scope_unavailable"}
+        if len(rows) >= 3000:
+            return {"status": "occupancy_scan_limit"}
+        if parameter_name is None:
+            parameter = room.get_Parameter(DB.BuiltInParameter.ROOM_OCCUPANCY)
+        else:
+            matches = list(room.GetParameters(parameter_name))
+            parameter = matches[0] if len(matches) == 1 else None
+        use = parameter.AsString() if parameter is not None and parameter.StorageType == DB.StorageType.String else None
+        if use is not None and len(use) > 120:
+            use = None
+        area = float(room.Area)
+        if math.isnan(area) or math.isinf(area) or area < 0:
+            return {"status": "room_area_unavailable"}
+        rows.append({"id": str(eid_int(room.Id)), "level_id": level_id,
+                     "status": room_status(room, options), "occupancy": use, "area_ft2": area})
+    if clock.ElapsedMilliseconds >= 10000:
+        return {"status": "occupancy_scan_limit"}
+    payload = {"kind": "occupancy-room-snapshot", "phase_id": phase, "level_ids": levels,
+               "area_basis": "net_room", "room_count": len(rows), "rooms": rows}
+    encoded = json.dumps(payload, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":"))
+    if len(encoded) > 2 * 1024 * 1024:
+        return {"status": "occupancy_snapshot_size_limit"}
+    return {"status": "ok", "snapshot_json": encoded, "room_count": len(rows)}
+
+
 def add(bucket, key, ft2, conv):
     b = bucket.setdefault(key, {"count": 0, "area_ft2": 0.0})
     b["count"] += 1
@@ -110,12 +192,13 @@ def main():
     if doc.IsFamilyDocument:
         return {"status": "family_document", "message": "The active document is a family."}
 
+    if inputs.get("occupancy_snapshot") is True:
+        return occupancy_snapshot()
+
     group_by = inputs.get("group_by") or "Department"
     conv, unit_label, units_ok = display_units()
     opts = DB.SpatialElementBoundaryOptions()
-
-    rooms = (DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_Rooms)
-             .WhereElementIsNotElementType())
+    rooms = room_elements()
     header = ["Element Id", "Number", "Name", "Level", group_by, "Phase", "Status",
               "Area (%s)" % unit_label, "Area (m2)", "Area (ft2)"]
     rows = []
@@ -242,5 +325,7 @@ def ascii_safe(obj):
     return obj
 
 
-result = ascii_safe(main())
+result = main()
+if inputs.get("occupancy_snapshot") is not True:
+    result = ascii_safe(result)
 print("am-area-report: %s, %s rooms" % (result.get("status"), result.get("room_count")))

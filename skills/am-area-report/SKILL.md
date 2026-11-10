@@ -35,6 +35,33 @@ The script `scripts/area_report.py` does the work. Read the file and pass its fu
    Run again with `inputs = {"group_by": ..., "program_csv": "<text>", "program_key": "group" or "name", "program_units": "display" or "m2" or "ft2"}`. Show `program` as a table with target, actual, delta, delta % and status (OK within 5%, OVER, UNDER, MISSING). Set `tolerance_pct` to change the 5%.
 6. CSV file (optional). Ask for the folder. Write the CSV from Claude's side with the Write tool, not from inside Revit (guarded runs cannot save files). Use `header` and `rows` from the result. Quote each field that has a comma, a quote or a line break, and double the quotes inside it. Name it `<model>-area-report-<yyyy-mm-dd>.csv`. Tell the user the full path.
 
+## Review occupant load and measured egress widths (issue #156)
+
+Use the project team's reviewed occupancy factors, routes, and clear-width measurements. Select one phase and the levels to check. Use the same project and phase for the rooms, doors, and stairs.
+
+1. Run `area_report.py` with inputs `{"occupancy_snapshot": true, "phase_id": "1", "level_ids": ["2"]}`. Replace the example IDs with current project IDs. The default field is Occupancy. To use a different room field, add `"occupancy_parameter": "Field name"`. Use a unique text parameter.
+2. If the response is truncated, use `get_run` to read the full result. Save the contents of `snapshot_json` as UTF-8 JSON. Stop if the query reports a scope error, design options, or a limit.
+3. Run `(Get-FileHash .\rooms.json -Algorithm SHA256).Hash.ToLowerInvariant()` in PowerShell. Put that value in the criteria file. Use the exact saved snapshot with its matching criteria.
+4. Run `python occupancy_egress.py rooms.json criteria.json` from the script folder. Show known loads and unresolved rooms for each floor. Show measured and required widths for each checked segment. Use the reported comparison for values near the threshold. Display widths are rounded to six decimal places.
+
+Use this synthetic criteria structure. Replace every factor and measurement with reviewed project values. The example assumes that room 11 has eight calculated occupants and uses door 51 and stair 52.
+
+```json
+{
+  "snapshot_sha256": "<sha256 of rooms.json>",
+  "occupancy_factors": [
+    {"occupancy":"Office","basis":"net_room","area_per_person":"100","unit":"ft2","source":"Reviewed occupancy table"}
+  ],
+  "segments": [
+    {"id":"51","kind":"door","measurement":{"basis":"clear_width","value":"36","unit":"in","source":"Measured opening"},"minimum":{"value":"34","unit":"in"},"width_per_person":{"value":"0.2","unit":"in"},"criteria_source":"Reviewed width criteria"},
+    {"id":"52","kind":"stair","measurement":{"basis":"clear_width","value":"1100","unit":"mm","source":"Measured stair"},"minimum":{"value":"1000","unit":"mm"},"width_per_person":{"value":"8","unit":"mm"},"criteria_source":"Reviewed width criteria"}
+  ],
+  "routes": [{"room_id":"11","occupants":8,"segment_ids":["51","52"]}]
+}
+```
+
+Use `ft2` or `m2` per person for room factors, and `mm` or `in` for widths. Enter every room's allocation. For split flow, enter separate routes whose occupants add up to the room load. Use the same segment ID wherever routes share a door or stair. Report any incomplete floor or route allocation. The width result compares only the measured segments with the supplied criteria. Use a separate design review for code compliance.
+
 ## Recipe: presentation department diagram from areas (issue #89)
 
 Use this workflow to create presentation department diagrams with rounded-corner filled regions following area plan boundaries.
