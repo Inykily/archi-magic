@@ -112,7 +112,7 @@ def run(monkeypatch):
         FamilySymbol="symbol", Floor="floor", FilteredElementCollector=Collector, Transaction=Transaction,
         SpatialElementBoundaryOptions=object,
         BuiltInParameter=NS(VIEW_PHASE="phase", ROOM_NAME="room_name", INSTANCE_ELEVATION_PARAM=1,
-                            INSTANCE_FREE_HOST_OFFSET_PARAM=2),
+                            INSTANCE_FREE_HOST_OFFSET_PARAM=2, DOOR_WIDTH="door_width"),
         BuiltInCategory=NS(OST_PlumbingFixtures="fixtures", OST_Doors="doors", OST_Rooms="rooms"),
         Element=NS(Name=NS(GetValue=lambda element: element.Name)),
         Structure=NS(StructuralType=NS(NonStructural=0)),
@@ -275,3 +275,41 @@ def test_resnap_moves_only_approved_drain_to_measured_grid(run):
     assert measured["moved"] == {"42": 9}
     assert moves == [(-0.5, 0.0, 0)]
     assert edits == ["Snap floor drains to tile grid"]
+
+
+def test_corner_respects_an_internal_room_boundary(run):
+    execute, edits, items, _ = run
+    items["fixtures"] = [_wc(1.5)]
+    items["rooms"][0].interior_boundary = 0.51
+    result = execute()
+    assert result["created"] == {}
+    assert "boundary" in result["ASK_USER"][0]["skip"]
+    assert edits == []
+
+
+def test_corner_uses_the_fixture_edge_on_the_selected_side(run):
+    execute, edits, items, _ = run
+    wc = _wc(1.5)
+    wc.get_BoundingBox = lambda _: NS(Min=XYZ(0, 0.25, 0), Max=XYZ(2, 1.85, 2))
+    items["fixtures"] = [wc]
+    result = execute()
+    assert result["created"] == {}
+    assert "gap" in result["ASK_USER"][0]["skip"]
+    assert edits == []
+
+
+def test_corner_respects_door_swing(run):
+    execute, edits, items, _ = run
+    room = items["rooms"][0]
+    door_symbol = NS(get_Parameter=lambda _: NS(AsDouble=lambda: 3.0))
+    door = FamilyInstance(door_symbol, room.LevelId)
+    door.Location.Point = XYZ(0, 1, 0)
+    door.HandOrientation = XYZ(0, 1, 0)
+    door.get_ToRoom = lambda _: room
+    door.get_FromRoom = lambda _: None
+    items["doors"] = [door]
+    items["fixtures"] = [_wc(1.5)]
+    result = execute()
+    assert result["created"] == {}
+    assert "door swing" in result["ASK_USER"][0]["skip"]
+    assert edits == []

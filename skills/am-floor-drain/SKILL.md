@@ -37,7 +37,7 @@ Confirm floor drain and trap protection requirements for the project with the us
 - Ask the user for a markup or a sample before the first floor. The position is a design decision, and reviewers differ.
 - **Default (`single_mode: "corner"`, from a reviewer's markup):** put the drain in the corner **between the WC and the nearer side wall**. Center it in the gap between the WC edge and the side wall. Put its center **6 in from the wall behind the WC** (`back_clear` 0.5 ft). The drain is then out of the walking path and hard to see from the door.
 - The gap is usually about 9 in. The script asks (`ASK_USER`) when the gap is less than 4 in or more than 3 ft. Tell the user about gaps below 8 in: the drain is tight against the WC.
-- Corner mode does not snap to the tile grid. The gap is narrower than a tile.
+- Corner mode uses the actual WC bounds. The script asks if the point is too close to a room boundary or overlaps a door swing. Corner mode uses the corner offsets and skips the tile grid.
 - **Alternative (`single_mode: "front"`):** put the drain on the WC center line, **18 in past the front of the bowl** (`target_past` 1.5 ft). The script gets the bowl length from the WC bounding box. Wall-hung WCs stick out about 25 to 29 in.
 - Limits in front mode, after the snap: at least **12 in past the bowl** (`min_past`), at least **1 ft from the room boundary** (`wall_clear`), and **outside the door swing**. The script treats the door swing as a box of door width by door width on both sides of the door, to be safe.
 - Use front mode only when the user asks for it. A reviewer rejected this position on one project.
