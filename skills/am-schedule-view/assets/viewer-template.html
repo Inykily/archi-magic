@@ -325,6 +325,7 @@ tr.d-same.has-warn td { color: var(--ink); }
 .old { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 1px; }
 .arr { color: var(--ink-3); padding: 0 6px; }
 .new { color: var(--ink); }
+.review-only td { white-space: pre-wrap; overflow-wrap: anywhere; }
 tr.flash td { animation: flash 1.4s var(--ease); }
 @keyframes flash { 0% { background: var(--line-strong); } 100% { background: transparent; } }
 tr.fold td { text-align: center; padding: 0; }
@@ -917,6 +918,7 @@ tr.fold button:hover { color: var(--ink); }
     function redraw() { drawDiff(cp, { compareMode: false }); }
     $("filter").addEventListener("input", function () { diffState.filter = $("filter").value; redraw(); });
     if (cp.review_only === true) {
+      $("layout").classList.add("review-only");
       $("tsv").style.display = "none";
       $("csv").style.display = "none";
     } else {

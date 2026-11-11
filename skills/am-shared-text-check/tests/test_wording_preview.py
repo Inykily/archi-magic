@@ -56,3 +56,45 @@ def test_punctuated_office_abbreviations_survive_conflicting_corrections(tmp_pat
         ],
         "review": [],
     }
+
+
+def test_renderable_wording_preview_protects_dictionary_matches(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "shared_text_cli.py"
+    notes, rules = tmp_path / "notes.json", tmp_path / "rules.json"
+    original = json.dumps({"notes": [
+        {"id": 10, "text": "U.S. / n/a"},
+        {"id": 9007199254740993, "text": "U.S. Dorr\nSTC", "view": "Plan"},
+        {"id": 12, "text": "U.S. Unlisted"},
+    ]})
+    notes.write_text(original)
+    rules.write_text(json.dumps({
+        "accepted": ["U.S.", "N/A", "Door", "STC"],
+        "replacements": {"U": "Unit", "U.S.": "US", "N": "North", "Dorr": "Door"},
+    }))
+    command = [sys.executable, str(script), "wording-preview", str(notes), str(rules)]
+    payload = json.loads(subprocess.check_output(command, text=True))
+    assert payload["kind"] == "change-preview"
+    assert payload["columns"] == ["Element ID", "View", "Text"]
+    assert payload["keyColumn"] == "Element ID"
+    assert payload["changedColumns"] == ["Text"]
+    assert payload["before"] == [
+        ["9007199254740993", "Plan", "U.S. Dorr\nSTC"], ["12", "", "U.S. Unlisted"],
+    ]
+    assert payload["after"] == [
+        ["9007199254740993", "Plan", "U.S. Door\nSTC"], ["12", "", "U.S. Unlisted"],
+    ]
+    assert payload["warnings"] == [
+        {"row": "12", "text": "Review unlisted words: Unlisted", "blocking": False}
+    ]
+    assert payload["ownership_ids"] == ["9007199254740993"]
+    assert payload["steps"] == []
+    assert payload["review_only"] is True
+    assert notes.read_text() == original
+
+    invalid = json.loads(original)
+    invalid["notes"][1]["id"] = "10"
+    notes.write_text(json.dumps(invalid))
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert result.returncode == 2
+    assert not result.stdout
+    assert "unique positive" in result.stderr
