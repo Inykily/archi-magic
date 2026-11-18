@@ -109,7 +109,8 @@ try {
             $when = if ($script:checkedAt) { $script:checkedAt } else { (Get-Date).ToUniversalTime().ToString('o') }
             $rec = [ordered]@{ installed = $versionKey; latest_tag = $tag; checked_at = $when }
             if ($skillsTag) { $rec.latest_skills_tag = $skillsTag; $rec.latest_skills = @($skillNames) }
-            [IO.File]::WriteAllText($cacheFile, (New-Object PSObject -Property $rec | ConvertTo-Json -Compress))
+            # UTF-8 without a byte-order mark, stated explicitly (issue #253): a BOM breaks JSON readers.
+            [IO.File]::WriteAllText($cacheFile, (New-Object PSObject -Property $rec | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding $false))
         } catch { Write-Log 'warn' ('Update check cache not written: ' + $_.Exception.Message) $null }
     }
     if (-not $tag) {
