@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-# Read-only check (run_query). inputs: {"view_id": int}
+# Read-only check (run_query). inputs: {"view_id": int, "family_name": str}
+# family_name is the corner guard family name (names differ in each office).
 # Reports tag text, untagged guards and leader ends that are far from their guard.
 from pyrevit.api import DB
 import math, System
 
-FAM = inputs.get("family_name", "GM-W_PRT-CORNER_GUARD-100")
+FAM = inputs.get("family_name")
+if not FAM:
+    raise ValueError("Pass family_name: the corner guard family name.")
 view = doc.GetElement(DB.ElementId(System.Int64(inputs["view_id"])))
 guards = [e for e in DB.FilteredElementCollector(doc, view.Id).OfCategory(DB.BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
           if isinstance(e, DB.FamilyInstance) and e.Symbol.FamilyName == FAM]

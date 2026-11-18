@@ -9,6 +9,8 @@ import pytest
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "place-floor-drains.py"
+# Neutral names: real family and type names differ in each office.
+FAMILY, TYPE = "Floor Drain", "Type A"
 
 
 class Id:
@@ -60,7 +62,7 @@ class Room:
 
 @pytest.fixture
 def run(monkeypatch):
-    symbol = NS(Id=Id(3), Family=NS(Name="PLBG-FLOOR DRAIN-2D"), Name="Floor Drain-2D", IsActive=True)
+    symbol = NS(Id=Id(3), Family=NS(Name=FAMILY), Name=TYPE, IsActive=True)
     items = {"rooms": [Room()], "fixtures": [], "floor": [], "elements": {}}
     edits = []
     level = NS(Id=Id(1), Name="Test level", Elevation=0)
@@ -124,9 +126,18 @@ def run(monkeypatch):
     doc = NS(GetElement=get_element, Regenerate=lambda: None, Create=NS(NewFamilyInstance=create))
 
     def execute(**inputs):
+        inputs = dict({"family_name": FAMILY, "type_name": TYPE}, **inputs)
         return runpy.run_path(str(SCRIPT), init_globals={"inputs": dict(inputs, view_id=10), "doc": doc})["result"]
 
     return execute, edits, items, symbol
+
+
+@pytest.mark.parametrize("missing", ["family_name", "type_name"])
+def test_family_and_type_names_are_required(run, missing):
+    execute, edits, _, _ = run
+    with pytest.raises(ValueError, match=missing):
+        execute(**{missing: None})
+    assert edits == []
 
 
 def test_explicit_point_does_not_duplicate_an_existing_drain(run):
