@@ -49,6 +49,19 @@ Read this whole section before you act. The user is usually an architect, not a 
 - Claude desktop app, Code tab. The `claude` CLI may not be on PATH. If you need it, look for it the way `skills/am-pyrevit7-setup/scripts/pyrevit7-setup.ps1` (`Find-ClaudeCli`) does. Never use `AnthropicClaude\claude.exe`, which is the desktop app, not the CLI.
 - Revit 2024, 2025 or 2026 may be installed. Rhino 8 may be installed. Either may be open with unsaved work: **never close or kill Revit or Rhino.** Ask the user to save and close when a step needs it.
 
+### Prerequisites
+
+Check these before step 1 of the install. An office PC often has none of them. Each one installs per user, with no admin rights. Ask the user before you install anything.
+
+| Tool | Needed for | Check | Install (per user) |
+|---|---|---|---|
+| git | Step 1 and every update: Claude Code clones the marketplace with git. Without git, step 1 fails with `Command 'git' not found`. | `git --version` | `winget install --id Git.Git -e --scope user` |
+| GitHub CLI (`gh`) | `am-feedback` (posts an issue) and pull requests | `gh auth status` | `winget install --id GitHub.cli -e --scope user`, then `gh auth login` |
+| Python 3 (a real one) | Skills that run `python .../scripts/...` on this computer (for example `am-feedback`, `am-doctor`, `am-area-report`) and the skill tests. Scripts that run inside Revit do not need it. | `(Get-Command python).Source` is not in `\WindowsApps\` | `winget install --id Python.Python.3.12 -e --scope user` |
+
+- **The Microsoft Store alias is not Python.** On many PCs `python` is only `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`. It prints `Python was not found; run without arguments to install from the Microsoft Store ...`, and it can exit with code 0. Treat it as "no Python". After the install, call Python by its full path (for example `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`). When there is no Python, skip the Python step, tell the user, and do not report the step as done.
+- **A new install is not on PATH in the current session.** Call the tool by the full path that winget prints, or start a new session. In PowerShell, put `&` before a quoted path: `& "<path>\gh.exe" auth login`. Without `&`, PowerShell stops with `Unexpected token 'auth'`.
+
 ### Install procedure
 
 1. Add the marketplace and install the plugin. Type these in Claude Code (or run them with the `claude` CLI: `claude plugin marketplace add ...` and `claude plugin install ...`):
@@ -64,8 +77,16 @@ Read this whole section before you act. The user is usually an architect, not a 
    {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
    ```
    An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
+   **Do not edit files under `~/.claude/plugins/` by hand** (for example `known_marketplaces.json` or `installed_plugins.json`). Use `/plugin`, or the `extraKnownMarketplaces` entry in `settings.json`. Claude Code owns those files: when it cannot read one, the plugin stops loading, and no hook can warn you. Write `settings.json` as UTF-8 without a byte-order mark (BOM). In Windows PowerShell 5.1, `Set-Content -Encoding utf8` and `Out-File -Encoding utf8` add a BOM; use `[IO.File]::WriteAllText($p, $text, (New-Object Text.UTF8Encoding $false))`, or the file-editing tool.
 3. Ask the user to restart the Claude desktop app. Skills, hooks and MCP servers load only in a new session.
-4. In the new session, run the `am-welcome` skill.
+4. **Check** in the new session: the skill list has `archi-magic:` skills (for example `archi-magic:am-welcome`), and `/reload-plugins` shows no errors during load.
+   If `/reload-plugins` shows errors or no `archi-magic:` skills, the plugin did not load, and its hooks and update notice do not run either. Run the doctor script directly by its path (it does not need the plugin to load), and show its findings to the user:
+   ```powershell
+   $doctor = Get-ChildItem "$env:USERPROFILE\.claude\plugins\cache\archi-magic\archi-magic\*\skills\am-doctor\scripts\doctor.ps1" | Sort-Object LastWriteTime | Select-Object -Last 1
+   powershell -NoProfile -ExecutionPolicy Bypass -File $doctor.FullName
+   ```
+   The installed folder is the `installPath` of `archi-magic@archi-magic` in `~/.claude/plugins/installed_plugins.json`. If `CLAUDE_CONFIG_DIR` is set, use that folder instead of `~/.claude`. If there is no `doctor.ps1`, the plugin is not installed: go back to step 1.
+5. In the new session, run the `am-welcome` skill.
 
 Optional add-ons, installed only when the user needs them:
 
@@ -96,6 +117,7 @@ Optional add-ons, installed only when the user needs them:
 | "check my model", "model health", "dashboard", "where are the DWG files", "heavy 2D views" | `am-model-health` | Read-only query; offer the dashboard |
 | "are the parameters filled in", BEP checks | `am-param-qa` | Ask which categories and parameters |
 | "material quantities by level", "estimate embodied carbon" | `am-material-audit` | Read selected material quantities or report carbon from takeoff volumes and user-supplied factors |
+| "quantity takeoff", "material takeoff for the whole model", takeoff for all walls and floors or more than 500 elements | `am-quantity-takeoff` | Ask the scope; read it (read only), then read each batch and merge with the coverage check |
 | "which materials are unused", "list materials", "material colors" | `am-material-audit` | Read-only query; lists materials by name prefix with colors and patterns, flags duplicates and low contrast |
 | "fill standards", "filled region check", "which fill types are unused", "reference view sync", "check my hatch names" | `am-fill-standards` | Read-only query; renames and sync go through dry run + Keep/Discard |
 | "reference sample view", "one sample per type", "sample drawn with that type" | `am-reference-samples` | Run the coverage check first (read only); then fix samples, then labels; dry run, then Keep/Discard |
@@ -173,6 +195,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-model-health` | Checks the open Revit model without changing it: warnings, links, in-place families, rooms, duplicate Marks, a CAD link audit (missing files, personal OneDrive paths, unpinned or misplaced links), views with heavy 2D content ranked by severity, views and file size. You get a short ranked report or an HTML dashboard with trends. Ask "check my model health". Adapted from [Utopia5327](https://github.com/Utopia5327/claude-plugin-for-revit-bim) (MIT). |
 | `am-param-qa` | Finds elements whose required parameters are missing or empty (for example door Fire Rating, Mark, or your BEP list). Ask "are my door parameters filled in?". Adapted from Utopia5327 (MIT). |
 | `am-material-audit` | Lists materials whose names start with a prefix you give, with Shading color, Transparency, Surface Pattern foreground and background, and Cut pattern, all in RGB. It flags duplicates and low pattern contrast, and finds unused materials with a scoped check. It also audits texture image paths in appearance assets: missing files, Autodesk library resolution, and empty or unreadable assets. Ask "which Floor Finish materials are unused?" or "which textures are missing?". |
+| `am-quantity-takeoff` | Makes one material takeoff (area and volume by material, category and level, with totals and a CSV) for a scope that is too large for one quantity read, for example all walls and floors. It lists the scope, reads it in batches of up to 500 with the `am-material-audit` quantity read, and checks that no batch is missing or read twice. It only reads. Ask "make a quantity takeoff of all walls and floors". |
 | `am-fill-standards` | Checks filled region types and fill patterns: Masking against the _OPQ/_TRN name rule, typo flags (double spaces, double underscores, trailing numbers), uses in drawings against uses only in the reference view, and unused types. Builds a rename table the user approves before any rename, and syncs the reference view (labels paired to swatches, two-line labels from type names, swatches for types used in drawings that have none, swatches with no drawing use flagged). Ask "check my fill standards". |
 | `am-reference-samples` | Builds and checks reference sample views: one sample per type, drawn with that type, label equals the type name, for line styles, text types, dimension types, filled region types and fill patterns. It checks coverage first (read only), then fixes samples before labels, lists types that cannot have a sample as text rows, guards the layout, and warns about mixed sizes. Ask "check the reference sample views". |
 | `am-workset-audit` | Checks the worksets of a team model and moves elements only after a dry run and your Keep/Discard. Ask "audit my worksets". Adapted from Utopia5327 (MIT). |
