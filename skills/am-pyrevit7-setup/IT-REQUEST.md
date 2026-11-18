@@ -17,6 +17,7 @@ Please uninstall the old pyRevit that is installed for all users on my PC [PC na
 **Why:**
 - Revit uses pyRevit 7 from my profile, but command-line runs (`pyrevit run`) still load the old pyRevit [6.4] from Program Files.
 - The old pyRevit installer also stops the per-user version from updating correctly.
+- Both pyRevit versions use the same add-in ID. At each start, Revit loads one of them and shows a "Duplicated AddInId" error for the other. Once, it loaded the old version instead.
 
 **After the change:** I will run a check (archi-magic `am-doctor`) to confirm that only pyRevit 7 is in use. No restart is needed, other than closing Revit during the uninstall.
 

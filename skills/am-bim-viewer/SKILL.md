@@ -135,6 +135,15 @@ The user may say "apply my changes" or "I made some changes, apply to Revit" and
 
 If the page text has no pending rows, or no viewer tab is open, ask the user to click "copy changes for revit" in the viewer and paste the result.
 
+## Browser pane troubleshooting (issue #260)
+
+The Browser pane is the web view next to the conversation. These points come from sessions that built the viewer many times.
+
+- **Show a new build in a new tab.** Close the viewer tab with `tabs_close`. Then open the page again with `preview_start` and `url`. Do not rely on a reload. A reload, `location.reload()`, the same URL or a new file name can keep the old page state.
+- **Keep one viewer tab open.** Before you open a viewer page, call `tabs_context`. Close the old viewer tabs first. The pane has a tab cap (about nine tabs; the exact number is not measured). After five builds, one viewer tab must be open, not five.
+- **"Declined access" can mean the tab cap.** The error `couldn't open file ... the user declined access` can come when too many tabs are open. The user did not decline anything. Close the old tabs. Then open the page one more time. If the error comes again, tell the user. Do not try again in a loop.
+- **Read the `preview_start` result.** Look for the words "static snapshot". They mean that the file is outside the project folder. Page scripts do not run, so the viewer looks empty. Copy the page into the working folder (step 3). Then close the tab and open the copy.
+
 ## JSON schema (`am-bim-viewer/1`)
 
 ```json

@@ -13,6 +13,22 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 - **Never kill Revit.** If the script exits with code 2, ask the user to save and close Revit, then wait.
 - Don't run the pyRevit installer with `/LOG` (it crashes intermittently), and don't run `pyrevit attach` yourself (on machines with an admin-installed pyRevit it deletes per-user manifests and then fails).
 - Show the script's output, and explain every WARNING and every non-zero exit code.
+- Do not edit files under `~/.claude/plugins/` by hand (for example `known_marketplaces.json`). Use `/plugin`, or the `extraKnownMarketplaces` entry in `settings.json` (step 5). A hand edit in Windows PowerShell 5.1 (`Set-Content -Encoding utf8`, `Out-File`) adds a byte-order mark (BOM). Then Claude Code cannot read the file, and no plugin loads. `am-doctor` finds this as CONFIG_BOM (issue #253).
+- Do not write Revit add-in manifests yourself. Repoint writes one per-user `pyRevit7.addin` for each Revit year (see "How Repoint names the manifest").
+
+## How Repoint names the manifest
+
+IT installs pyRevit for all users as `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. Repoint writes the per-user override `%APPDATA%\Autodesk\Revit\Addins\<year>\pyRevit7.addin` (issue #258):
+- **Another file name.** With the same name `pyRevit.addin`, the Revit journal said the file "is duplicated", and Revit 2026.4 loaded no pyRevit at all. Older setup runs wrote this layout.
+- **The same AddInId** (the add-in ID in the manifest). Revit loads one add-in for each AddInId. On Revit 2026.4 it loaded the per-user pyRevit 7 and refused the machine-wide pyRevit with a "Duplicated AddInId ... Failed to initialize the add-in 'PyRevitLoader'" dialog. Another AddInId would load both pyRevit versions.
+- **One per-user manifest for each year.** Repoint removes the other per-user `pyRevit*.addin` files of that year (for example an old `pyRevit.addin`). The undo journal keeps a byte copy, so `-Undo` restores them.
+
+Tell the user what to expect at the next Revit start, when IT installed pyRevit for all users:
+- A "Duplicated AddInId" dialog for PyRevitLoader can show. This is expected. Close it.
+- pyRevit > About must show 7.x.
+- If no pyRevit tab shows, or About shows 6.x, run `am-doctor`. It checks the per-user manifests (ADDIN_NAME_CLASH, ADDIN_DUPLICATE, ADDIN_OTHER_ID). If the manifests are correct and About still shows 6.x, offer `IT-REQUEST.md`.
+
+This was seen on one Revit 2026.4 computer. It is not tested on Revit 2024 or 2025.
 
 ## Steps
 
@@ -26,9 +42,10 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
 1. Run everything (install, repoint, enable agent, verify). It takes about 2 minutes:
    `powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill dir>\scripts\pyrevit7-setup.ps1"`
    - For a quick re-fix after a pyRevit update, use `-Repoint -Verify` instead.
-2. When it prints `Done`, ask the user to open Revit and **open a model**. The connection check can't finish from the Home screen. An Autodesk sample such as *Snowdon Towers Sample Architectural* is fine. If Revit was already open, ask them to restart it.
+2. When it prints `Done`, ask the user to open Revit and **open a model**. The connection check can't finish from the Home screen. An Autodesk sample such as *Snowdon Towers Sample Architectural* is fine. If Revit was already open, ask them to restart it. Tell them about the "Duplicated AddInId" dialog first (see "How Repoint names the manifest").
 3. Run it again with `-Verify`. Success looks like `agent: Revit 2026 (build ...) pid ...: responding`.
    - If it says "No running Revit with the agent host", ask for pyRevit tab → Reload, then verify again. This can take a second reload.
+   - If no pyRevit tab shows, or pyRevit > About shows 6.x, run `am-doctor` before you ask more questions.
 4. Tell the user to restart the Claude desktop app and open a new Code session; the `pyrevit` MCP tools load only in new sessions. After the restart, tell the user to paste exactly this line:
    "Setup is done. Run am-welcome and give me a first safe Revit question."
 5. Close with these points:
@@ -39,6 +56,7 @@ Sets up pyRevit 7 and the pyRevit Agent Runtime (https://docs.pyrevitlabs.io/age
      {"extraKnownMarketplaces":{"archi-magic":{"source":{"source":"github","repo":"zsenarchitect/archi-magic"},"autoUpdate":true}}}
      ```
      An org admin can set the same `autoUpdate` on a managed `extraKnownMarketplaces` entry to force it.
+     Or use the menu: `/plugin` > Marketplaces > archi-magic > Enable auto-update. Do not edit files under `~/.claude/plugins/` by hand. To write `settings.json` from PowerShell, keep a copy first, then use `[IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))`. `Set-Content -Encoding utf8` and `Out-File` add a byte-order mark in Windows PowerShell 5.1.
    - Re-run this skill after any pyRevit update.
    - A Revit year installed after setup (for example a new Revit year) needs another `-Repoint` run: Repoint attaches years that have no manifest yet, and leaves attached years unchanged.
    - If IT installed an older pyRevit for all users, the setup fixes Revit when you open it yourself, and the archi-magic skills use pyRevit 7. A `pyrevit run` batch or CI script still loads the old pyRevit, because it reads the machine-wide manifest. To fix that, IT must uninstall the old pyRevit (admin rights). `am-doctor` reports this as HEADLESS_OLD_PYREVIT. Offer the IT request template in `IT-REQUEST.md` (this skill's folder).
@@ -51,6 +69,7 @@ Use this when the user wants the setup changes back (for example, Revit loads th
 - Undo never needs admin rights and never stops Revit. If Revit is running, the manifest changes apply at the next start. It does not uninstall pyRevit 7.
 - Exit 7: nothing to undo. Exit 8: some items were skipped (a manifest changed after the run). Show the warnings. Offer `-Force` only after the user agrees.
 - If undo restores the policy `auto`, tell the user that model changes then skip Keep/Discard. Offer `pyrevit configs agent policy ask`.
+- Undo of a run that removed an old per-user `pyRevit.addin` brings that file back. The script then prints a note: the file has the machine-wide name, which loaded no pyRevit on Revit 2026.4. Tell the user. A new `-Repoint` fixes it again.
 
 ## House rules (all am-* skills)
 

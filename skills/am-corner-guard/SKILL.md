@@ -1,11 +1,13 @@
 ---
 name: am-corner-guard
-description: "Use to add corner guards and their keynote tags to a Revit floor finish plan (for example \"add corner guards to the level 5 finish plan\"). Finds the right wall corners from the walls (outside corners in corridors), places the guard family, and tags nearby guards with one tag that does not overlap other text. The rules come from a user's edits on five floors of a school project. NOT for other families or for reading a model (use am-model-health)."
+description: "Use to add corner guards and their keynote tags to a Revit floor finish plan (for example \"add corner guards to the level 5 finish plan\"). Finds the right wall corners from the walls (outside corners in corridors), places the guard family, and tags nearby guards with one tag that does not overlap other text. The rules come from a user's edits on five floors of one project. NOT for other families or for reading a model (use am-model-health)."
 ---
 
 # am-corner-guard
 
-This skill places corner guards (family `GM-W_PRT-CORNER_GUARD-100`, keynote CG-01) on one floor finish plan, and tags them. The rules below come from what the user kept and deleted after each floor. Update them after each new floor.
+This skill places corner guards (a Generic Model family, keynote CG-01) on one floor finish plan, and tags them. The rules below come from what the user kept and deleted after each floor. Update them after each new floor.
+
+The guard family name and the keynote tag type are different in each office and project. Do not assume a name. Read them from the template guard and its tag (step 2), and pass the family name to the scripts in `family_name` (for example `<corner guard family>`).
 
 Use the scripts in `scripts/`. They run in Revit through the pyRevit MCP tools.
 
@@ -14,9 +16,9 @@ Use the scripts in `scripts/`. They run in Revit through the pyRevit MCP tools.
 1. **Context.** Call `get_context` and `get_skill("revit-scripting")`. If Revit reports a modal dialog (for example "Sync With Central"), stop. Ask the user to close it. Never close it yourself.
 2. **Find the template.** Find one guard that has a single-guard CG-01 keynote tag in any view. Note the view id, the tag id, and the guard family name. If none exists, ask the user to place one guard and one tag by hand.
 3. **Find the target view.** The floor finish plan for the level, for example "3RD FLOOR FINISH PLAN". Skip views that end with "Furniture".
-4. **Dry run.** Run `scripts/place-corner-guards.py` with `run_modify` and `dry_run: true`. Pass `inputs`: `view_id`, `src_view_id`, `tpl_tag_id`. Show the user the counts and the room list. Ask about every room in `ASK_USER_by_room` (see "Open questions"), then pass the approved names in `approve_rooms`.
+4. **Dry run.** Run `scripts/place-corner-guards.py` with `run_modify` and `dry_run: true`. Pass `inputs`: `view_id`, `src_view_id`, `tpl_tag_id`, `family_name`. Show the user the counts and the room list. Ask about every room in `ASK_USER_by_room` (see "Open questions"), then pass the approved names in `approve_rooms`.
 5. **Confirm and apply.** This skill changes the model, so it follows the gate in `am-safe-change`: preview, user confirmation, dry run, then apply. Ask with AskUserQuestion: Apply (Recommended) or Change scope or Cancel. Then run the same script without `dry_run`. Revit asks the user for Keep or Discard. Never set the agent policy to `auto`.
-6. **Verify.** Run `scripts/check-tags.py` with `run_query`. Expect 0 untagged guards, 0 empty tag texts, 0 tags without leader, 0 tags with a leader that is not Free, 0 far leader ends. Then take a picture with `capture_view` and look at it.
+6. **Verify.** Run `scripts/check-tags.py` with `run_query`. Pass `inputs`: `view_id`, `family_name`. Expect 0 untagged guards, 0 empty tag texts, 0 tags without leader, 0 tags with a leader that is not Free, 0 far leader ends. Then take a picture with `capture_view` and look at it.
 7. **Learn.** After the user edits the floor, read it again. Compare what was kept with what you placed. Update the rules in this file.
 
 ## Placement rules (confirmed by the user)
@@ -39,13 +41,13 @@ A guard goes on a **wall corner**. Never decide from the room boundary.
 
 **How to check a guard nests on a wall:** measure from the guard point to the wall corner. The finished face can sit 2 to 3 inches from the wall centerline. Do not treat that gap as an error. A guard far from any wall corner (1 ft or more) is an error.
 
-**Old rules (superseded, keep only as history):** earlier floors used room-boundary corners, same wall type on both sides, skip `I_E12_1F2`, and elevator lobbies always get guards. The 5th floor and 6th to 8th floor room lists (SPIRITUAL LIFE HUB, CONFERENCE ROOM, TUTORING CENTER and others) are also superseded by the rules above.
+**Old rules (superseded, keep only as history):** earlier floors used room-boundary corners, same wall type on both sides, skip one named wall type, and elevator lobbies always get guards. The per-floor lists of named program rooms are also superseded by the rules above.
 
 **Script status (columns, 2026-11-02):** the script reads rectangular columns from every loaded link (the structural link model holds them; the main model has none). A column or column-wrap wall makes corners only when it touches a basic wall (attached to a room). Free-standing ones make none. The corner then goes through the normal room check, so only corners that face a corridor are placed. On the 7th floor the script found 54 columns, 36 column-like rectangles attached to a wall and 29 column corners. Only 2 faced a corridor-class room and none had a guard from the user. The column guard in the user's picture was not reproduced, so the user must check it. It is probably a column that is enclosed by basic walls, which the wall rule already finds.
 
 **No room at a corner (decided by the user, 2026-11-03): always ask. Never skip it silently.** A corner with no room at its outward point is usually a mistake in the model (a room is missing), not a real decision. The user does not want to fix those rooms now. But the user wants to see these corners. In the dry run, list "(NO ROOM)" with its count and sample coordinates (`ask_sample_xy`) as a question. Do not put it under `skipped_by_room`. Place those guards only after the user answers. If the user says yes, run with `approve_rooms: ["(NO ROOM)"]`. Ask again on every floor. Example: the 7th floor has no CORRIDOR rooms, so all 37 guards the user kept there face "no room".
 
-**Curtain wall corners (decided by the user, 2026-11-03):** do not place guards at the ends of curtain walls (glass partitions) or at curtain door jambs. On floors 1, 5, 7 and 8 the user placed some by hand (8 on the 5th floor, 6 on the 7th floor), for example next to an "AD1_Curtain_Door" with mullions. Treat these as deliberate exceptions. Do not try to reproduce them, and do not ask again. The script already follows this rule, because curtain walls are solid only.
+**Curtain wall corners (decided by the user, 2026-11-03):** do not place guards at the ends of curtain walls (glass partitions) or at curtain door jambs. On floors 1, 5, 7 and 8 the user placed some by hand (8 on the 5th floor, 6 on the 7th floor), for example next to a curtain door with mullions. Treat these as deliberate exceptions. Do not try to reproduce them, and do not ask again. The script already follows this rule, because curtain walls are solid only.
 
 **Link-wall corners:** by default the script only lists them (`LINK_CORNERS_TO_REVIEW_by_room`). Pass `place_link_corners: true` to place them.
 
@@ -55,7 +57,7 @@ A guard goes on a **wall corner**. Never decide from the room boundary.
 
 **Latest tag rules (user, 2026-11-02). They replace the older ones.**
 
-- Tag type: the existing keynote tag (KEYNOTE_Standard_Box). Text is "CG-01".
+- Tag type: the keynote tag type of the template tag (for example `<keynote tag type>`). The script copies the template tag, so it keeps that type. Text is "CG-01".
 - **No overlap.** The tag box must not overlap any wall, label (text note), room tag, or floor finish material tag. It must not overlap other tags either.
 - **Avoid grid lines.** Keep the tag text readable: the tag box must not sit on a grid line.
 - **Share a tag.** When guards are close together, 1 to 3 guards can share one tag. Guards that are far apart get their own tag.
@@ -72,7 +74,7 @@ A guard goes on a **wall corner**. Never decide from the room boundary.
 - `IndependentTag.Create` makes a keynote tag with **empty text**. Copy an existing tag instead: `CopyElement`, then `AddReferences`, then `RemoveReferences`.
 - A tag cannot be copied to another view alone ("no host"). Copy the guard and the tag together with `CopyElements`. The copy lands on the level of the target view.
 - Set `HasLeader = True` and `LeaderEndCondition = Free` on each new tag (check `CanLeaderEndConditionBeAssigned` first). With a Free end, call `SetLeaderEnd` for each guard. If you do not, all leaders fan out to the template guard's old spot. `SetLeaderEnd` works only for Free ends.
-- `DB.ElementId(int)` is ambiguous in IronPython. Use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
+- `DB.ElementId(int)` is ambiguous in IronPython. Add `import System`, then use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
 - The family and its workset come from the template guard. Copy the workset id.
 - New tags may look blue in a capture right after the change. Do not treat that as an error.
 

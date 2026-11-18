@@ -83,6 +83,27 @@ When the user asks for feedback on more than the current session (for example "a
 3. **Start the draft with "Sessions read"**: use `format_sessions_read_header` (`python skills/am-feedback/scripts/feedback_sessions.py <sessions.json> --date <YYYY-MM-DD>`) to list each session title, whether it is archived or active, and the date range read, followed by which sessions were skipped and why.
 4. **Deduplicate against same-day posts**: before drafting, read the issues and comments already posted that day by other feedback sessions (`filter_already_posted_today`), so the same point is not posted twice.
 
+### Without Python (issue #254)
+
+Many office computers have no Python. Then `python` is only the Microsoft Store alias. It prints "Python was not found; run without arguments to install from the Microsoft Store". In Bash it can exit with 0, so read the text, not only the exit code. `am-doctor -Only tools` reports this as PYTHON_MISSING. Do not install Python for this skill. Do steps 2 to 4 by hand or in PowerShell, with the same rules as the script:
+
+- **Date slice:** read each session from the newest event back. Keep events of the asked date and events with no date. Stop at the first event of an earlier day. In PowerShell, for one transcript file (`.jsonl`):
+  ```powershell
+  $date = '2026-11-18'                      # the asked date (yyyy-MM-dd)
+  $lines = [IO.File]::ReadAllLines($path)   # one session transcript
+  $keep = @()
+  for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+      $m = [regex]::Match($lines[$i], '"(?:created_at|timestamp|date)"\s*:\s*"(\d{4}-\d{2}-\d{2})')
+      if ($m.Success -and $m.Groups[1].Value -lt $date) { break }   # first event of an earlier day
+      if (-not $m.Success -or $m.Groups[1].Value -eq $date) { $keep = ,$lines[$i] + $keep }
+  }
+  ```
+- **"Sessions read" header:** write it by hand, in the same form as the script:
+  `Sessions read: <title> (archived, 2026-11-18); <title> (active, 2026-11-18).`
+  `Sessions skipped: <title> (last active on 2026-11-17, not 2026-11-18).`
+  Include archived sessions. Skip a session that was last active on another day, unless the hand-off brief names it (match it by title when the brief ID is wrong). Scan the titles for private data too (step 3).
+- **Same-day posts:** compare the titles and the `signature` lines of your themes with the issues and comments posted that day. Ignore upper and lower case. Drop a theme that is already posted.
+
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
