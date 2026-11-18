@@ -10,6 +10,10 @@
                   Skipped if pyRevit 7+ is already installed (use -Force to reinstall).
     -Repoint      Write per-user Revit manifests (%APPDATA%\Autodesk\Revit\Addins\<year>)
                   that load pyRevit 7, overriding an admin-owned machine-wide 6.x install.
+                  The per-user manifest is pyRevit7.addin: another file name than the
+                  machine-wide pyRevit.addin, and the same AddInId (issue #258). Other
+                  per-user pyRevit*.addin files of that year are removed (byte backup in
+                  the undo journal), so Revit sees one per-user pyRevit loader per year.
                   A year installed after setup (no machine-wide manifest) gets a
                   per-user attach instead, so it is not silently skipped.
     -EnableAgent  Turn on the agent host, set the agent policy to 'ask' (or the
@@ -110,6 +114,13 @@ $JournalPath = Join-Path $JournalDir 'journal.json'
 $Py7       = if ($Py7Exe) { $Py7Exe } else { Join-Path $Py7Root 'bin\pyrevit.exe' }
 $MachineAddins = $MachineAddinsRoot
 $UserAddins    = $UserAddinsRoot
+# Per-user manifest name (issue #258). Seen on Revit 2026.4 with an IT pyRevit 6.4 for all users:
+#  - same file name + same AddInId as the machine-wide pyRevit.addin: the journal said
+#    "The addin file -pyRevit.addin- in all user folder is duplicated", and Revit loaded NO pyRevit;
+#  - another file name + same AddInId: pyRevit 7 (per-user) loaded, and Revit refused the
+#    machine-wide 6.4 with a "Duplicated AddInId" dialog.
+# A new AddInId would make Revit load both pyRevit versions in one session, so the AddInId stays.
+$UserManifestName = 'pyRevit7.addin'
 $script:Problems = New-Object System.Collections.Generic.List[string]
 
 # Shared archi-magic log (scripts\lib\am-log.ps1 at the plugin root). Optional: the standalone kit
@@ -257,6 +268,35 @@ function Get-InstalledRevitYears([string]$root) {
         if ($y -match '^\d{4}$') { $years += $y }
     }
     return @($years | Sort-Object -Unique)
+}
+
+# One field of a Revit add-in manifest (Assembly, AddInId). AddInId comes back upper case, no braces.
+function Get-ManifestField([string]$path, [string]$tag) {
+    $v = [regex]::Match([IO.File]::ReadAllText($path), "<$tag>\s*(.*?)\s*</$tag>").Groups[1].Value
+    if ($tag -eq 'AddInId') { $v = $v.Trim('{', '}', ' ').ToUpperInvariant() }
+    return $v
+}
+function Test-Py7Manifest([string]$path) {
+    $asm = Get-ManifestField $path 'Assembly'
+    return [bool]($asm -and $asm.StartsWith($Py7Root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $asm))
+}
+
+# Keep one per-user pyRevit manifest for a Revit year and remove the others (issue #258: two per-user
+# loaders, or one with the machine-wide file name, left Revit with the old pyRevit or none).
+# Start-RepointJournal made a byte copy of each one that existed before this run, and
+# Complete-RepointJournal records the removal, so -Undo restores it. A file that this run created
+# (for example the installer's own attach) has no backup and needs none: undo returns to the state
+# before the run, when that file did not exist.
+function Remove-ExtraUserManifests([string]$year, [string]$keepPath) {
+    foreach ($f in @(Get-ChildItem (Join-Path (Join-Path $UserAddins $year) 'pyRevit*.addin') -ErrorAction SilentlyContinue)) {
+        if ($f.FullName -ieq $keepPath) { continue }
+        if ($script:RepointSnap -and $script:RepointSnap.Files.ContainsKey($f.FullName)) {
+            $b = $script:RepointSnap.Backups[$f.FullName]
+            if (-not $b -or -not (Test-Path -LiteralPath $b)) { Warn "Revit $year : $($f.FullName) has no backup copy, so it was not removed. Revit can load only one pyRevit: remove it by hand."; continue }
+        }
+        Remove-Item -LiteralPath $f.FullName -Force
+        Say "Revit $year : removed the extra per-user manifest $($f.Name) (the undo journal keeps a copy). Revit now sees one per-user pyRevit: $(Split-Path $keepPath -Leaf)"
+    }
 }
 
 function Test-SamePath([string]$a, [string]$b) {
@@ -430,7 +470,8 @@ if ($Undo) {
                 if ($cur -and $cur -ne $m.backupSha256 -and -not $Force) { Warn "Skipped $p : a different file is there now (use -Force to restore the backup anyway)."; break }
                 New-Item -ItemType Directory -Force (Split-Path $p) | Out-Null
                 Copy-Item -LiteralPath $m.backup -Destination $p -Force
-                Say "Restored (the setup run deleted it): $p"
+                if ((Get-Sha256 $p) -ne $m.backupSha256) { Warn "Restored $p, but its checksum does not match the backup record." }
+                else { Say "Restored (the setup run deleted it): $p" }
             }
             default { Warn "Unknown journal action '$($m.action)' for $p. Skipped." }
         }
@@ -439,6 +480,14 @@ if ($Undo) {
         if ($d -and (Test-Path -LiteralPath $d) -and -not (Get-ChildItem -LiteralPath $d -Force)) {
             Remove-Item -LiteralPath $d -Force
             Say "Removed the empty folder the setup run created: $d"
+        }
+    }
+    # Undo can bring back a per-user manifest with the machine-wide file name (the layout before
+    # issue #258). Say so, but do not count it as an undo problem: undo did what was asked.
+    foreach ($mf in @(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)) {
+        $twin = Join-Path (Join-Path $UserAddins $mf.Directory.Name) $mf.Name
+        if (Test-Path -LiteralPath $twin) {
+            Say "Note: Revit $($mf.Directory.Name): the restored per-user $($mf.Name) has the same file name as the machine-wide manifest. On Revit 2026.4 this loaded no pyRevit. Run -Repoint to fix it again."
         }
     }
 
@@ -595,8 +644,14 @@ if ($Repoint) {
         Invoke-Cli $Py7 @('attach', 'master', 'default', '--installed') | Out-Host
         if ($LASTEXITCODE -ne 0) { Warn "pyrevit attach exited $LASTEXITCODE." }
     } else {
-        foreach ($src in $machine) {
-            $year = $src.Directory.Name
+        # One per-user manifest per Revit year (issue #258): its own file name ($UserManifestName,
+        # never the machine-wide name) and the machine-wide AddInId (the XML is copied, only the
+        # install root changes). Then the other per-user pyRevit manifests of that year go.
+        foreach ($g in @($machine | Group-Object { $_.Directory.Name } | Sort-Object Name)) {
+            $year = $g.Name
+            $srcs = @($g.Group | Sort-Object Name)
+            $src  = $srcs[0]
+            if ($srcs.Count -gt 1) { Say "$year : $($srcs.Count) machine-wide pyRevit manifests ($(@($srcs | ForEach-Object { $_.Name }) -join ', ')). Using $($src.Name)." }
             $xml  = [IO.File]::ReadAllText($src.FullName)
             $m    = [regex]::Match($xml, '<Assembly>\s*(.*?)\\bin\\')
             if (-not $m.Success) { Warn "$year : could not read <Assembly> in $($src.FullName). Skipped."; continue }
@@ -605,11 +660,14 @@ if ($Repoint) {
             $asm = [regex]::Match($out, '<Assembly>\s*(.*?)\s*</Assembly>').Groups[1].Value
             if (-not (Test-Path $asm)) { Warn "$year : pyRevit 7 loader not found at $asm. Skipped (this Revit year may be unsupported)."; continue }
 
+            $dstName = $UserManifestName
+            if (@($srcs | ForEach-Object { $_.Name }) -contains $dstName) { $dstName = 'pyRevit7-user.addin' }
             $dstDir = Join-Path $UserAddins $year
-            $dst    = Join-Path $dstDir $src.Name
+            $dst    = Join-Path $dstDir $dstName
             New-Item -ItemType Directory -Force $dstDir | Out-Null
             [IO.File]::WriteAllText($dst, $out, (New-Object Text.UTF8Encoding $false))
             Say "$year : $dst -> $asm"
+            Remove-ExtraUserManifests $year $dst
         }
         # Installed Revit years with no machine-wide manifest (issue #88): the loop above
         # only visits years IT attached, so a year installed after setup was silently
@@ -630,6 +688,17 @@ if ($Repoint) {
                 else { Say "Revit $y : attached per-user (no machine-wide manifest)" }
             }
         }
+    }
+    # A year with no machine-wide manifest and more than one per-user pyRevit manifest (for example
+    # pyRevit7.addin from an earlier Repoint and pyRevit.addin from 'pyrevit attach' after IT removed
+    # the machine-wide pyRevit): keep one that loads pyRevit 7, pyRevit's own pyRevit.addin first.
+    $machineYears = @($machine | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
+    $multi = @(Get-ChildItem (Join-Path $UserAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue |
+        Group-Object { $_.Directory.Name } | Where-Object { $_.Count -gt 1 -and $machineYears -notcontains $_.Name })
+    foreach ($g in $multi) {
+        $keep = @($g.Group | Where-Object { Test-Py7Manifest $_.FullName } | Sort-Object @{ Expression = { $_.Name -ine 'pyRevit.addin' } }, Name)
+        if ($keep.Count -eq 0) { Warn "Revit $($g.Name) : $($g.Count) per-user pyRevit manifests and none loads pyRevit 7. Not changed."; continue }
+        Remove-ExtraUserManifests $g.Name $keep[0].FullName
     }
     Complete-RepointJournal
     if (Test-Path -LiteralPath $BackupDir) { Say "Previous per-user manifests backed up to $BackupDir" }
@@ -709,18 +778,40 @@ if ($Verify) {
     if ($ver -and $ver.Major -ge 7) { Say "pyRevit (per-user): $ver" } else { Warn "pyRevit 7 not installed at $Py7" }
 
     $userManifests = @(Get-ChildItem (Join-Path $UserAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
-    $machineYears  = @(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name })
+    $machineFiles  = @(Get-ChildItem (Join-Path $MachineAddins '*\pyRevit*.addin') -ErrorAction SilentlyContinue)
+    $machineYears  = @($machineFiles | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
     foreach ($f in $userManifests) {
-        $asm = [regex]::Match([IO.File]::ReadAllText($f.FullName), '<Assembly>\s*(.*?)\s*</Assembly>').Groups[1].Value
+        $asm = Get-ManifestField $f.FullName 'Assembly'
         $isPy7 = $asm.StartsWith($Py7Root, [StringComparison]::OrdinalIgnoreCase)
-        $state = if ((Test-Path $asm) -and $isPy7) { 'OK' } else { 'BAD' }
-        Say ("Revit {0}: {1}  {2}" -f $f.Directory.Name, $state, $asm)
-        if ($state -eq 'BAD') { Warn "Revit $($f.Directory.Name) manifest does not point at an existing pyRevit 7 loader." }
+        $state = if ($asm -and (Test-Path $asm) -and $isPy7) { 'OK' } else { 'BAD' }
+        Say ("Revit {0}: {1}  {2}  ({3})" -f $f.Directory.Name, $state, $asm, $f.Name)
+        if ($state -eq 'BAD') { Warn "Revit $($f.Directory.Name) manifest $($f.Name) does not point at an existing pyRevit 7 loader." }
     }
     foreach ($y in $machineYears) {
         if (-not ($userManifests | Where-Object { $_.Directory.Name -eq $y })) {
             Warn "Revit $y has a machine-wide pyRevit manifest but no per-user override: it will still load the old version. Run -Repoint."
         }
+    }
+    # Issue #258: one per-user pyRevit manifest per year, never with the machine-wide file name,
+    # and with the machine-wide AddInId (another AddInId loads both pyRevit versions).
+    foreach ($g in @($userManifests | Group-Object { $_.Directory.Name } | Where-Object { $_.Count -gt 1 })) {
+        Warn "Revit $($g.Name) has $($g.Count) per-user pyRevit manifests ($(@($g.Group | ForEach-Object { $_.Name }) -join ', ')). Revit loads only one pyRevit, and which one is not fixed. Run -Repoint."
+    }
+    $sharedId = $false
+    foreach ($mf in $machineFiles) {
+        $y = $mf.Directory.Name
+        $mid = Get-ManifestField $mf.FullName 'AddInId'
+        foreach ($u in @($userManifests | Where-Object { $_.Directory.Name -eq $y })) {
+            $uid = Get-ManifestField $u.FullName 'AddInId'
+            if ($u.Name -ieq $mf.Name) {
+                Warn "Revit $y : the per-user $($u.Name) has the same file name as the machine-wide manifest. Revit then reports it as duplicated, and Revit 2026.4 loaded no pyRevit. Run -Repoint."
+            } elseif ($mid -and $uid -and $uid -ne $mid) {
+                Warn "Revit $y : the per-user $($u.Name) has another AddInId than the machine-wide $($mf.Name), so Revit loads both pyRevit versions. Run -Repoint."
+            } elseif ($mid -and $uid -eq $mid) { $sharedId = $true }
+        }
+    }
+    if ($sharedId) {
+        Say "IT installed a pyRevit for all users. At Revit start, a 'Duplicated AddInId' dialog for PyRevitLoader is expected: Revit refuses the second pyRevit. Close it. pyRevit > About must show 7.x."
     }
 
     if (Test-Path $Py7) {
