@@ -11,7 +11,7 @@ Ground Revit API answers in the documentation for the **Revit version the user a
 
 | Situation | Use first | Then |
 |---|---|---|
-| The `pyrevit` MCP tools are in this session and Revit is open in the year you need | `lookup_revit_api` (asks the running Revit), plus pyRevit's built-in skills: `get_skill("revit-scripting")` and `get_skill("pyrevit-library")` | The local search below, to quote the exact XML doc text |
+| The `pyrevit` MCP tools are in this session and Revit is open in the year you need | `lookup_revit_api(name="Wall.Create")` (asks the running Revit), plus pyRevit's built-in skills: `get_skill(name="revit-scripting")` and `get_skill(name="pyrevit-library")` | The local search below, to quote the exact XML doc text |
 | Another Revit year, no Revit open, offline, or comparing years | The local search below (`-Year`, `-AllYears`) | revitapidocs.com |
 
 The pyrevit MCP tools can be deferred. Load them with ToolSearch (for example `select:mcp__pyrevit__lookup_revit_api`) before you decide they are absent.
@@ -32,22 +32,163 @@ The pyrevit MCP tools can be deferred. Load them with ToolSearch (for example `s
 
 ## Most frequent script failures (read before the first run_query or run_modify)
 
-Counted in local session transcripts (49 sessions that used the pyRevit MCP tools, 2026-11-03). The counts include sessions that only discussed an error, so read them as a ranking, not as exact numbers. Search this table for the exact error text.
+Counted in local session transcripts (49 sessions that used the pyRevit MCP tools, 2026-11-03). The counts include sessions that only discussed an error, so read them as a ranking, not as exact numbers. Rows without a count were seen in later field sessions (issues #251 and #255). They are not counted. In those later sessions, the `IntegerValue` and `Multiple targets` rows still came up in most sessions.
+
+Search these tables for the exact error text. A row that starts with "No error" gives a wrong result and no error message.
+
+### Tool calls and results
 
 | Error text you see | Cause | Fix |
 |---|---|---|
 | `revit_busy` (31 sessions) | A dialog is open, or another agent session holds Revit | Follow the house rule: name the dialog, then stop. A window whose name ends in `Monitor` during a sync or a reload is a progress window, not a dialog. Tell the user to wait until it closes. Do not ask the user to answer it. With no dialog listed, say "another agent session probably holds Revit". Do not loop. |
+| `invalid_params` with `'script' is required` (2 sessions) | The argument was named `code` | Name it `script`. See the sample query skeleton below. |
+| `invalid_params: 'name' is required.` from `lookup_revit_api` | The argument was named `query` | Name it `name`: `lookup_revit_api(name="Wall.Create")`. |
+| `skill_not_found: No skill named ''` from `get_skill` | The argument was named `skill`. The server text `get_skill("revit-scripting")` does not show the argument name. | Name it `name`: `get_skill(name="revit-scripting")`. |
+| `ResultSerializationError` (13 sessions) | Non-ASCII text in `result` (for example `°`, `é`), a .NET `long` (`39L`), or a non-string dict key | Escape text to `\uXXXX` or use `engine="cpython"`. On CPython, read names with `element_name` (see "Script patterns"). Wrap numbers in `int()` or `float()`. Use string keys. |
+| `TypeError: 39L is not JSON serializable` (4 sessions), or `<n>L is not JSON serializable` from `json.dumps` | Revit 2026 returns .NET `long` values. `ElementId.Value` is one of them. | `int(x)` before you put it in `result` or in `json.dumps`. For a JSON file of ids: `[int(e.Id.Value) for e in elements]`. |
+| A traceback that names line 1 (for example `from pyrevit.api import DB` or `import System`) | IronPython: the script has a bare `except:` or an `except BaseException:`. The runner then reports every line as line 1. | Use `except Exception:`. See "Find the failing line" below. |
+| `status: ok` and `decision: committed`, but `failures` has an entry with severity `Error` | Revit kept the change and reported an error | Do not report success. See "Committed with an error" below. |
+| `pipe_error`, a long silent run, `timed out`, or `timeout: The script ran longer than its <n> second limit` | A whole-model scan or a per-element loop is too slow, and may crash Revit | See "Slow scans" below. |
+
+### Element ids and numbers
+
+| Error text you see | Cause | Fix |
+|---|---|---|
 | `TypeError: Multiple targets could match: ElementId(BuiltInParameter), ElementId(BuiltInCategory), ElementId(Int64)` (10 sessions) | A plain Python int is ambiguous in IronPython | `import System`, then `DB.ElementId(System.Int64(n))` |
-| `AttributeError: Name` on a type or element (about 6 sessions) | `.Name` fails on some IronPython types (filled region type, group type, view) | Read: `DB.Element.Name.GetValue(t)`, or `t.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()`. Write: `DB.Element.Name.SetValue(t, name)`. An empty string from `SYMBOL_NAME_PARAM` means: use `GetValue`. |
-| `ResultSerializationError` (13 sessions) | Non-ASCII text in `result` (for example `°`, `é`), a .NET `long` (`39L`), or a non-string dict key | Escape text to `\uXXXX` or use `engine="cpython"`. Wrap numbers in `int()` or `float()`. Use string keys. |
-| `TypeError: 39L is not JSON serializable` (4 sessions) | Revit 2026 returns .NET `long` values | `int(x)` before you put it in `result` |
-| `AttributeError: 'ElementId' object has no attribute 'IntegerValue'` (5 sessions) | `IntegerValue` is gone in Revit 2026 | `.Value`, wrapped in `int()` (see the pattern below) |
+| `AttributeError: 'ElementId' object has no attribute 'IntegerValue'` (5 sessions) | `IntegerValue` is gone in Revit 2026. The runtime hint can say "a collector returned elements of an unexpected class". That hint is wrong here. | `.Value`, wrapped in `int()` (see "Revit 2026 differences") |
 | `AttributeError: ... has no attribute 'Int64'` or `NameError: name 'System' is not defined` | `System` is not imported by default | Add `import System` at the top of the script. `DB.Int64` does not exist. |
-| `invalid_params` with `'script' is required` (2 sessions) | The argument was named `code` | Name it `script`. See the sample below. |
+| `TypeError: CreateInstance() takes no arguments (1 given)` | The script made an Int64 from the type of a value (`<id>.Value.GetType()(n)`) to avoid `import System` | `from System import Int64`, then `DB.ElementId(Int64(n))`. |
 | `GetModelUpdatesStatus() takes exactly 2 arguments` | It needs the document and an element id | There is no one-call "model has unsynced changes" check. Do not promise one. |
-| `pipe_error`, a long silent run, or `timed out` | A whole-model scan or a per-element loop is too slow, and may crash Revit | See "Slow scans" below. |
+
+### Names, rooms, locations and categories
+
+| Error text you see | Cause | Fix |
+|---|---|---|
+| `AttributeError: Name` on a type or element (about 6 sessions) | `.Name` fails on some IronPython types (filled region type, floor type, group type, view) | Read with `element_name` (see "Script patterns"). Write on IronPython: `DB.Element.Name.SetValue(t, name)`. |
+| `AttributeError: 'getset_descriptor' object has no attribute 'GetValue'` | IronPython: `DB.Element.Name.GetValue(t)` failed on a floor type. The same code worked on view family types in the same session. | Read `SYMBOL_NAME_PARAM` first. `element_name` does this. |
+| `AttributeError: 'PropertyObject' object has no attribute 'GetValue'` | CPython: `GetValue` works only on IronPython. The fix for non-ASCII text (`engine="cpython"`) and the `GetValue` read conflict. | Use `element_name`. It works in both engines. |
+| `AttributeError: 'indexer#' object has no attribute 'Id'` from `door.ToRoom` | `ToRoom` and `FromRoom` take a phase. IronPython gives an indexer object. | `door.get_ToRoom(phase)` and `door.get_FromRoom(phase)`. Check the result for `None`. |
+| `AttributeError: 'NoneType' object has no attribute 'Point'` | `Location` is `None` on some doors (seen on curtain-panel doors and on one other door) | Check `e.Location` for `None` before you read `.Point`. Use the center of `e.get_BoundingBox(None)`, or list the element as skipped. |
+| `AttributeError: 'NoneType' object has no attribute 'Id'` (or `'BuiltInCategory'`) | `doc.Settings.Categories.get_Item(...)` and `DB.Category.GetCategory(doc, ...)` can return `None` (seen for `OST_Viewers` and for a section-marker category) | Check for `None`. If you need only the category id, use `DB.ElementId(DB.BuiltInCategory.OST_<name>)`. |
+| `AttributeError: 'type' object has no attribute 'OST_ReferencePlanes'` | That category name does not exist | Reference planes are `DB.BuiltInCategory.OST_CLines`. |
+
+### Geometry, regeneration and creation
+
+| Error text you see | Cause | Fix |
+|---|---|---|
+| `ArgumentException: The input curve is not bound.` from `GetEndPoint` | The detail curve is unbound (for example a full circle) | Check `curve.IsBound` before you call `GetEndPoint`. |
+| `InvalidOperationException: Modification of the document is forbidden. Typically, this is because there is no open transaction` from `doc.Regenerate()` | `Regenerate` ran after `t.Commit()` in a `run_modify` script | Call `doc.Regenerate()` inside the transaction, before `t.Commit()`. |
+| No error: the area of a new floor reads `0.0` | The script read the area right after `Floor.Create`, before regeneration | Call `doc.Regenerate()` in the transaction. Then read the area. |
+| No error: a text note overlaps a viewport, and the dry run did not show it | The script did not know the real note height | Call `doc.Regenerate()`. Then read `TextNote.Height` (from `TextElement`). The value is in sheet units, as measured on the printed sheet. |
+| No error: a level-based `NewFamilyInstance` is at twice the height | With `XYZ(x, y, level.Elevation)`, the Z is an offset from the level | Use Z = 0 (or the offset you want). Read the elevation back in the dry run. |
+| `InvalidOperationException: View cannot be duplicated` on a view template | `Duplicate` does not work on a view template | Duplicate a plan view. Set its `ViewTemplateId` to `DB.ElementId.InvalidElementId`. Call `CreateViewTemplate()` on it. Delete the plan copy if you do not need it. |
+| `The type typeId is not valid for this element. Parameter name: typeId` | `IndependentTag.Create(..., TagMode.TM_ADDBY_CATEGORY, ...)` with a keynote tag type, or `ChangeTypeId` to a keynote tag type on a material tag | Use the overload that takes the tag type id: `IndependentTag.Create(doc, tag_type_id, view_id, reference, add_leader, orientation, point)`. |
+| No error: new keynote tags show empty text | `IndependentTag.Create` made keynote tags with an empty `TagText` | Copy an existing keynote tag that shows text, then change its references (see `am-corner-guard`). Check `TagText` on each new tag in the dry run. See also "Material keynote tags on cut layers". |
+
+### Python
+
+| Error text you see | Cause | Fix |
+|---|---|---|
+| `NameError: name '<var>' is not defined` in a nested list comprehension with two `for` clauses | Not verified. It happened in the agent runtime. | Use explicit `for` loops. |
 
 The `revit` argument (the process id of the Revit instance) took a plain number (`21556`) in the sessions we read. One call sent it as a quoted string (`"\"21556\""`) in the same session where `script` was missing. That call failed on the missing `script`, so the quoted form is not proven bad or good. Send a plain number.
+
+## Script patterns (issues #251, #255)
+
+These patterns come from field sessions. Each one cost at least one retry.
+
+### Read a name in both engines
+
+`DB.Element.Name.GetValue` works only on IronPython, and failed there on a floor type. `.Name` fails on some IronPython types. This helper works on IronPython 2.7 and CPython 3. It reads the type name parameter first.
+
+```python
+def element_name(e):
+    """Name of a type or an element. IronPython 2.7 and CPython 3."""
+    p = e.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+    if p is not None and p.AsString():
+        return p.AsString()
+    try:
+        return e.Name
+    except AttributeError:
+        pass
+    for getter in ("GetValue", "__get__"):
+        try:
+            return getattr(DB.Element.Name, getter)(e)
+        except AttributeError:
+            pass
+    return None
+```
+
+A name write for CPython is not verified here. On IronPython, write with `DB.Element.Name.SetValue(t, name)`.
+
+### Find the failing line
+
+In field sessions, a `run_query` traceback named line 1 (`from pyrevit.api import DB` or `import System`). The real error was in a loop body or a lambda further down. Do not debug line 1.
+
+The cause, from the pyRevit 7.0.0 runner source (`pyrevitlib/pyrevit/agent/_runner.py`): the runner changes every bare `except:` and every `except BaseException:` in the script to `except Exception:`, so that the script cannot catch the timeout. To do this, it compiles a changed syntax tree. IronPython reports every line of code compiled that way as line 1. A script with no such handler is compiled from its text and keeps its line numbers.
+
+- In `run_query` and `run_modify` scripts, write `except Exception:` (or a narrower class). Never write a bare `except:` or `except BaseException:`.
+- The runner changes only the `script` text. A file or a module that the script loads (see "One script for the dry run and the apply") is not changed. A bare `except:` there can catch the timeout. Use `except Exception:` there too.
+
+If the traceback still does not show the real line, mark the steps yourself:
+
+```python
+phase = doc.Phases[doc.Phases.Size - 1]
+step = "start"
+try:
+    step = "collect doors"
+    doors = list(DB.FilteredElementCollector(doc)
+                 .OfCategory(DB.BuiltInCategory.OST_Doors)
+                 .WhereElementIsNotElementType())
+    rooms = {}
+    for d in doors:
+        step = "read the room of door {0}".format(int(d.Id.Value))
+        room = d.get_ToRoom(phase)
+        rooms[str(int(d.Id.Value))] = room.Number if room is not None else None
+    result = {"doors": len(doors), "rooms": rooms}
+except Exception as ex:
+    raise Exception("Failed at step '{0}': {1}".format(step, ex))
+```
+
+- The error text now names the step and the element id.
+- Always raise the error again. In `run_modify`, an error that you catch and do not raise again lets Revit keep a part of the change.
+- The runtime hint can also point the wrong way. Compare the error text with the tables above first.
+
+### Committed with an error
+
+`run_modify` can return `status: ok` and `decision: committed` while `failures` has an entry with severity `Error`. Field example: "You now own the element, but your file is out of date. You must Reload Latest before editing the element." It is not known if that edit reached the central model.
+
+- Read `failures` after every apply, not only `status` and `decision`.
+- For an `Error` entry, do not report success. Read the changed elements again with `run_query`. Tell the user the error text and what the new read shows.
+- For the "out of date" error, tell the user to click **Collaborate > Reload Latest**. Read the model again before the next change.
+
+### One script for the dry run and the apply
+
+The dry run and the apply must run the same code. If the apply script differs from the dry-run script, the dry run proves nothing.
+
+- Keep the script in one file in the work folder. Read the file and pass its full text as `script` for the dry run. Read it again and pass it for the apply. Do not retype it.
+- Do not edit the file between the two runs. If you edit it, run the dry run again.
+- For a long script, pass a short loader as `script` and the file path in `inputs`. The `with` block closes the file, so a later `git pull` can replace it:
+  ```python
+  import io
+  path = inputs["script_file"]
+  with io.open(path, encoding="utf-8") as f:
+      src = f.read()
+  exec(compile(src, path, "exec"), globals())
+  ```
+  The loaded script uses the same `doc`, `inputs` and `result` names as an inline script.
+- Some pyRevit builds list a `workspace` input on `run_query` and `run_modify`: a folder that is on `sys.path` for the run, with modules imported fresh every run. Check the tool schema. If it is there, put the code in a module in that folder. Then the `script` is one import and one call, the same for both runs.
+
+### Guard on the target view id, not the active view
+
+A stale-state guard checks that the model is still as the dry run saw it. Do not compare the target view with `doc.ActiveView`. When the user clicks in the Project Browser, the active "view" is the Project Browser, and the guard stops a correct run. Store the target view id and name in the read step. In the apply script, get the view by its id:
+
+```python
+import System
+view = doc.GetElement(DB.ElementId(System.Int64(int(inputs["view_id"]))))
+if view is None or element_name(view) != inputs["view_name"]:
+    raise Exception("The target view changed. Read the model again.")
+```
 
 ## Slow scans
 
@@ -59,6 +200,25 @@ One live query ran about 190 seconds. It called `GetMaterialIds` on about 552,00
 - Do not call `GetMaterialIds`, `Parameters` or geometry on every element. Time a sample of 200 elements, multiply, and say the estimate to the user before the full run.
 - Split the work into several queries (one category each), save results between them, and set `timeout_s`.
 - Use `engine="cpython"` for large loops. Save or sync the model first.
+
+### Named slow patterns and their fast forms (issue #259)
+
+These patterns froze Revit for 5 to 20 minutes in field sessions. Do not start them on a whole model.
+
+| Slow pattern | What happened | Fast form |
+|---|---|---|
+| A view-scoped collector, `FilteredElementCollector(doc, view.Id)`, on every plan, section, elevation and detail view (for example, to find the views that show a section marker) | `timeout` at the 1200 s limit. Revit was frozen for about 20 minutes. | Find the candidate views by geometry first: view type, level, and a crop box that contains the target. Run the view-scoped collector only on those views. |
+| Spatial point sampling in a Python loop (for example, sample points to match rooms to floors) | `timeout` at the 900 s limit. Revit was blocked for 15 minutes. | Find the candidates with `BoundingBoxIntersectsFilter` first. It is a quick filter. Then use `ElementIntersectsSolidFilter` on the candidates only. It is a slow filter, but Revit runs it, not Python. A bounding-box prefilter took the rerun to 140 s. |
+| Areas by point-in-polygon in a Python loop (for example, the floor area in each room) | `timeout` at the 300 s limit | Use solids. Extrude the room outline up (`GeometryCreationUtilities.CreateExtrusionGeometry`). Intersect it with the floor solid (`BooleanOperationsUtils.ExecuteBooleanOperation`, `BooleanOperationsType.Intersect`). Read the area of the top face. |
+| Geometry for every instance on every level (for example "check all guards") | The user stopped it after about 8.5 minutes. There was no result. | Do one level by default. |
+| Every type and instance parameter of a large linked model | `pipe_error` after 186 s. The user had to restart Revit (issue #25). | Name the categories and the parameters first. |
+
+When the user says "all" (all views, all levels, all rooms):
+
+1. Time one item first: one view, one room or one level.
+2. Multiply by the count. Tell the user the estimate in minutes.
+3. Ask "One level first?" with AskUserQuestion. Put "One level first (Recommended)" first. Run all levels only when the user picks it.
+4. Set `timeout_s` for the run. `timeout_s` stops Python code. It does not stop one long Revit API call, so a slow API call on every element can still freeze Revit.
 
 ## Revit 2026 differences
 
@@ -79,7 +239,7 @@ These changes broke real queries. Check them first when a query fails on Revit 2
 - `NewDimension` wants the dimension type element, not its id. Pass the element you got from the document, not the integer id.
 - `run_query` result dicts must have string keys. In IronPython 2.7, `ElementId.Value` is a `long`, so `{id.Value: ...}` fails serialization with `ResultSerializationError: key 1234L is not a string`. Always use string keys: `str(element_id.Value)`.
 - Revit 2026 returns .NET numbers in results (for example a `Byte` from `Color.Red`, or a `long` from `ElementId.Value`). `json.dump` and the result dict fail on them. Wrap every .NET number in `int()` or `float()` before you put it in `result` or pass it to `json.dump`. Scope note: issue #84 reports the failure for `Color.Red`. Whether it fails on every .NET numeric type is not verified.
-- Do not read a type name with `.Name` on IronPython. It raises `AttributeError` on some types (filled region types, floor types, group types, views). Read: `t.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()`. If that returns an empty string, use `DB.Element.Name.GetValue(t)`. Write: `DB.Element.Name.SetValue(t, name)`. The issue #84 field report used `DB.Element.Name.__set__(t, name)`.
+- Do not read a type name with `.Name` on IronPython. It raises `AttributeError` on some types (filled region types, floor types, group types, views). Read with the `element_name` helper in "Script patterns". It reads `SYMBOL_NAME_PARAM` first and works on IronPython and CPython. `DB.Element.Name.GetValue(t)` alone fails on CPython and failed once on IronPython. Write: `DB.Element.Name.SetValue(t, name)`. The issue #84 field report used `DB.Element.Name.__set__(t, name)`.
 - Non-ASCII text in IronPython results fails serialization (`ResultSerializationError: 'unknown' codec`). If element names or pattern names might contain non-ASCII characters (e.g. `°`), escape strings or use `engine="cpython"`.
 - Revit element names reject square brackets `[` and `]`, plus `\ : { } | ; < > ? ` ~`. Use parentheses `()` or prefixes like `DRAFT_`.
 - CAD link status on cloud (ACC / Autodesk Docs): `CADLinkType.IsExternalFileReference()` returns `False` and `GetExternalFileReference()` throws. Call `CADLinkType.GetExternalResourceReferences()` instead of reporting cloud links as unreadable.
@@ -306,10 +466,52 @@ A read query can run for many minutes on a large model. Keep each query inside a
 - When code must run on several Revit years, check each one with `-AllYears` and branch on the differences.
 - pyRevit scripts run on IronPython 2.7 by default: no f-strings. For element ids, use the pattern in "Revit 2026 differences" above.
 
-## `capture_view` argument check and post-sync element IDs (issue #195)
+## `capture_view` (issues #85, #195, #255)
+
+### Arguments
 
 - **`capture_view` argument name**: pass `view` (view name or id), never `view_id` or `viewId`. The MCP tool ignores unknown arguments and silently captures the active view. Always verify that the returned `view_name` matches the requested view (`python skills/am-revit-api-docs/scripts/mcp_guards.py`).
+- **Always pass `view`.** The default is `active`. When the Project Browser has focus, the call fails with `view_not_supported: View '<name>' (ProjectBrowser) can't be exported as an image.`
+- **Sheets**: pass the sheet name, not the sheet number. A sheet number gives `view_not_found: No view named '<sheet number>'`.
+- **Colors**: a capture follows the Revit UI theme. See "A capture follows the Revit UI theme" in "MCP output traps".
+
+### Fallback order
+
+Do not give up the image check after one error. In one field session, the agent stopped the image checks after export errors and compared marks by grid coordinates only. Do these steps in this order, without a user turn:
+
+1. Call `capture_view` with `mode="export"` (the default) and the view name or id.
+2. If export fails with `internal_error: Internal error`, do not try export again on that view. The cause is not known. In one session, export failed 4 times: on a floor plan (by id and by name) and on a sheet.
+3. Open the view: call `uidoc.RequestViewChange(view)` in a `run_query`. Revit changes the view after the script ends.
+4. Call `show_elements` with the `ids` to check and `zoom: true`.
+5. Call `capture_view` with the same `view` and `mode="screen"`. This worked every time in that session. It fails with `view_obscured` when another application covers the view.
+
+Steps 3 and 4 change the active view and the selection. Tell the user in one line before you do them.
+
+`mode="viewport"` failed once with `capture_failed: ... could not be cropped to its on-screen region`. Its message tells you to use `export` or `screen`.
+
+### Blue in a capture
+
+What is known:
+
+- `mode="screen"` shows the view as the user sees it, with the selection. `show_elements` selects the elements that it shows (its default action is `select`). So the elements you showed have the selection color (blue by default).
+- The pyRevit `views` skill says that only `mode="screen"` shows the selection. The `capture_view` tool description says the same for `mode="viewport"`.
+- New tags can look blue right after a change (from `am-corner-guard`).
+- A dark Revit theme changes the colors (see "A capture follows the Revit UI theme").
+
+What is not known:
+
+- What a blue item is when it is not selected: the crop region, a new tag, or a theme shift. In 3 field sessions, the agent could not tell.
+- If `mode="export"` never shows the selection. No field session checked it.
+
+The rule: do not name a blue item from the image alone. Before the capture, write down the selected ids (the ids you gave `show_elements`). Call the blue items at those ids "selected". Check every other blue item in the model: the crop region with `view.CropBoxVisible`, new elements with the ids that the run created. If you cannot check an item, write "blue: not identified" one time. Do not repeat it in every summary.
+
+## Element ids after a reload or a sync (issues #195, #255)
+
 - **Post-sync element IDs**: after Synchronize with Central, Revit can assign new `ElementId` values to newly created elements when central already used the temporary ids. Before reporting that committed elements "no longer exist (undone or deleted)", re-find them by `UniqueId`, `SharedParameterElement.Lookup(doc, guid)`, or a stable key such as `(level, location)` (`reconcile_post_sync_elements` in `mcp_guards.py`).
+- **After a reload or a sync, find elements by level and room, not by a saved id.** A saved id can point at a different element. In one field session, the runtime said "N of N checked elements committed by run <id> no longer exist" three times. Then an old drain id pointed at a room tag (`'RoomTag' object has no attribute 'Symbol'`). Counts by level showed that every drain was still there, with a new id. The cause is not verified.
+  - Find the elements again by category, level and room (or level and location). Compare the counts by level with the counts before the reload.
+  - Before you use an element from a saved id, check its category or class.
+  - Say "no longer exist" only when the search by level and room also finds nothing.
 
 ## House rules (all am-* skills)
 

@@ -19,15 +19,51 @@
     - a shared-file copy (scripts/lib/shared-files.ps1) differs from its source
     - a Rhino skill script does not print its result as one RESULT_PREFIX ("AM_RESULT ") line
     - a skill script calls open() outside a "with" statement
+    - a file in a skill folder matches a pattern from the optional local deny list (-PrivateTerms)
   Runs on Windows PowerShell 5.1 and PowerShell 7 (GitHub Actions ubuntu: pwsh).
+
+.PARAMETER PrivateTerms
+  Optional local deny list of private terms (client, project, office, family, type, tag and room
+  names). One regular expression per line, case-insensitive. Blank lines and lines that start with
+  "#" are skipped. Default: $env:ARCHI_MAGIC_PRIVATE_TERMS, else
+  %LOCALAPPDATA%\archi-magic\private-terms.txt. Keep the list outside the repo; never commit it.
+  When the file does not exist, nothing changes (CI has no list).
 
 .EXAMPLE
   pwsh -File scripts/check-skills.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-skills.ps1 -PrivateTerms C:\temp\terms.txt
 #>
-param([string]$Root = (Split-Path -Parent $PSScriptRoot))
+param(
+    [string]$Root = (Split-Path -Parent $PSScriptRoot),
+    [string]$PrivateTerms = $(if ($env:ARCHI_MAGIC_PRIVATE_TERMS) { $env:ARCHI_MAGIC_PRIVATE_TERMS }
+                              elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'archi-magic\private-terms.txt' }
+                              else { '' })
+)
 $ErrorActionPreference = 'Stop'
 
 $problems = New-Object System.Collections.Generic.List[string]
+
+# Optional local deny list (issue #261). The list holds private terms, so a match is named by the
+# list's line number, never by the term or the matched text. No file = no check.
+$denyTerms = New-Object System.Collections.Generic.List[object]
+$denyFound = $false
+if ($PrivateTerms -and (Test-Path -LiteralPath $PrivateTerms -PathType Leaf)) {
+    $denyFound = $true
+    $lineNo = 0
+    foreach ($line in [IO.File]::ReadAllLines((Resolve-Path -LiteralPath $PrivateTerms).ProviderPath)) {
+        $lineNo++
+        $term = $line.Trim()
+        if (-not $term -or $term.StartsWith('#')) { continue }
+        try {
+            $rx = New-Object Text.RegularExpressions.Regex -ArgumentList $term, ([Text.RegularExpressions.RegexOptions]'IgnoreCase, CultureInvariant')
+        } catch {
+            $problems.Add("private terms deny list line $lineNo is not a valid regular expression"); continue
+        }
+        if ($rx.IsMatch('')) { $problems.Add("private terms deny list line $lineNo matches empty text; make the pattern stricter"); continue }
+        $denyTerms.Add(@{ Line = $lineNo; Rx = $rx })
+    }
+}
+$denyScanned = 0
 $readme = [IO.File]::ReadAllText((Join-Path $Root 'README.md'))
 # HOUSE-RULES.md is the single source; every SKILL.md must end with an identical copy.
 $houseRules = ([IO.File]::ReadAllText((Join-Path $Root 'HOUSE-RULES.md')) -replace "`r`n", "`n").Trim()
@@ -76,6 +112,23 @@ foreach ($d in $dirs) {
         }
         if ($c -match '(?i)(NYU|Ennead)|(EA_|EC_)') {
             $problems.Add("$n : $($f.Name) contains sensitive client or office identifier '$($matches[0])'")
+        }
+    }
+    # Local deny list: every text file in the skill folder (any extension; binary files skipped).
+    if ($denyTerms.Count -gt 0) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $d.FullName -Recurse -File -Force -ErrorAction SilentlyContinue |
+                         Where-Object { $_.FullName -notmatch '[\\/](node_modules|__pycache__|\.pytest_cache)[\\/]' })) {
+            $c = [IO.File]::ReadAllText($f.FullName)
+            if ($c.IndexOf([char]0) -ge 0) { continue }
+            $denyScanned++
+            $rel = $f.FullName.Substring($d.FullName.Length).TrimStart('\', '/') -replace '\\', '/'
+            foreach ($e in $denyTerms) {
+                $m = $e.Rx.Match($c)
+                if ($m.Success) {
+                    $at = $c.Substring(0, $m.Index).Split([char]10).Count
+                    $problems.Add("$n : $rel line $at matches private term on deny list line $($e.Line); use an input or a neutral example")
+                }
+            }
         }
     }
 }
@@ -198,6 +251,7 @@ Write-Host ("Checked {0} skill folder(s): {1}" -f $dirs.Count, (($dirs | ForEach
 Write-Host ("Checked trigger phrases: {0} unique, {1} shared by two or more skills" -f $triggerOwners.Count, $dupTriggers)
 Write-Host ("Checked design tokens: {0} page template(s) in sync" -f $designOk)
 Write-Host ("Checked skill Python scripts: {0}" -f $pyChecked)
+Write-Host ("Checked private terms: {0}" -f $(if (-not $denyFound) { 'no local deny list' } else { "$($denyTerms.Count) pattern(s) from the local deny list in $denyScanned skill file(s)" }))
 Write-Host ("Checked shared files: {0} of {1} copies in sync" -f $sharedOk, @($AmSharedFiles).Count)
 Write-Host ("Checked split plugin manifests: {0}; rules hook in {1} hooks.json" -f $splitManifests.Count, $rulesOwners.Count)
 Write-Host ("Checked SessionStart rules hook: {0}" -f $(if (Test-Path -LiteralPath $rulesMd) { "$(@(([IO.File]::ReadAllText($rulesMd) -replace "`r`n", "`n").Trim() -split "`n").Count) line(s)" } else { 'missing' }))
