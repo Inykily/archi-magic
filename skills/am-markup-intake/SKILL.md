@@ -227,7 +227,6 @@ Example mapping for one product variant.
 
 The confirmed report gives lengths as decimal strings in millimetres. It includes the PDF name and each value's page and table position. It authorizes no model writes. Family geometry, RFA load and project placement are separate Revit steps that still need live qualification.
 
-
 ## House rules (all am-* skills)
 
 - Write all output to the user in ASD-STE100 Simplified Technical English. Use short sentences (max 20 words for instructions, 25 for descriptions). Use active voice. Put one instruction in each sentence, and start it with the verb. Use one word for one meaning. Explain any technical term the first time you use it, because many users are architects, not programmers.
