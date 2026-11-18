@@ -19,6 +19,8 @@ Run these checks before you talk. They do not change anything.
 
 If a check fails or you cannot run it, treat that part as "not set up". Do not tell the user about the commands unless they ask.
 
+Do not edit files under `~/.claude/plugins/` by hand (for example `known_marketplaces.json`), also not to turn on auto-update. Use `/plugin` (Marketplaces > archi-magic > Enable auto-update), or the `extraKnownMarketplaces` entry in `settings.json`. A hand edit in Windows PowerShell 5.1 adds a byte-order mark. Then Claude Code cannot read the file, and no plugin loads. If this session lists no `archi-magic:` skills, or `/reload-plugins` reports errors, see "When archi-magic does not load" in `am-doctor`.
+
 ## Step 2: Explain archi-magic in plain words
 
 Say this in your own words, in 5 to 8 short sentences:
@@ -69,7 +71,7 @@ If the setup is not done, also tell the user **what you will see** before step 1
 
 - **Close Revit first.** Save your work and close Revit. The setup cannot change Revit while it is open. Claude never closes Revit for you.
 - **Approval prompts show `-ExecutionPolicy Bypass`.** This is expected. It lets this one tested archi-magic script run for this one command only. It does not change any Windows security setting.
-- **A duplicate add-in warning can show when Revit starts.** This is expected and harmless. Dismiss it and continue.
+- **A "Duplicated AddInId" dialog can show when Revit starts.** This shows when IT installed an older pyRevit for all users: Revit refuses the second pyRevit. Close the dialog. Then check that the pyRevit tab shows, and that pyRevit > About says 7. If no pyRevit tab shows, or About says 6, tell Claude. Claude then runs `am-doctor`. Do not ignore it.
 - **You must restart the Claude app after setup.** The Revit connection loads only in a new session.
 
 1. **Set up.** Type "set up pyRevit 7". This installs pyRevit 7 for your user account. You do not need admin rights. It takes about 2 minutes. Skip it if pyRevit 7 is installed and the `pyrevit` connection is registered.

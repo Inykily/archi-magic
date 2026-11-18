@@ -21,7 +21,10 @@ function New-Manifest([string]$addinsRoot, [string]$year, [string]$assembly) {
     $dir = Join-Path $addinsRoot $year
     New-Item -ItemType Directory -Force $dir | Out-Null
     $xml = "<?xml version=`"1.0`" encoding=`"utf-8`"?><RevitAddIns><AddIn Type=`"Application`"><Name>PyRevitLoader</Name><Assembly>$assembly</Assembly></AddIn></RevitAddIns>"
-    [IO.File]::WriteAllText((Join-Path $dir 'pyRevit.addin'), $xml)
+    # Per-user manifests use their own file name, as Repoint writes them (issue #258); the same
+    # name as the machine-wide pyRevit.addin is the ADDIN_NAME_CLASH error.
+    $name = if ((Split-Path -Leaf $addinsRoot) -eq 'user') { 'pyRevit7.addin' } else { 'pyRevit.addin' }
+    [IO.File]::WriteAllText((Join-Path $dir $name), $xml)
 }
 function Invoke-Doctor([string]$machine, [string]$user, [string]$py7) {
     $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Doctor -Only repoint -AddinsRoot $machine -UserAddinsRoot $user -Py7Root $py7 -RevitInstallRoot $script:EmptyInstall -LogDir (Join-Path $Root 'logs') 2>&1 | Out-String

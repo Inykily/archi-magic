@@ -7,7 +7,8 @@
 
   Scenario: machine-wide manifests for 2025 and 2026 (IT install), a per-user manifest for
   2026 only, Revit 2025/2026/2027 installed. -Repoint must:
-    - rewrite the 2025/2026 per-user manifests from the machine sources,
+    - write the 2025/2026 per-user manifests (pyRevit7.addin, issue #258) from the machine
+      sources, and remove the old 2026 per-user pyRevit.addin (same name as the machine one),
     - attach 2027 per-user (pyrevit attach master default 2027) and write its manifest,
     - never attach 2025 or 2026.
   A second -Repoint must leave the 2027 manifest byte-identical and attach nothing new.
@@ -79,8 +80,9 @@ try {
     $attachOther = @($calls | Where-Object { $_ -match 'attach master default 202[56]' })
     Assert-True 'attach called exactly once for 2027' ($attach27.Count -eq 1) ($calls -join "`n")
     Assert-True 'attach never called for 2025/2026' ($attachOther.Count -eq 0) ($calls -join "`n")
-    Assert-True '2025 manifest rewritten to the pyRevit 7 loader' ((Test-Path -LiteralPath (Join-Path $user '2025\pyRevit.addin')) -and (Get-Assembly (Join-Path $user '2025\pyRevit.addin')) -eq $loader) $r.Out
-    Assert-True '2026 manifest replaced with the pyRevit 7 loader' ((Get-Assembly (Join-Path $user '2026\pyRevit.addin')) -eq $loader) $(Get-Assembly (Join-Path $user '2026\pyRevit.addin'))
+    Assert-True '2025 manifest written to the pyRevit 7 loader' ((Test-Path -LiteralPath (Join-Path $user '2025\pyRevit7.addin')) -and (Get-Assembly (Join-Path $user '2025\pyRevit7.addin')) -eq $loader) $r.Out
+    Assert-True '2026 manifest written with the pyRevit 7 loader' ((Test-Path -LiteralPath (Join-Path $user '2026\pyRevit7.addin')) -and (Get-Assembly (Join-Path $user '2026\pyRevit7.addin')) -eq $loader) $r.Out
+    Assert-True 'old 2026 per-user pyRevit.addin removed (name clash, issue #258)' (-not (Test-Path -LiteralPath (Join-Path $user '2026\pyRevit.addin'))) $r.Out
 
     # The first run's journal records the 2027 manifest as created (so -Undo deletes it).
     $journals = @(Get-ChildItem $backups -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'journal.json' } | Where-Object { Test-Path -LiteralPath $_ })
