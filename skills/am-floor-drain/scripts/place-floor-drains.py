@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# Place floor drains (PLBG-FLOOR DRAIN-2D) in toilet rooms on one floor plan.
+# Place floor drains (a level-based Plumbing Fixtures family) in toilet rooms on one floor plan.
 # See "Placement rules" in SKILL.md. Run with run_modify (dry_run first).
 # Needs `inputs`:
 #   view_id      int   target floor plan (a ViewPlan); its level is used
-#   family_name  str   optional, default "PLBG-FLOOR DRAIN-2D"
-#   type_name    str   optional, default "Floor Drain-2D"
+#   family_name  str   required, floor drain family name (names differ in each office)
+#   type_name    str   required, floor drain type name in that family
 #   room_keys    list  optional, room-name parts that get a drain (default TOILET, RESTROOM, WC)
 #   room_ids     list  optional, only these room ids (for a test on a few rooms)
 #   grid_offsets dict  optional, {"<floor id>": [ox, oy]}: the tile grid of that floor element has
@@ -39,8 +39,10 @@ phase = doc.GetElement(view.get_Parameter(DB.BuiltInParameter.VIEW_PHASE).AsElem
 if "moves" in inputs or "ignore_existing" in inputs:
     raise ValueError("This skill does not support arbitrary moves or bypassing existing drains.")
 else:
-    FAM = inputs.get("family_name", "PLBG-FLOOR DRAIN-2D")
-    TYP = inputs.get("type_name", "Floor Drain-2D")
+    FAM = inputs.get("family_name")
+    TYP = inputs.get("type_name")
+    if not FAM or not TYP:
+        raise ValueError("Pass family_name and type_name: the floor drain family and type to place.")
     KEYS = tuple(k.upper() for k in inputs.get("room_keys", ["TOILET", "RESTROOM", "WC"]))
     ONLY = set(int(x) for x in inputs.get("room_ids", []))
     GRID = dict((str(k), v) for k, v in (inputs.get("grid_offsets") or {}).items())

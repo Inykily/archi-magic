@@ -15,6 +15,10 @@ $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Base = Join-Path ([IO.Path]::GetTempPath()) ("am-checks-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $script:Fail = 0; $script:Cases = 0
 $utf8 = New-Object Text.UTF8Encoding $false
+# Isolate every case from a real local deny list (%LOCALAPPDATA%\archi-magic\private-terms.txt):
+# the child checks inherit this path, which never exists. The deny list cases pass -PrivateTerms.
+$savedTermsEnv = $env:ARCHI_MAGIC_PRIVATE_TERMS
+$env:ARCHI_MAGIC_PRIVATE_TERMS = Join-Path $Base 'no-such-private-terms.txt'
 
 function New-Tree([string]$name) {
     $t = Join-Path $Base $name
@@ -121,6 +125,27 @@ try {
     Add-Content -LiteralPath $py -Value '# Never print(json.dumps(x)) or f = open(p) here.'
     Expect 'legitimate: comment mentions print/open -> green' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $false 'Checked skill Python scripts: [1-9]'
 
+    # 8f-8k. Local private-terms deny list (issue #261). One tree; the cases run in order.
+    $t = New-Tree 'm8f'
+    $terms = Join-Path $Base 'private-terms.txt'
+    Set-Text $terms "# test deny list`r`n`r`nzz\s+private\s+family\s+q7`r`n"
+    Expect 'legitimate: no deny list -> green, no change' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $false 'Checked private terms: no local deny list'
+    Expect 'legitimate: deny list, no match -> green' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t, '-PrivateTerms', $terms)) $false 'Checked private terms: 1 pattern\(s\) from the local deny list in [1-9]'
+    # A script default value (the case from #261), in a file type the old sensitivity scan skips.
+    Set-Text (Join-Path $t 'skills\am-grilling\scripts\defaults.txt') "first line`r`nFAMILY = `"ZZ Private Family Q7`"`r`n"
+    $r = Invoke-Check 'check-skills.ps1' $t @('-Root', $t, '-PrivateTerms', $terms)
+    Expect 'break: deny list term in a skill file -> red' $r $true 'am-grilling : scripts/defaults\.txt line 2 matches private term on deny list line 3'
+    $script:Cases++
+    if ($r.Out -match '(?i)private family') { $script:Fail++; Write-Host "FAIL break: deny list output must not show the term`n$($r.Out)" }
+    else { Write-Host 'PASS break: deny list output does not show the term' }
+    $env:ARCHI_MAGIC_PRIVATE_TERMS = $terms
+    Expect 'break: deny list from ARCHI_MAGIC_PRIVATE_TERMS -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t)) $true 'matches private term on deny list line 3'
+    $env:ARCHI_MAGIC_PRIVATE_TERMS = Join-Path $Base 'no-such-private-terms.txt'
+    Set-Text $terms "zz(unclosed`r`n"
+    Expect 'break: deny list line is not a regex -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t, '-PrivateTerms', $terms)) $true 'deny list line 1 is not a valid regular expression'
+    Set-Text $terms "# comment`r`nq*`r`n"
+    Expect 'break: deny list line matches empty text -> red' (Invoke-Check 'check-skills.ps1' $t @('-Root', $t, '-PrivateTerms', $terms)) $true 'deny list line 2 matches empty text'
+
     # 9. Legitimate: a full simulated split stays green for every check.
     $t = New-Tree 'split'
     $groups = @{
@@ -149,6 +174,7 @@ try {
     Expect 'legitimate: simulated split -> check-version-bump green' (Invoke-Check 'check-version-bump.ps1' $t) $false '6 plugin manifest'
     Expect 'legitimate: simulated split -> sync-house-rules green' (Invoke-Check 'sync-house-rules.ps1' $t) $false 'unchanged'
 } finally {
+    $env:ARCHI_MAGIC_PRIVATE_TERMS = $savedTermsEnv
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $Base
 }
 

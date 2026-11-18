@@ -12,8 +12,12 @@ Files (paths relative to the am-safe-change skill folder):
 | 4 Compute | `scripts/detail_preview.py compute` (uses `scripts/lib/detail_views.py`) | Terminal, CPython 3 |
 | 7 Execute | `scripts/apply_detail_views.py` | Revit, `run_modify` (dry run, then real) |
 | 7, 8 Compare | `scripts/detail_preview.py compare` | Terminal, CPython 3 |
+| New section: read markers | `scripts/read_section_markers.py` | Revit, `run_query` |
+| New section: plan cuts | `scripts/section_mark_plan.py plan` (uses `scripts/lib/section_marks.py`) | Terminal |
 
-Scope: each new detail copies the crop box and the view template from an existing section view. A brand-new section from scratch is out of scope. Tell the user that limit in step 2.
+Scope: each new detail copies the crop box and the view template from an existing section view. For a brand-new section at a mark on a plan (for example from a reviewer's PDF markup), use "New section from a markup" below.
+
+Look direction (issue #257): `ViewSection.CreateDetail` reads the box `BasisZ` as the look-into direction. A view's `CropBox.BasisZ` points the other way, towards the viewer (the same as `View.ViewDirection`). `apply_detail_views.py` therefore turns the source crop box 180 degrees about its up axis before `CreateDetail` (same world volume), and stops when the new view's `ViewDirection` differs from the source's. The result lists both directions under `directions`.
 
 ## Step 2: questions to ask
 
@@ -79,6 +83,34 @@ Run `read_detail_views.py` again, save it as `verify.json`, then:
 `python "<skill dir>\scripts\detail_preview.py" compare --preview preview.json --actual verify.json`
 
 Capture check: when you capture a view to show the user, check that the cut geometry is present. `capture_view` sometimes returns a section with the cut geometry missing, then returns it correctly on the next call. This looks like a regen timing issue after a commit. If the capture misses the cut geometry, wait a few seconds and capture again. Do not report the first capture as the result.
+
+## New section from a markup
+
+Use this path when the user marks new cuts on a plan, for example in a PDF markup or a screenshot, and no section exists there yet. It comes from issue #257: about 20 new detail sections from one markup.
+
+1. **Read the marks.** Use `am-markup-intake`. A flattened PDF has no annotations, so the marks are found by color (see its "Flattened PDF" section). For each section mark, write a name, the two ends of the cut line in model coordinates (feet), and one point on the thick bar or the arrow (`bar_side`). The look direction is towards the bar side. Reviewers often draw the head and the tail mirrored, so the bar side decides, not the order of the ends. When a position comes from an image, it is an estimate. Snap it to a model edge when you can (for example a floor sketch edge near the mark), and say so.
+2. **Check your first guess.** Colored marks on a PDF are usually the reviewer's, not model markers. Read the model before you assume a mark is an existing marker. A view filter in the plan template can hide existing markers.
+3. **Read the existing markers.** Run `scripts/read_section_markers.py` with `run_query`. Save the result as `markers.json`. It lists the cut line of every section and detail view.
+4. **Plan the cuts and remove duplicates.** Never cut the same spot twice.
+
+   ```powershell
+   python "<skill dir>\scripts\section_mark_plan.py" plan --marks marks.json --markers markers.json --bottom-z <ft> --top-z <ft> --depth <ft> --padding 1 --tolerance-ft 1.0 --level-z <plan level elevation> --out plan.json
+   ```
+
+   A mark closer than the tolerance to an existing marker (and within 10 degrees of parallel) is a duplicate. So is a mark that repeats an earlier mark. Duplicates get no box. Show each one to the user with the existing marker and the distance. Exit code 1 means duplicates were found.
+5. **Ask** (AskUserQuestion, one decision per question): the detail view type and template (count the templates of existing Detail views and offer the top 3), and where the markers show:
+   - **Markers on the finish floor plans only (Recommended)**: see step 9.
+   - **Markers in every view that cuts them**: the Revit default.
+6. **Preview** one row for each new view: name, look direction as a compass direction, cut line, template, sheet.
+7. **Apply** (one transaction, dry run first). For each planned box, build a `BoundingBoxXYZ` from `plan.json` (`box.origin`, `basis_x`, `basis_y`, `basis_z`, `min`, `max`; the frame is right-handed, as `BoundingBoxXYZ` requires) and call `ViewSection.CreateDetail(doc, detail_type_id, box)`. Then check the direction at once: `ViewDirection` must be minus the planned look (`section_marks.view_direction_ok`). If not, stop. Do not flip it in a second run. Set the name and the template.
+8. **Hide grids, levels and other markers in each new detail view.** Level heads, grid bubbles and the markers of other views made the viewports larger than their crop. Hide the categories Grids, Levels, Sections, Elevations and Callouts in each new view (`View.SetCategoryHidden`). When the view template controls Visibility/Graphics, the view cannot change it. Then propose a template that hides them, and say which views use that template.
+9. **Markers on the finish floor plans only.** A detail section shows its marker in every view that cuts it. It has no "Show in" setting. What worked:
+   - On each new section, set "Hide at scales coarser than" (`SECTION_COARSER_SCALE_PULLDOWN_IMPERIAL`, or `..._METRIC`) to 12" = 1'-0". Read the parameter first and keep its storage type. Check the value in the dry run.
+   - On each finish floor plan, add a view-specific reference section at the same spot: `ViewSection.CreateReferenceSection(doc, plan_id, new_view_id, head, tail)`. Use the ends of the cut line. Check the head and tail against the look direction.
+   - To move a cut later: set the scale back, move the section, then set the scale again. Tell the user this in the summary.
+   - A view filter is another way. It must be on the Sections category with the rule "Sheet Number does not equal <sheet>". A rule on the markers' own category fails with "One of the given rules refers to a parameter that does not apply to this filter's categories", because that category offers only Workset. A template change reaches every plan that uses the template. Say how many before you apply.
+10. **Use the target view id.** In every later query, find the plan or the new view by its id (or name). Do not use `doc.ActiveView`. After a view change, `doc.ActiveView` can be the sheet, and a query then finds nothing, with no error.
+11. **Verify.** Re-read each new view's `ViewDirection` and compare it with the planned look. Then do step 8 of the skill. Capture a sheet by its name, not its number.
 
 ## Keynote tags
 
