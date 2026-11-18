@@ -5,14 +5,17 @@
   per-user manifests, the real pyRevit config or the real Claude Code MCP registration.
 
   Scenario: setup -Repoint -EnableAgent, then -Undo.
-    - Revit 2026 has a per-user manifest before (UTF-8 BOM, CRLF, one non-ASCII char) -> replaced,
-      then restored byte-identical (SHA256).
-    - Revit 2025 has none before -> created, then deleted (folder too).
+    - Revit 2026 has two per-user manifests before, each with a UTF-8 BOM, CRLF and one non-ASCII
+      char: pyRevit.addin (same name as the machine-wide one) and pyRevit7.addin. Repoint
+      replaces pyRevit7.addin and deletes pyRevit.addin (issue #258: one per-user manifest,
+      never with the machine-wide name). Undo restores both byte-identical (SHA256).
+    - Revit 2025 has none before -> pyRevit7.addin created, then deleted (folder too).
     - Agent: Disabled + policy 'auto' before -> enabled + 'ask', then restored.
     - MCP: user-scope registration with another command before -> replaced, then restored.
     - A second -Undo exits 7 (nothing left to undo).
-  Mutation: the same scenario with an undo that restores through text (ReadAllText/WriteAllText)
-  must go RED on the byte-identical check (and the script's own checksum check makes undo exit 8).
+  Mutations: an undo that restores through text (ReadAllText/WriteAllText) in the 'replaced'
+  branch, or in the 'deleted' branch, must go RED on that file's byte-identical check (and the
+  script's own checksum check makes undo exit 8).
 
   powershell -NoProfile -ExecutionPolicy Bypass -File skills\am-pyrevit7-setup\tests\test-undo.ps1
 #>
@@ -26,6 +29,7 @@ function Check([bool]$cond, [string]$msg, [System.Collections.Generic.List[strin
     $script:Asserts++
     if (-not $cond) { $problems.Add($msg) }
 }
+function Get-Hash([string]$path) { if (Test-Path -LiteralPath $path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash } else { 'missing' } }
 
 function Invoke-Scenario([string]$setupPath, [string]$root) {
     $problems = New-Object System.Collections.Generic.List[string]
@@ -47,12 +51,14 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     New-Item -ItemType Directory -Force (Split-Path (Join-Path $py7Root $asm)) | Out-Null
     [IO.File]::WriteAllText((Join-Path $py7Root $asm), 'loader', (New-Object Text.UTF8Encoding $false))
 
-    # Original per-user manifest for 2026 only: BOM + CRLF + a non-ASCII char, so a text round trip changes bytes.
+    # Original per-user manifests for 2026: BOM + CRLF + a non-ASCII char, so a text round trip changes bytes.
     New-Item -ItemType Directory -Force (Join-Path $user '2026') | Out-Null
-    $orig = Join-Path $user '2026\pyRevit.addin'
-    $origText = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<!-- Caf" + [char]0xE9 + " -->`r`n<RevitAddIns><AddIn Type=`"Application`"><Assembly>C:\Users\x\AppData\Roaming\pyRevit-6\$asm</Assembly></AddIn></RevitAddIns>`r`n"
-    [IO.File]::WriteAllText($orig, $origText, (New-Object Text.UTF8Encoding $true))
-    $origHash = (Get-FileHash -LiteralPath $orig -Algorithm SHA256).Hash
+    $origOld = Join-Path $user '2026\pyRevit.addin'     # same name as the machine-wide one: Repoint deletes it
+    $origNew = Join-Path $user '2026\pyRevit7.addin'    # Repoint replaces it
+    $origText = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`r`n<!-- Caf" + [char]0xE9 + " -->`r`n<RevitAddIns><AddIn Type=`"Application`"><Assembly>C:\OldUserPyRevit\pyRevit-6\$asm</Assembly></AddIn></RevitAddIns>`r`n"
+    [IO.File]::WriteAllText($origOld, $origText, (New-Object Text.UTF8Encoding $true))
+    [IO.File]::WriteAllText($origNew, $origText.Replace('pyRevit-6', 'pyRevit-7-old'), (New-Object Text.UTF8Encoding $true))
+    $oldHash = Get-Hash $origOld; $newHash = Get-Hash $origNew
 
     # Stub programs and their starting state.
     $py7 = Join-Path $stubDir 'pyrevit.cmd'; $claude = Join-Path $stubDir 'claude.cmd'
@@ -66,13 +72,15 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPath -Repoint -EnableAgent @common 2>&1 | Out-String
     $code = $LASTEXITCODE
     Check ($code -eq 0) "setup exit $code`n$out" $problems
-    Check ((Get-FileHash -LiteralPath $orig -Algorithm SHA256).Hash -ne $origHash) 'setup did not change the 2026 manifest' $problems
-    Check (Test-Path (Join-Path $user '2025\pyRevit.addin')) 'setup did not create the 2025 manifest' $problems
+    Check (-not (Test-Path -LiteralPath $origOld)) 'setup did not remove the 2026 pyRevit.addin (machine-wide name)' $problems
+    Check ((Get-Hash $origNew) -ne $newHash -and (Get-Hash $origNew) -ne 'missing') 'setup did not rewrite the 2026 pyRevit7.addin' $problems
+    Check (Test-Path (Join-Path $user '2025\pyRevit7.addin')) 'setup did not create the 2025 pyRevit7.addin' $problems
+    Check (-not (Test-Path (Join-Path $user '2025\pyRevit.addin'))) 'setup wrote a 2025 pyRevit.addin (machine-wide name)' $problems
     $journals = @(Get-ChildItem $backups -Recurse -Filter journal.json)
     Check ($journals.Count -eq 1) "expected 1 journal, found $($journals.Count): $((Get-ChildItem $backups -Recurse | ForEach-Object FullName) -join ', ')`n$out" $problems
     if ($journals.Count -eq 1) {
         $j = [IO.File]::ReadAllText($journals[0].FullName) | ConvertFrom-Json
-        Check ((@($j.manifests | ForEach-Object action) | Sort-Object) -join ',' -eq 'created,replaced') "journal actions: $(@($j.manifests | ForEach-Object action) -join ',')" $problems
+        Check ((@($j.manifests | ForEach-Object action) | Sort-Object) -join ',' -eq 'created,deleted,replaced') "journal actions: $(@($j.manifests | ForEach-Object action) -join ',')" $problems
         Check ($j.mcp.action -eq 'replaced' -and $j.mcp.previous.command -eq 'C:\Old\pyrevit.exe') 'journal MCP entry' $problems
         Check ($j.agent.wasEnabled -eq $false -and $j.agent.policy -eq 'auto') 'journal agent entry' $problems
     }
@@ -89,9 +97,12 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $setupPath -Undo @common 2>&1 | Out-String
     $code = $LASTEXITCODE
     Check ($code -eq 0) "undo exit $code`n$out" $problems
-    $nowHash = if (Test-Path $orig) { (Get-FileHash -LiteralPath $orig -Algorithm SHA256).Hash } else { 'missing' }
-    Check ($nowHash -eq $origHash) "2026 manifest not byte-identical after undo ($nowHash vs $origHash)" $problems
+    $h = Get-Hash $origOld
+    Check ($h -eq $oldHash) "2026 pyRevit.addin not byte-identical after undo ($h vs $oldHash)" $problems
+    $h = Get-Hash $origNew
+    Check ($h -eq $newHash) "2026 pyRevit7.addin not byte-identical after undo ($h vs $newHash)" $problems
     Check (-not (Test-Path (Join-Path $user '2025'))) '2025 manifest or folder still present after undo' $problems
+    Check ($out -match 'same file name as the machine-wide manifest') 'undo did not note the restored machine-wide name' $problems
     $end = [IO.File]::ReadAllText((Join-Path $stubDir 'state.json')) | ConvertFrom-Json
     $want = $state0 | ConvertFrom-Json
     Check (($end | ConvertTo-Json -Compress -Depth 5) -eq ($want | ConvertTo-Json -Compress -Depth 5)) "stub state after undo $($end | ConvertTo-Json -Compress -Depth 5)" $problems
@@ -102,6 +113,21 @@ function Invoke-Scenario([string]$setupPath, [string]$root) {
     return ,$problems
 }
 
+# Mutant copy: in one undo branch (identified by the line after its checksum check), restore
+# through text instead of a byte copy.
+function New-Mutant([string]$name, [string]$elseLine) {
+    $src = [IO.File]::ReadAllText($Setup)
+    $needle = 'Copy-Item -LiteralPath $m.backup -Destination $p -Force
+                if ((Get-Sha256 $p) -ne $m.backupSha256) { Warn "Restored $p, but its checksum does not match the backup record." }
+                ' + $elseLine
+    if (-not $src.Contains($needle)) { $needle = $needle -replace "`n", "`r`n" }
+    if (-not $src.Contains($needle)) { throw "mutation anchor '$elseLine' not found in pyrevit7-setup.ps1" }
+    $src = $src.Replace($needle, ($needle -replace 'Copy-Item -LiteralPath \$m\.backup -Destination \$p -Force', '[IO.File]::WriteAllText($p, [IO.File]::ReadAllText($m.backup))'))
+    $mut = Join-Path $Base "pyrevit7-setup.$name.ps1"
+    [IO.File]::WriteAllText($mut, $src, (New-Object Text.UTF8Encoding $false))
+    return $mut
+}
+
 try {
     New-Item -ItemType Directory -Force $Base | Out-Null
     $env:ARCHI_MAGIC_LOG_DIR = Join-Path $Base 'logs'   # keep test runs out of the real shared log
@@ -109,19 +135,19 @@ try {
     if ($p.Count -eq 0) { Write-Host 'PASS write -> undo restores byte-identical originals, MCP and agent state' }
     else { $script:Fail++; Write-Host "FAIL real script:`n  - $($p -join "`n  - ")" }
 
-    # Mutation: restore the replaced manifest through text instead of a byte copy.
-    $mut = Join-Path $Base 'pyrevit7-setup.mutant.ps1'
-    $src = [IO.File]::ReadAllText($Setup)
-    $needle = 'Copy-Item -LiteralPath $m.backup -Destination $p -Force
-                if ((Get-Sha256 $p) -ne $m.backupSha256)'
-    if (-not $src.Contains($needle)) { $needle = $needle -replace "`n", "`r`n" }
-    if (-not $src.Contains($needle)) { throw 'mutation anchor not found in pyrevit7-setup.ps1' }
-    $src = $src.Replace($needle, ($needle -replace 'Copy-Item -LiteralPath \$m\.backup -Destination \$p -Force', '[IO.File]::WriteAllText($p, [IO.File]::ReadAllText($m.backup))'))
-    [IO.File]::WriteAllText($mut, $src, (New-Object Text.UTF8Encoding $false))
-    $pm = Invoke-Scenario $mut (Join-Path $Base 'mutant')
-    $script:Asserts++
-    if ($pm.Count -gt 0 -and @($pm | Where-Object { $_ -match 'not byte-identical' }).Count -eq 1 -and @($pm | Where-Object { $_ -notmatch 'not byte-identical|^undo exit 8' }).Count -eq 0) { Write-Host 'PASS mutation (text-mode restore) goes RED on the byte-identical check' }
-    else { $script:Fail++; Write-Host "FAIL mutation stayed green: $($pm -join '; ')" }
+    $cases = @(
+        @{ Name = 'replaced'; Else = 'else { Say "Restored the original: $p" }'; File = 'pyRevit7.addin' },
+        @{ Name = 'deleted'; Else = 'else { Say "Restored (the setup run deleted it): $p" }'; File = 'pyRevit.addin' }
+    )
+    foreach ($c in $cases) {
+        $pm = Invoke-Scenario (New-Mutant $c.Name $c.Else) (Join-Path $Base "mutant-$($c.Name)")
+        $script:Asserts++
+        $red = @($pm | Where-Object { $_ -match "^2026 $([regex]::Escape($c.File)) not byte-identical" })
+        $other = @($pm | Where-Object { $_ -notmatch 'not byte-identical|^undo exit 8' })
+        if ($red.Count -eq 1 -and @($pm | Where-Object { $_ -match 'not byte-identical' }).Count -eq 1 -and $other.Count -eq 0 -and @($pm | Where-Object { $_ -match '^undo exit 8' }).Count -eq 1) {
+            Write-Host "PASS mutation (text-mode restore, '$($c.Name)' branch) goes RED on $($c.File) and undo exits 8"
+        } else { $script:Fail++; Write-Host "FAIL mutation '$($c.Name)' stayed green or failed elsewhere: $($pm -join '; ')" }
+    }
 } finally {
     Remove-Item Env:\AM_STUB_DIR, Env:\AM_STUB_PY7, Env:\ARCHI_MAGIC_LOG_DIR -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $Base -Recurse -Force -ErrorAction SilentlyContinue

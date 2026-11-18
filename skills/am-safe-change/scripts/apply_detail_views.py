@@ -12,7 +12,14 @@ proposed detail number is still free. If not, it stops with no change.
 
 Each step creates one detail view and one viewport:
 - ViewSection.CreateDetail copies the source section's crop box, then
-  the new view takes the source view's template.
+  the new view takes the source view's template. CreateDetail reads the
+  box BasisZ as the look-into direction, but a view's CropBox BasisZ
+  points towards the viewer (issue #257). Passing source.CropBox as it
+  is would make the copy look the other way. So the script turns the
+  box 180 degrees about its up axis (BasisX and BasisZ reversed, the
+  same world volume, still right-handed), and after CreateDetail it
+  checks that the new view's ViewDirection is the source's. If not, it
+  stops and Revit rolls everything back.
 - Viewport.Create places the viewport, then ChangeTypeId takes the
   reference viewport's type.
 - LabelOffset and LabelLineLength are copied from the reference
@@ -23,6 +30,8 @@ Each step creates one detail view and one viewport:
 
 result = {"rows": [[name, number, [ox, oy], line_length, [cx, cy]], ...]
           for the new viewports after the steps,
+          "directions": [{"name", "source_view_id", "view_direction",
+                          "source_view_direction", "same_direction"}, ...],
           "steps_applied": n, "partial": false, "escaped": bool}
 A dry run returns the same result and Revit rolls everything back.
 Runs under IronPython 2.7 and CPython 3 (no f-strings).
@@ -67,6 +76,53 @@ try:
 except ImportError:
     def eid(n):
         return DB.ElementId(n)
+
+
+def detail_box_frame(origin, basis_x, basis_y, basis_z, low, high):
+    """Frame and extents for ViewSection.CreateDetail from a view CropBox.
+
+    Plain lists in, plain lists out (no Revit), so a test can check it.
+    A view's CropBox has BasisX = right, BasisY = up and BasisZ = towards
+    the viewer. CreateDetail reads BasisZ as the look-into direction. The
+    returned box is the crop box turned 180 degrees about its up axis:
+    BasisX and BasisZ reversed (right-handed, as BoundingBoxXYZ needs),
+    with min and max mirrored in x and z, so it holds the same world
+    volume. Revit then computes right = the source's right.
+    """
+    return {"origin": list(origin),
+            "basis_x": [-c for c in basis_x], "basis_y": list(basis_y),
+            "basis_z": [-c for c in basis_z],
+            "min": [-high[0], low[1], -high[2]],
+            "max": [-low[0], high[1], -low[2]]}
+
+
+def same_direction(a, b, tolerance=1e-6):
+    """True when two direction vectors point the same way."""
+    la = sum(c * c for c in a) ** 0.5
+    lb = sum(c * c for c in b) ** 0.5
+    if la == 0 or lb == 0:
+        return False
+    return sum(x * y for x, y in zip(a, b)) / (la * lb) >= 1.0 - tolerance
+
+
+def coords(p):
+    return [p.X, p.Y, p.Z]
+
+
+def detail_box_from_crop(crop):
+    """A BoundingBoxXYZ for CreateDetail that keeps the source look direction."""
+    t = crop.Transform
+    plan = detail_box_frame(coords(t.Origin), coords(t.BasisX), coords(t.BasisY),
+                            coords(t.BasisZ), coords(crop.Min), coords(crop.Max))
+    frame = DB.Transform(t)  # copy: the crop box transform can be read-only
+    frame.Origin = DB.XYZ(*plan["origin"])
+    frame.BasisX = DB.XYZ(*plan["basis_x"])
+    frame.BasisY = DB.XYZ(*plan["basis_y"])
+    frame.BasisZ = DB.XYZ(*plan["basis_z"])
+    crop.Transform = frame  # crop is a copy (View.CropBox returns a new box)
+    crop.Min = DB.XYZ(*plan["min"])
+    crop.Max = DB.XYZ(*plan["max"])
+    return crop
 
 
 def detail_number_param(vp):
@@ -144,13 +200,25 @@ for st in steps:
 t = DB.Transaction(doc, preview.get("title") or "Add detail views")
 t.Start()
 rows = []
+directions = []
 done = 0
 try:
     for st in steps:
         source = doc.GetElement(eid(st["source_view_id"]))
         if source is None or not isinstance(source, DB.ViewSection):
             raise ValueError("Source section %s no longer exists." % st["source_view_id"])
-        new_view = DB.ViewSection.CreateDetail(doc, source.GetTypeId(), source.CropBox)
+        box = detail_box_from_crop(source.CropBox)
+        new_view = DB.ViewSection.CreateDetail(doc, source.GetTypeId(), box)
+        want = coords(source.ViewDirection)
+        got = coords(new_view.ViewDirection)
+        if not same_direction(want, got):
+            raise ValueError("The new detail view for %s looks the other way (view direction %s, "
+                             "source %s). Nothing changed." % (txt(st["name"]),
+                                                               [round(c, 6) for c in got],
+                                                               [round(c, 6) for c in want]))
+        directions.append({"name": txt(st["name"]), "source_view_id": st["source_view_id"],
+                           "view_direction": got, "source_view_direction": want,
+                           "same_direction": True})
         if eid_int(source.ViewTemplateId) > 0:
             new_view.ViewTemplateId = source.ViewTemplateId
         cx, cy = st["box_center"][0], st["box_center"][1]
@@ -177,4 +245,5 @@ except Exception:
         t.RollBack()
     raise
 
-result = {"rows": rows, "steps_applied": done, "partial": False, "escaped": ESCAPE}
+result = {"rows": rows, "directions": directions, "steps_applied": done, "partial": False,
+          "escaped": ESCAPE}

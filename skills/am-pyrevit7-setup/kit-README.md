@@ -19,7 +19,10 @@ Read this before you start the setup.
 1. Save your work and **close Revit**.
 2. Double-click **`Setup-pyRevit7.cmd`**. Wait for `Done. No problems found.`, then press a key.
 3. Open Revit and **open a model**. The connection check needs one. Any Autodesk sample model is fine, for example *Snowdon Towers Sample Architectural* from the Home screen.
-4. Check pyRevit → About. It should say **7.0**. A duplicate add-in warning at startup is expected and harmless.
+4. Check pyRevit → About. It should say **7.0**.
+   - **When it works:** you see one pyRevit tab, and About says 7.x. If IT installed pyRevit for all users, Revit can show one dialog at start: "Duplicated AddInId ... Failed to initialize the add-in 'PyRevitLoader'". This is Revit refusing the second (machine-wide) pyRevit. Close the dialog.
+   - **When no pyRevit tab shows, or About says 6.x:** this is not harmless. Close Revit and run `Setup-pyRevit7.cmd -Repoint -Verify`. Read its warnings, then start Revit again. With Claude Code, ask it to run `am-doctor`: it finds two per-user pyRevit manifests, or one with the same file name as the machine-wide manifest. If About still says 6.x after that, send `IT-REQUEST.md` to IT.
+   - Why: the setup writes `%APPDATA%\Autodesk\Revit\Addins\<year>\pyRevit7.addin`, with the same add-in ID (AddInId) as the machine-wide `pyRevit.addin`. Older versions of this kit wrote the per-user file as `pyRevit.addin`, the same name as the machine-wide one. Then Revit said the file "is duplicated", and Revit 2026.4 loaded no pyRevit at all (issue #258). A new run removes that old file (the undo journal keeps a copy).
 5. Double-click `Setup-pyRevit7.cmd` again. This time the Verify section shows `Revit 20xx ... responding`.
 6. Restart the Claude desktop app. In a **new** Code session, paste this line: *"Setup is done. Run am-welcome and give me a first safe Revit question."* Without the archi-magic plugin (kit only), ask instead: *"use the pyrevit tools to get the context of my open Revit model"*.
 
@@ -35,7 +38,8 @@ With the archi-magic plugin installed, ask Claude Code to "set up pyRevit 7". Th
 - **Undo:** run `Setup-pyRevit7.cmd -Undo`. See "Undo" below.
 - **Installer check:** the script downloads the latest pyRevit release from GitHub. It runs the installer only when the file matches the SHA256 checksum from GitHub and the signature is valid and comes from the known pyRevit signer (Jean-Marc Couffin, through Microsoft ID Verified signing). If one check fails, the script stops with exit code 3 and does not run the installer.
 - **Logs and backups:** each run writes a log to `%TEMP%\pyrevit7-setup\<timestamp>\`. Backups and the undo journal go to `%LOCALAPPDATA%\archi-magic\backups\pyrevit7-setup\<timestamp>\`, because cleanup tools can empty `%TEMP%`.
-- **Clean long-term fix (IT, needs admin):** uninstall the machine-wide pyRevit 6.x, or delete `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. The per-user setup keeps working after that.
+- **Clean long-term fix (IT, needs admin):** uninstall the machine-wide pyRevit 6.x, or delete `C:\ProgramData\Autodesk\Revit\Addins\<year>\pyRevit.addin`. The per-user setup keeps working after that, and the "Duplicated AddInId" dialog stops.
+- **Do not edit Claude Code files under `%USERPROFILE%\.claude\plugins` by hand.** Use `/plugin` in Claude Code. A Windows PowerShell 5.1 edit (`Set-Content -Encoding utf8`, `Out-File`) adds a byte-order mark, and then no Claude Code plugin loads.
 - **`pyrevit run` scripts still use the old pyRevit until IT does that.** Batch or CI runs with `pyrevit run` read the machine-wide manifest, not the per-user fix. A test with CLI 7.0 loaded pyRevit 6.4 from `C:\Program Files\pyRevit-Master`. Revit opened by hand and the archi-magic skills (`pyrevit agent run`) are not affected. `am-doctor` shows this as HEADLESS_OLD_PYREVIT. A ready-to-send IT request is in `IT-REQUEST.md`.
 
 ## Undo

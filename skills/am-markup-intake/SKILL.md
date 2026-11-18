@@ -97,6 +97,8 @@ Give each subagent this task. Fill in the file, the pages, the skill dir and the
 > 2. Read each page (Read tool, `pages: "<a>-<b>"`, max 20 pages for each call) or the image. For each page:
 >    - Read the sheet number and the sheet title from the title block. Put them in `sheetMap`. Do not trust a sheet number in the drawing body, such as a detail reference.
 >    - Find the marks that are drawn into the page and are not annotations: red or colored pen lines, clouds, text, and handwriting on scans and photos.
+>    - If the annotation list has no entries for these pages, the PDF can be flattened. Then find the marks by color, as in "Flattened PDF: find marks by color" in the skill. Write one record for each mark.
+>    - For a section mark (a cut line with a thick bar or an arrow), put the look direction in `interpreted`: the side of the thick bar. Do not use the order of the ends. Set `confidence` to `med` when the bar is not clear.
 >    - The page image can omit annotations that have no drawn appearance. The annotation list is the source of truth for them. Do not add a record for an annotation that is already in that list. If you see an annotation mark, put its id in `matchesAnnotation`.
 > 3. Write one record for each mark that the annotation list does not have. Add a record with only `matchesAnnotation`, `location` and `interpreted` to give an annotation a location or a meaning.
 > 4. Text rules: copy the words exactly as written, with the same case, spelling and line breaks. If a mark has no words, set `text` to "". Put your reading of the request in `interpreted`, in plain words. If you cannot read a word, write `[illegible]` in `text` and set `confidence` to `low`. Set `handwriting: true` for handwriting.
@@ -122,6 +124,26 @@ Record file format (`kind: "markup-records"`):
 - `region.rect`: fractions of the page as seen (0 to 1, from the top left). This is the same frame that `pdf_annots.py` uses.
 - `location`: a grid, room, door, view or detail tag, as written on the sheet ("Grid C/4", "Room 205", "Door 205A", "3/A501").
 - `target` and `value` (optional): the thing and the value that the mark asks for ("door 105A width", "42 in"). Two reviewers with the same target and different values make a conflict.
+
+## Flattened PDF: find marks by color
+
+A flattened PDF has the reviewer's marks burned into the page. `pdf_annots.py` then finds 0 annotations, and every mark must come from the visual read. This happened in a review set with 53 section marks (issue #257).
+
+1. Tell the user: "This PDF has no annotation layer. I find the marks by color. Authors and dates are not available."
+2. Ask which color is the reviewer's, unless one color is clearly not in the base drawing (for example red or magenta on a black drawing).
+3. Read each page at full size, in parts when the sheet is large. Find every mark of that color: clouds, lines, arrows, text. Count them per page.
+4. Write one record per mark, with `textSource: "visual"` and a `region`. A mark with no words gets `text: ""` and a plain `interpreted`.
+5. Tell the user the count per page, and ask them to confirm it before the hand-off. A mark found by color alone can be part of the base drawing.
+6. If the computer has no PDF tools, ask the user to export the pages as PNG and read the images.
+
+## Section marks on plans
+
+A reviewer can draw new section cuts on a plan as a line with a thick bar (the head) or an arrow at one end.
+
+- The look direction is towards the side of the thick bar or the arrow. Reviewers often draw the head and the tail mirrored against the drafting rule. In the field report, 30 of 53 marks were mirrored. Use the bar side, not the order of the ends.
+- Write each section mark as its own record. Put the cut line, the bar side and the look direction (as a compass direction) in `interpreted`, and the sheet and grid location in `location`.
+- Before the hand-off, check the model read-only for existing section markers near each mark. The same spot must not be cut twice. `am-safe-change` (recipe "detail views", "New section from a markup") does this check with a distance tolerance.
+- The marks are the reviewer's, not existing model markers, unless the model shows a marker there. Check before you assume.
 
 ## Rules in the scripts
 
@@ -216,7 +238,6 @@ Example mapping for one product variant.
 ```
 
 The confirmed report gives lengths as decimal strings in millimetres. It includes the PDF name and each value's page and table position. It authorizes no model writes. Family geometry, RFA load and project placement are separate Revit steps that still need live qualification.
-
 
 ## House rules (all am-* skills)
 

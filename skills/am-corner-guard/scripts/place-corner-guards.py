@@ -5,7 +5,8 @@
 #   view_id        int   target floor finish plan (a ViewPlan)
 #   src_view_id    int   view that holds the template guard and its tag
 #   tpl_tag_id     int   one existing single-guard keynote tag (the template)
-#   family_name    str   optional, default "GM-W_PRT-CORNER_GUARD-100"
+#   family_name    str   corner guard family name (names differ in each office). If it is not
+#                        given, the script reads the family of the guard that tpl_tag_id tags.
 #   approve_rooms  list  optional, room-name parts the user approved (large open spaces)
 #   skip_rooms     list  optional, extra room-name parts to skip
 #   corridor_keys  list  optional, extra room-name parts that count as corridor
@@ -18,7 +19,23 @@ from pyrevit.api import DB
 import math, System
 
 LIST = System.Collections.Generic.List
-FAM = inputs.get("family_name", "GM-W_PRT-CORNER_GUARD-100")
+
+
+def guard_family():
+    # The family name differs in each office: never assume one. Without family_name, use the
+    # family of the guard that the template tag points at.
+    if inputs.get("family_name"):
+        return inputs["family_name"]
+    if inputs.get("tpl_tag_id"):
+        tag = doc.GetElement(DB.ElementId(System.Int64(inputs["tpl_tag_id"])))
+        for i in (tag.GetTaggedLocalElementIds() if tag is not None else []):
+            e = doc.GetElement(i)
+            if isinstance(e, DB.FamilyInstance):
+                return e.Symbol.FamilyName
+    raise ValueError("Pass family_name (the corner guard family) or tpl_tag_id (a tag on one guard).")
+
+
+FAM = guard_family()
 view = doc.GetElement(DB.ElementId(System.Int64(inputs["view_id"])))
 level = view.GenLevel
 LZ = level.Elevation
@@ -31,7 +48,7 @@ ASK_KEYS = ("WAITING", "WORKSTATION", "BULLPEN", "BREAKOUT", "OPEN", "LOUNGE", "
 # from the corridor next to them.
 SKIP_KEYS = ("SHAFT", "ELECTRICAL", "OFFICE", "STORAGE", "CONFERENCE", "BOH", "BACK-OF-HOUSE", "MAIL", "COPY",
              "PANTRY", "LACTATION", "TOILET", "RESTROOM", "WC", "STAIR", "ELEVATOR", "MECHANICAL", "IDF",
-             "CUSTODIAL", "JANITOR", "CLOSET", "LOCKER", "DRIVE THRU") + tuple(x.upper() for x in inputs.get("skip_rooms", []))
+             "CUSTODIAL", "JANITOR", "CLOSET", "LOCKER") + tuple(x.upper() for x in inputs.get("skip_rooms", []))
 APPROVE = tuple(x.upper() for x in inputs.get("approve_rooms", []))
 PLACE_LINK = bool(inputs.get("place_link_corners", False))   # default: link corners are only listed for review
 MERGE_FT = 9.0     # two guards in one room, closer than this, share one tag
