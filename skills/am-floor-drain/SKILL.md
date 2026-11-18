@@ -5,7 +5,9 @@ description: "Use to add floor drains to the toilet rooms on one Revit floor pla
 
 # am-floor-drain
 
-This skill places floor drains (a level-based Plumbing Fixtures family, for example `PLBG-FLOOR DRAIN-2D` : `Floor Drain-2D`) in the toilet rooms of one floor plan. A **floor drain** is a drain set into the floor, so water from a leak or from floor cleaning can flow away.
+This skill places floor drains (a level-based Plumbing Fixtures family, for example `<floor drain family>` : `<type>`) in the toilet rooms of one floor plan. A **floor drain** is a drain set into the floor, so water from a leak or from floor cleaning can flow away.
+
+The family and type names are different in each office and project. Do not assume a name. Find them in the model (step 3), and pass them to the script in `family_name` and `type_name`.
 
 The rules below come from a user's review of two floors. Confirm them with the user on a new project.
 
@@ -22,8 +24,8 @@ Measured tile grids, drain points and user decisions are project data. Keep them
 
 1. **Context.** Call `get_context` and `get_skill("revit-scripting")`. If Revit reports a modal dialog, stop. Tell the user which dialog blocks Revit. Never close it yourself. If `get_context` reports two Revit sessions, check the Windows process list: one of them can be a process that is not Revit.
 2. **Ask first.** Follow the preview and confirmation steps in `am-safe-change`. Use AskUserQuestion before any change. Ask which level (default: the active view), which rooms (default: toilet rooms), and the position in single-user rooms (default: the corner between the WC and the side wall). Skip a question when the project notes already answer it.
-3. **Find the rooms.** List the rooms on the level with TOILET, RESTROOM, WC, SHOWER, PANTRY or CUSTODIAL in the name. Ask about shower rooms, pantries and custodial closets (see "Placement rules").
-4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, `room_ids` for a selected subset, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, mode, and the gap to the side wall (corner mode) or the distance past the bowl (front mode). Ask about every room in `ASK_USER`.
+3. **Find the rooms.** List the rooms on the level with TOILET, RESTROOM, WC, SHOWER, PANTRY or CUSTODIAL in the name. Ask about shower rooms, pantries and custodial closets (see "Placement rules"). Find the floor drain type: list the loaded Plumbing Fixtures types with DRAIN in the family or type name. If there is more than one, ask the user which one to use.
+4. **Dry run.** Run the script with `dry_run: true`. Pass `view_id`, `family_name`, `type_name`, `room_ids` for a selected subset, the known `grid_offsets`, and `points` for multi-stall rooms. Show the user a table: room, WC wall, mode, and the gap to the side wall (corner mode) or the distance past the bowl (front mode). Ask about every room in `ASK_USER`.
 5. **Apply.** Run the same script without `dry_run`. Revit asks the user for Keep or Discard. Never set the agent policy to `auto`. Check `z_above_level_should_be_0`: every value must be 0.
 6. **Measure the tile grid (front mode only).** For each floor in `NEEDS_GRID_MEASURE`, measure the grid (see "How to measure a tile grid"). Preview the move with `grid_offsets`, `resnap: true` and `resnap_drain_ids`. Use only the IDs returned in `created` for the approved placement. Use a dry run for the preview. Confirm it, then run with Keep or Discard.
 7. **Verify.** Call `show_elements` with `zoom: true` on the new drains. Take a picture with `capture_view` (mode `screen`). Check that each drain is visible. In corner mode, check that it sits between the WC and the side wall. In front mode, check that it sits on a tile intersection. Tell the user about drains that sit under a tag.
@@ -92,7 +94,7 @@ At a close zoom the scale is about 350 pixels per foot, so the error is less tha
 - **Element IDs can change.** In a workshared model, the IDs of new drains can change after a reload or a sync. Find a drain by its level and room, not by an ID from an earlier run. Check each drain before you move it.
 - **Run one floor at a time.** If you call the script twice in one run, do not reuse its names (`inputs`, `result`, `made`, `zs`) for your own data.
 - `Door.ToRoom` is an indexed property in IronPython. Use `door.get_ToRoom(phase)` with the view phase.
-- `DB.ElementId(int)` is ambiguous in IronPython. Use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
+- `DB.ElementId(int)` is ambiguous in IronPython. Add `import System`, then use `DB.ElementId(System.Int64(n))`. Use `ElementId.Value`, not `IntegerValue`.
 - Names with a degree sign break the JSON result. Encode names to ASCII before you return them.
 - `doc.Regenerate()` needs an open transaction.
 
