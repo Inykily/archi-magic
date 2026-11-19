@@ -4,11 +4,15 @@
 Compute a preview from a read_detail_views.py result:
     python detail_preview.py compute --read read.json --sheet 123 --reference 456
         --detail "North transition:12.5:8.0:789" [--detail ...]
-        [--title "..."] --out preview.json
+        [--copy-method create_detail|duplicate] [--title "..."] --out preview.json
 
-Each --detail value is "name:x:y:source_view_id". x and y are the
-requested box center on the sheet, in feet. source_view_id is the
-section view whose crop box and view template the new detail copies.
+Each --detail value is "name:x:y:source_view_id" or
+"name:x:y:source_view_id:method". x and y are the requested box center
+on the sheet, in feet. source_view_id is the section view whose crop box
+and view template the new detail copies. method is "create_detail"
+(ViewSection.CreateDetail with the turned crop box) or "duplicate"
+(View.Duplicate, issue #257). A method in a --detail value wins over
+--copy-method. The default is create_detail.
 
 Compare a later result (apply dry run, or a fresh read) with the preview:
     python detail_preview.py compare --preview preview.json --actual run.json
@@ -53,12 +57,17 @@ def load_json(path):
         return json.load(f)
 
 
-def parse_detail(spec):
+def parse_detail(spec, default_method=None):
     """One --detail value into a detail dict. Raises ValueError on bad input."""
     parts = spec.split(":")
-    if len(parts) != 4:
-        raise ValueError("Bad --detail value %r: use \"name:x:y:source_view_id\"." % spec)
-    name, xs, ys, src = parts
+    if len(parts) not in (4, 5):
+        raise ValueError("Bad --detail value %r: use \"name:x:y:source_view_id\" "
+                         "or \"name:x:y:source_view_id:method\"." % spec)
+    name, xs, ys, src = parts[:4]
+    method_text = parts[4] if len(parts) == 5 else default_method
+    method = dv.normalize_copy_method(method_text)
+    if method is None:
+        raise ValueError("Bad --detail value %r: method must be %s." % (spec, " or ".join(dv.COPY_METHODS)))
     try:
         x = float(xs)
         y = float(ys)
@@ -66,7 +75,7 @@ def parse_detail(spec):
     except ValueError:
         raise ValueError("Bad --detail value %r: x, y and source_view_id must be numbers." % spec)
     return {"name": name, "x": x, "y": y, "source_view_id": src_id,
-            "source_view_name": ""}
+            "source_view_name": "", "method": method}
 
 
 def actual_rows(data):
@@ -101,6 +110,8 @@ def main(argv=None):
     c.add_argument("--sheet", required=True, type=int)
     c.add_argument("--reference", required=True, type=int)
     c.add_argument("--detail", action="append", default=[])
+    c.add_argument("--copy-method", default=dv.CREATE_DETAIL,
+                   help="create_detail (default) or duplicate (View.Duplicate, issue #257)")
     c.add_argument("--title")
     c.add_argument("--out", required=True)
     v = sub.add_parser("compare")
@@ -114,11 +125,16 @@ def main(argv=None):
     if a.cmd == "compute":
         if not a.detail:
             ap.error("compute needs at least one --detail value.")
+        if dv.normalize_copy_method(a.copy_method) is None:
+            ap.error("--copy-method must be %s." % " or ".join(dv.COPY_METHODS))
         read = dv.load_read_result(load_json(a.read))
         sections = dict((s["id"], s) for s in read.get("sections", []))
         details = []
         for spec in a.detail:
-            d = parse_detail(spec)
+            try:
+                d = parse_detail(spec, a.copy_method)
+            except ValueError as e:
+                ap.error(str(e))
             d["source_view_name"] = sections.get(d["source_view_id"], {}).get("name", "")
             details.append(d)
         p = dv.compute_detail_plan(read, a.sheet, a.reference, details, a.title)

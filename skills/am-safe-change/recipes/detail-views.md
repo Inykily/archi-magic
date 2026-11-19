@@ -18,7 +18,7 @@ Files (paths relative to the am-safe-change skill folder):
 | Markers: same condition, audit, plan, compare | `scripts/detail_marker_plan.py` (uses `scripts/lib/detail_marker_logic.py`) | Terminal, CPython 3 |
 | Markers: execute | `scripts/detail_apply_markers.py` | Revit, `run_modify` (dry run, then real) |
 
-Scope: each new detail copies the crop box and the view template from an existing section view. For a brand-new section at a mark on a plan (for example from a reviewer's PDF markup), use "New section from a markup" below. To point a plan marker to another detail, use "Point a marker to another detail". To remove a detail view, use "Remove a detail view".
+Scope: each new detail copies an existing section view: its crop box and its view template. See "Copy an existing cut" for the two copy methods. For a brand-new section at a mark on a plan (for example from a reviewer's PDF markup), use "New section from a markup" below. To point a plan marker to another detail, use "Point a marker to another detail". To remove a detail view, use "Remove a detail view".
 
 Look direction (issue #257): `ViewSection.CreateDetail` reads the box `BasisZ` as the look-into direction. A view's `CropBox.BasisZ` points the other way, towards the viewer (the same as `View.ViewDirection`). `apply_detail_views.py` therefore turns the source crop box 180 degrees about its up axis before `CreateDetail` (same world volume), and stops when the new view's `ViewDirection` differs from the source's. The result lists both directions under `directions`.
 
@@ -38,9 +38,12 @@ Ask only the questions that the request leaves open. Use AskUserQuestion, one de
    - Another viewport the user names.
 3. **Which section does each new detail copy?**
    - The user names one source section per new detail. The new detail copies its crop box and view template.
-4. **Where does each new viewport go?**
+4. **How does the new detail copy the section?** See "Copy an existing cut".
+   - Duplicate the view (Recommended): `View.Duplicate`. It also keeps the other view settings, such as "Hide at scales coarser than".
+   - Create a detail from the crop box: `ViewSection.CreateDetail`. Offer it when the duplicate checks stop the dry run.
+5. **Where does each new viewport go?**
    - The user gives the requested box center on the sheet, in feet. Or: next to a named viewport, and you read that viewport's box center and propose a point beside it.
-5. **Detail numbers?**
+6. **Detail numbers?**
    - Use the proposed pattern numbers (Recommended): the compute step proposes them from the sheet's existing numbers. See "How the numbering works" below.
    - The user names the numbers.
 
@@ -73,7 +76,7 @@ A position check finds a new cut near an existing marker. It does not find a det
 python "<skill dir>\scripts\detail_preview.py" compute --read read.json --sheet 100 --reference 1 --detail "North transition:7.5:2.0:50" --detail "South transition:7.5:4.0:51" --out preview.json
 ```
 
-Each `--detail` value is `"name:x:y:source_view_id"`. x and y are the requested box center on the sheet, in feet. The command prints the chat table. Exit code 1 means the preview is BLOCKED.
+Each `--detail` value is `"name:x:y:source_view_id"` or `"name:x:y:source_view_id:method"`. x and y are the requested box center on the sheet, in feet. The method is `duplicate` or `create_detail`. Give the method for all details with `--copy-method duplicate`. A method in a `--detail` value wins. The default is `create_detail`. The command prints the chat table, with one note that names the copy method of each detail. Exit code 1 means the preview is BLOCKED.
 
 How the computation works (`scripts/lib/detail_views.py`):
 
@@ -85,6 +88,7 @@ How the computation works (`scripts/lib/detail_views.py`):
   - The reference viewport has no label settings or no viewport type to copy.
   - A source section is not in the read result.
   - A proposed detail number is already used on the sheet.
+  - A copy method is not `duplicate` or `create_detail`.
 - Other warnings: a detail number on the sheet is not an integer, so the compute step skips it.
 
 ## Step 7: execute
@@ -105,7 +109,7 @@ How the computation works (`scripts/lib/detail_views.py`):
    The command marks a count above these numbers, or another category, as unexpected, and exits with code 1. Then tell the user and ask before you apply. For a run with no recipe script, `python "<skill dir>\scripts\detail_marker_plan.py" helpers --dryrun dryrun.json --new-views <n> --viewports <n>` gives the same names.
 4. `run_modify` with the same script and inputs, without dry run. The user clicks Keep or Discard in Revit.
 
-The apply script first checks that the sheet still exists, that the reference viewport still has the preview's label settings, and that every proposed detail number is still free. Then it replays the preview's `steps` in one transaction. It returns the values of every new viewport after the steps, re-read after `SetBoxCenter`.
+The apply script first checks that the sheet still exists, that the reference viewport still has the preview's label settings, and that every proposed detail number is still free. It also checks that no view has the name of a new detail, and that each source for `duplicate` can be duplicated (`CanViewBeDuplicated`). If a check fails, it stops with no change. Then it replays the preview's `steps` in one transaction. Each new view gets the detail name from the preview. It returns the values of every new viewport after the steps, re-read after `SetBoxCenter`. The `directions` list gives the copy method of each new view, its view direction and the source's. For `duplicate`, `same_crop` must be true.
 
 ## Step 8: verify
 
@@ -170,7 +174,7 @@ Use this path to point an existing plan marker (a reference section, callout or 
    - An `add_reference` step calls `ViewSection.CreateReferenceSection`. That method returns nothing. The script finds the new marker as the one new entry in the host view's `GetReferenceSections()`.
 5. **Verify.** Read `detail_read_references.py` again, save it as `refs-after.json`, then run `compare` with `--actual refs-after.json`, and the marker audit (step 8).
 
-New detail, then point the marker to it: when the user chose a new view in question 0, make the view with steps 3 to 8 of this recipe first. After Keep, read again and point the marker to the new view with this path. Two small changes are safer than one script that the recipe does not check.
+New detail, then point the marker to it: when the user chose a new view in question 0, make the view with steps 3 to 8 of this recipe first. To copy an existing cut, use the `duplicate` method (see "Copy an existing cut"). After Keep, read again and point the marker to the new view with this path. Two small changes are safer than one script that the recipe does not check.
 
 ## Remove a detail view
 
@@ -208,7 +212,14 @@ Steps:
 
 ## Copy an existing cut
 
-`apply_detail_views.py` copies a cut with `ViewSection.CreateDetail` and a turned crop box (see "Look direction"). In issue #257, `View.Duplicate(ViewDuplicateOption.Duplicate)` on an existing section kept its crop, view direction, template, far clip and "Hide at scales coarser than" setting, with no flip. The dry run and the read after Keep showed the same view direction as the source. This was seen on one section view type in Revit 2026 only. The recipe scripts do not use it yet. If you use it, check `ViewDirection` in the dry run, as `apply_detail_views.py` does.
+`apply_detail_views.py` copies a source section in one of two ways. Each step of the preview has a `method`.
+
+- `duplicate` (Recommended): `View.Duplicate(ViewDuplicateOption.Duplicate)`. In issue #257 it kept the crop, view direction, template, far clip and "Hide at scales coarser than" setting of an existing section, with no flip. The dry run and the read after Keep showed the same view direction as the source. The copy sits at the same spot as the source. The script checks `CanViewBeDuplicated` before the transaction. After the copy, it checks that the new view has the source's `ViewDirection` and crop box (`same_crop`). If not, it stops, and Revit rolls everything back. `View.Duplicate` names the copy "<source> Copy 1". The script gives it the detail name from the preview.
+- `create_detail` (the default when a step has no method): `ViewSection.CreateDetail` with the source crop box turned 180 degrees (see "Look direction"). It copies the crop box (with its depth) and the view template. It does not copy the other view settings, such as "Hide at scales coarser than". When the user needs them, compare them with the source in the dry run.
+
+Use `duplicate` for the case of issue #257: "copy the old cut into a new detail", then point the plan marker to the new detail. Do the "Same condition check" first. Then make the copy with steps 4 to 8 (`--copy-method duplicate`). After Keep, point the marker to the new view with "Point a marker to another detail".
+
+`View.Duplicate` was seen on one section view type in Revit 2026 only. The direction and crop checks catch a different result in another Revit year or view type. If the dry run stops on them, use `create_detail`.
 
 ## Keynote tags
 
