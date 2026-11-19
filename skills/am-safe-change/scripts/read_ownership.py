@@ -59,10 +59,13 @@ _ABS_PATH = re.compile(r"^([A-Za-z]:[\\/]|[\\/]{2}[^\\/])")
 
 
 def path_error(name, path):
-    """None when path is an absolute Windows path, else one sentence."""
+    """None when path is an absolute Windows path (or POSIX path on a POSIX host), else one sentence."""
     if not isinstance(path, (type(u""), str)):
         return "%s must be a text path." % name
-    if "%" in path or path.startswith("~") or not _ABS_PATH.match(path):
+    # A POSIX absolute path is valid only on a POSIX host (the offline tests on
+    # Linux CI). Revit runs on Windows, where "/x" is drive-relative and refused.
+    posix_abs = os.sep == "/" and path.startswith("/") and not path.startswith("//")
+    if "%" in path or path.startswith("~") or not (_ABS_PATH.match(path) or posix_abs):
         return ("%s must be an absolute path, for example C:/work/own.json. A relative "
                 "path or %%TEMP%% resolves inside the Revit process (issue #85)." % name)
     return None

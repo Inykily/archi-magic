@@ -151,7 +151,9 @@ def test_inputs_in_the_call_win_over_the_file(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("bad", ["own.json", "work/own.json", "%TEMP%/own.json",
-                                 "~/own.json", "C:own.json", "/own.json"])
+                                 "~/own.json", "C:own.json",
+                                 pytest.param("/own.json", marks=pytest.mark.skipif(
+                                     os.sep == "/", reason="drive-relative only on Windows"))])
 def test_relative_out_path_is_refused_and_nothing_is_written(monkeypatch, tmp_path, bad):
     monkeypatch.chdir(tmp_path)
     res = run_read(monkeypatch, model(), {"ids": [101], "out_path": bad})
