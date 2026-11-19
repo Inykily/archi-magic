@@ -257,6 +257,17 @@ Revit cannot place a material keynote tag on a cut floor layer. This limit cost 
 - The `TM_ADDBY_MATERIAL` mode creates a Material Tags tag that also reads empty.
 - The workaround from the field report is a text note. The note carries the keynote value from the floor type's `Keynote` parameter. Use text notes when the user asks for keynotes on cut layers.
 
+### CreateDetail look direction (issue #257)
+
+`ViewSection.CreateDetail(doc, view_family_type_id, box)` reads `box.Transform.BasisZ` as the look-into direction. A view's `CropBox.BasisZ` and `View.ViewDirection` point the other way, towards the viewer. In one session, all 20 new views looked the wrong way, and the fix took 4 dry runs.
+
+- New view `ViewDirection` = minus the input box `BasisZ`.
+- `BasisY` is up. Revit computes the right direction. The input `BoundingBoxXYZ` must be right-handed: `BasisX` = `BasisY` x `BasisZ`.
+- Do not pass an existing view's `CropBox` as it is. The copy then looks the other way. Turn the box 180 degrees about its up axis: reverse `BasisX` and `BasisZ`, and mirror `Min` and `Max` in x and z. `am-safe-change` `scripts/apply_detail_views.py` does this.
+- For a new cut, set `BasisZ` = the look direction (into the model), `BasisY` = up, `BasisX` = up x look. `am-safe-change` `scripts/lib/section_marks.py` (`detail_box`) builds this box.
+- In the dry run, read `ViewDirection` of each new view at once. It must be minus the planned look. If not, stop. Do not flip the view in a second run.
+- To copy an existing section at the same spot, `View.Duplicate(ViewDuplicateOption.Duplicate)` is simpler. It kept the crop, view direction, template, far clip and "Hide at scales coarser than" setting, with no flip (one section view type, Revit 2026). Check `CanViewBeDuplicated` first. The copy is named "<source> Copy 1". Set the name yourself.
+
 ### Detail groups, view delete, and filled-region boundaries (issue #89)
 
 These three traps cost a full session on a department diagram in Revit 2026. They come from issue #89.
