@@ -15,6 +15,9 @@ Compare a later result (apply dry run, or a fresh read) with the preview:
 
 Show the side-effect counts of a dry run (issue #28):
     python detail_preview.py side-effects --preview preview.json --dryrun dryrun.json
+When the dry run is the whole run record (with "changes"), it also names
+the helper elements Revit adds for each new section view (issue #257)
+and exits 1 when a category is not planned and not a known helper.
 
 Input files may be the bare `result` object or the whole run JSON that
 `pyrevit agent run` prints. Exit codes: 0 ok, 1 differences or blocked, 2 bad input.
@@ -28,6 +31,21 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 import detail_views as dv  # noqa: E402
 import side_effects as se  # noqa: E402
+import detail_marker_logic as dm  # noqa: E402
+
+
+def new_view_categories(preview):
+    """Expected categories for new detail views, with Revit's view helpers.
+
+    Issue #257: one new section view plus one viewport added 10 elements:
+    the view and its marker (Views), a hidden viewport on no sheet
+    (Viewports), sun path, work plane grid, and uncategorized helpers (a
+    sketch plane and an extent element). The sheet that gets the viewport
+    changes too. The side-effects command checks the counts per new view.
+    """
+    cats = set(preview.get("expected_dependent_categories") or [])
+    cats.update(["Views", "Viewports", "Sheets", "Sun Path", "Work Plane Grid", dm.NO_CATEGORY])
+    return sorted(cats)
 
 
 def load_json(path):
@@ -104,6 +122,7 @@ def main(argv=None):
             d["source_view_name"] = sections.get(d["source_view_id"], {}).get("name", "")
             details.append(d)
         p = dv.compute_detail_plan(read, a.sheet, a.reference, details, a.title)
+        p["expected_dependent_categories"] = new_view_categories(p)
         with io.open(a.out, "w", encoding="utf-8") as f:
             f.write(json.dumps(p, indent=1, ensure_ascii=False))
         print(dv.text_table(p))
@@ -125,8 +144,17 @@ def main(argv=None):
         return 0
     if a.cmd == "side-effects":
         preview = load_json(a.preview)
-        summary = se.summarize(preview, load_json(a.dryrun), ["Viewports"])
+        dryrun = load_json(a.dryrun)
+        summary = se.summarize(preview, dryrun, ["Viewports"])
         print(se.text_table(summary))
+        # Issue #257: name the helper elements that Revit adds for each new
+        # section view (a hidden viewport on no sheet, sun path, work plane
+        # grid, sketch plane, extent element), from the run's change list.
+        count = len(preview.get("steps") or [])
+        helpers = dm.classify_new_view_changes(dryrun, count, count)
+        if helpers["available"]:
+            print(dm.helpers_text(helpers))
+            return 1 if helpers["unexpected"] else 0
         return 0
     ap.print_help()
     return 2
