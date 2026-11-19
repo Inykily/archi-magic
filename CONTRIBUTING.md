@@ -35,6 +35,21 @@ These are the checks CI runs (see `.github/workflows/check-skills.yml`). Run the
 
 If you cannot run one of them, do not skip it silently. Write it under "Not verified" in the pull request and let CI decide.
 
+### Python skill tests on Windows
+
+- **Get a Python with pip.** The CPython inside the pyRevit folder (`bin\cengines`) has no pip and no pytest, so it cannot run the tests. A per-user install needs no admin (about 1 minute):
+  ```
+  winget install --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
+  ```
+- **Call it as `py -3` when `python` is the Microsoft Store alias.** The alias prints `Python was not found` (exit 49 in PowerShell; in Bash the exit code can be 0). The per-user install also adds the Python Launcher `py`. In a session that started before the install, neither is on PATH yet: use the full path that winget prints, or start a new session. `am-doctor -Only tools` names the command that works.
+- **Install the test packages for your user**, as CI does (see `.github/workflows/check-skills.yml`):
+  ```
+  py -3 -m pip install --user pytest pypdf
+  ```
+  pip can warn that its Scripts folder is not on PATH. That is fine: always run `py -3 -m pytest`, not `pytest`.
+- **Run one skill's tests** from the skill folder: `cd skills/<skill>`, then `py -3 -m pytest -q tests`.
+- CI runs the Python tests on Linux only. Some tests can fail on Windows on a clean `main` (line endings, symlinks). Before you report a failure as yours, run the same test on a clean branch from `upstream/main`.
+
 ## Pull requests
 
 - One topic for each pull request. Small is good.
