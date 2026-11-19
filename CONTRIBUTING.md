@@ -12,6 +12,8 @@ Thank you for helping. This page is for people and for AI agents (such as Claude
 
 ## Before you start
 
+- Install git, gh and a real Python (README, "Prerequisites"). For the Python skill tests on Windows, see "Python skill tests on Windows" below.
+- Check your git identity before the first commit: `git config user.name` and `git config user.email`. On a new PC both can be empty, and the command then exits with code 1. Ask the user for the name and e-mail to use; do not invent them.
 - Read `README.md`, section "For maintainers" (how to add a skill, what the checks do).
 - Read `HOUSE-RULES.md`. Edit the rules only there. Every `SKILL.md` ends with a copy that `scripts/sync-house-rules.ps1` writes.
 - For anything the user sees (the 3D viewer, tables, cursors, colors), read `design/DESIGN-SYSTEM.md` **first**, before you write the feature. See "Design".
