@@ -31,7 +31,7 @@ These are the checks CI runs (see `.github/workflows/check-skills.yml`). Run the
 | Theme logic | `node design/tests/theme.test.js` | a change to `design/` |
 | 3D viewer (camera, gumball, walk, pet) | in `skills/am-bim-viewer`: `npm ci`, then `npm test`, then `npm run mutate` | a change to the viewer core or template |
 | Viewer in a real browser | open a built page and run `skills/am-bim-viewer/tests/browser-check.js` in the page | a change to the viewer page |
-| Python skill tests | `python3 -m pytest -q tests` in each `skills/*/tests` that has `test_*.py` | a change to those skills |
+| Python skill tests | `python3 -m pytest -q tests` in each `skills/*/tests` that has `test_*.py`. On Windows: `scripts\run-python-tests.ps1` (see below) | a change to those skills |
 | Hooks and doctor | `.\hooks\tests\*.ps1`, `.\skills\am-doctor\tests\*.ps1` | a change to hooks or `am-doctor` |
 | Every `.ps1` parses under Windows PowerShell 5.1 | CI runs it | scripts must be ASCII-only and 5.1-compatible |
 
@@ -44,13 +44,19 @@ If you cannot run one of them, do not skip it silently. Write it under "Not veri
   winget install --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
   ```
 - **Call it as `py -3` when `python` is the Microsoft Store alias.** The alias prints `Python was not found` (exit 49 in PowerShell; in Bash the exit code can be 0). The per-user install also adds the Python Launcher `py`. In a session that started before the install, neither is on PATH yet: use the full path that winget prints, or start a new session. `am-doctor -Only tools` names the command that works.
-- **Install the test packages for your user**, as CI does (see `.github/workflows/check-skills.yml`):
+- **Install the test packages for your user.** `requirements-dev.txt` lists the packages that CI installs (see `.github/workflows/check-skills.yml`):
   ```
-  py -3 -m pip install --user pytest pypdf
+  py -3 -m pip install --user -r requirements-dev.txt
   ```
   pip can warn that its Scripts folder is not on PATH. That is fine: always run `py -3 -m pytest`, not `pytest`.
-- **Run one skill's tests** from the skill folder: `cd skills/<skill>`, then `py -3 -m pytest -q tests`.
-- CI runs the Python tests on Linux only. Some tests can fail on Windows on a clean `main` (line endings, symlinks). Before you report a failure as yours, run the same test on a clean branch from `upstream/main`.
+- **Run the tests as CI does** with the local runner. It finds `py -3`, `python` or `python3`, skips the Store alias and the pyRevit CPython, and runs pytest in each `skills/*/tests` folder:
+  ```
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-python-tests.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-python-tests.ps1 -Skill am-doctor,am-markup-intake
+  ```
+  It runs every folder and prints one pass or FAIL line for each. Exit 0 means all passed. Exit 3 means pytest is not installed: run the install line above. `-Python <python.exe>` picks a Python.
+- **Run one skill's tests** by hand from the skill folder: `cd skills/<skill>`, then `py -3 -m pytest -q tests`.
+- **CI runs the Python tests on Linux and on Windows.** The Linux run (`check` job) must pass. The Windows run (`windows-pytest` job) uses the runner above. It only warns for now, because some tests fail on Windows on a clean `main` (symlinks, line endings, default text encoding). Before you report a Windows failure as yours, run the same test on a clean branch from `upstream/main`, or read the `windows-pytest` log of a recent `main` run.
 
 ## Pull requests
 
