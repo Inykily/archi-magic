@@ -10,6 +10,11 @@ Usage:
       Writes [{"row", "sheet", "title", "mark"}] for every row with a sheet number and a
       non-empty cell in the mark column. Rows whose number contains "Series" are group headers
       and are skipped. The order is the order of the rows in the list.
+  python read_sheet_list.py <list.xlsx> --tab NAME --number-col B --title-col C --all-rows
+      --json <out.json> [--group-col A] [--header-rows 1]
+      For a list made only for this set: every row with a sheet number goes in (no mark column).
+      --group-col carries the last non-empty value down (for example a discipline name) into
+      "group", for the source chart.
 
 The file is opened read-only. Nothing in the workbook changes.
 Exit codes: 0 ok, 2 bad arguments or bad file, 3 openpyxl is missing.
@@ -47,17 +52,25 @@ def cell_text(v):
     return str(v).strip()
 
 
-def extract(rows, number_col, title_col, mark_col, header_rows=3):
-    """Return the marked sheets from a list of row tuples (pure logic, used by the tests)."""
+def extract(rows, number_col, title_col, mark_col, header_rows=3, group_col=None):
+    """Return the marked sheets from a list of row tuples (pure logic, used by the tests).
+    mark_col None means every row with a sheet number."""
     out = []
+    group = ""
     for i, r in enumerate(rows, start=1):
         if i <= header_rows:
             continue
-        get = lambda c: cell_text(r[c]) if c < len(r) else ""
-        num, mark = get(number_col), get(mark_col)
+        get = lambda c: cell_text(r[c]) if c is not None and c < len(r) else ""
+        if group_col is not None and get(group_col):
+            group = get(group_col)
+        num = get(number_col)
+        mark = num if mark_col is None else get(mark_col)
         if not num or not mark or "series" in num.lower():
             continue
-        out.append({"row": i, "sheet": num, "title": get(title_col), "mark": mark})
+        item = {"row": i, "sheet": num, "title": get(title_col), "mark": mark}
+        if group_col is not None:
+            item["group"] = group
+        out.append(item)
     return out
 
 
@@ -70,6 +83,8 @@ def main(argv=None):
     ap.add_argument("--number-col")
     ap.add_argument("--title-col")
     ap.add_argument("--mark-col")
+    ap.add_argument("--all-rows", action="store_true", help="no mark column: every row with a sheet number")
+    ap.add_argument("--group-col")
     ap.add_argument("--header-rows", type=int, default=3)
     ap.add_argument("--json")
     a = ap.parse_args(argv)
@@ -96,18 +111,20 @@ def main(argv=None):
                 if head:
                     print("  col", col_letter(c), ":", head)
         return 0
-    if not (a.tab and a.number_col and a.mark_col and a.json):
-        print("Give --tab, --number-col, --mark-col and --json (and --title-col).")
+    if not (a.tab and a.number_col and (a.mark_col or a.all_rows) and a.json):
+        print("Give --tab, --number-col, --mark-col (or --all-rows) and --json (and --title-col).")
         return 2
     ws = wb[a.tab]
     rows = list(ws.iter_rows(values_only=True))
     title_col = col_index(a.title_col) if a.title_col else col_index(a.number_col) + 1
-    sheets = extract(rows, col_index(a.number_col), title_col, col_index(a.mark_col), a.header_rows)
-    head = " | ".join(cell_text(rows[r][col_index(a.mark_col)]) for r in range(min(a.header_rows, len(rows)))
-                      if col_index(a.mark_col) < len(rows[r]) and cell_text(rows[r][col_index(a.mark_col)]))
+    mark = None if a.all_rows else col_index(a.mark_col)
+    group = col_index(a.group_col) if a.group_col else None
+    sheets = extract(rows, col_index(a.number_col), title_col, mark, a.header_rows, group)
+    head = "(all rows)" if mark is None else " | ".join(
+        cell_text(rows[r][mark]) for r in range(min(a.header_rows, len(rows))) if mark < len(rows[r]) and cell_text(rows[r][mark]))
     with open(a.json, "w", encoding="utf-8") as fh:
         json.dump(sheets, fh, indent=1, ensure_ascii=False)
-    print("column", a.mark_col.upper(), "header:", head)
+    print("column", (a.mark_col or "-").upper(), "header:", head)
     print("marked sheets:", len(sheets))
     seen = {}
     for s in sheets:

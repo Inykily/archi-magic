@@ -3,6 +3,11 @@
 Usage:
   python compile_set.py --check
   python compile_set.py <src_folder> <sheets.json> <out.pdf> [--dry] [--overwrite] [--report <report.json>]
+  python compile_set.py --plan <plan.json> <out.pdf> [--dry] [--overwrite] [--report <report.json>]
+
+--plan builds from the page plan of find_sources.py (many folders, pages inside combined PDFs).
+The scan rules below then belong to find_sources.py; the build, overwrite, manifest and verify
+rules stay the same.
 
 <sheets.json> is the output of read_sheet_list.py: [{"sheet", "title", ...}] in list order.
 
@@ -136,6 +141,39 @@ def diff_manifest(old, new):
     return lines
 
 
+def long_path(p):
+    """Windows paths over 260 characters need the \\\\?\\ prefix."""
+    p = os.path.abspath(p)
+    if os.name == "nt" and not p.startswith("\\\\?\\"):
+        return "\\\\?\\" + p
+    return p
+
+
+def raise_pypdf_limits():
+    """Some consultant PDFs have over-long number fields that pypdf refuses by default."""
+    try:
+        from pypdf.generic import NumberObject
+        NumberObject._LENGTH_LIMIT = max(getattr(NumberObject, "_LENGTH_LIMIT", 0), 4096)
+    except Exception:
+        pass
+
+
+def load_plan(path, drop):
+    """Read a find_sources.py plan. Return (plan, missing, removed) in compile_set's shape."""
+    with open(path, encoding="utf-8") as fh:
+        d = json.load(fh)
+    plan, removed = [], []
+    for p in d["plan"]:
+        if p["sheet"].upper() in drop:
+            removed.append(p["sheet"])
+            continue
+        plan.append({"sheet": p["sheet"], "bookmark": p["bookmark"], "file": os.path.basename(p["file"]),
+                     "page": p.get("page", 0), "mtime": p["mtime"], "path": p["file"], "folder": 0})
+    missing = [(m["sheet"] + " " + m.get("list_title", "")).strip() for m in d.get("missing", [])
+               if m["sheet"].upper() not in drop]
+    return plan, missing, removed
+
+
 def read_manifest(path):
     from pypdf import PdfReader
     try:
@@ -156,6 +194,7 @@ def main(argv=None):
     ap.add_argument("--report")
     ap.add_argument("--fallback", action="append", default=[],
                     help="extra source folder; used only for sheets the main folder does not have (repeat in priority order)")
+    ap.add_argument("--plan", help="page plan from find_sources.py (replaces <src_folder> and <sheets.json>)")
     ap.add_argument("--exclude", action="append", default=[],
                     help="sheet number the user removed from this package, even if the list marks it (repeatable)")
     a = ap.parse_args(argv)
@@ -169,23 +208,32 @@ def main(argv=None):
         import pypdf
         print("pypdf", pypdf.__version__)
         return 0
-    if not (a.src and a.sheets and a.out):
-        ap.print_usage()
-        return 2
-    with open(a.sheets, encoding="utf-8") as fh:
-        sheets = json.load(fh)
+    raise_pypdf_limits()
     drop = {x.strip().upper() for x in a.exclude}
-    removed = [s["sheet"] for s in sheets if s["sheet"].strip().upper() in drop]
-    sheets = [s for s in sheets if s["sheet"].strip().upper() not in drop]
-    folders = [a.src] + a.fallback
-    files, unparsed = scan_folder(a.src)
-    fb_scans = []
-    for f in a.fallback:
-        fs, _ = scan_folder(f)
-        fb_scans.append(fs)
-    files = merge_sources(files, fb_scans)
-    plan, missing, dups, excluded = build_plan(sheets, files)
-    excluded = [e for e in excluded if not any(e == c[1] for k in drop for c in files.get(k, []))]
+    if a.plan:
+        a.out = a.out or a.sheets or a.src
+        if not a.out:
+            ap.print_usage()
+            return 2
+        plan, missing, removed = load_plan(a.plan, drop)
+        dups, excluded, unparsed, folders = [], [], [], [""]
+    else:
+        if not (a.src and a.sheets and a.out):
+            ap.print_usage()
+            return 2
+        with open(a.sheets, encoding="utf-8") as fh:
+            sheets = json.load(fh)
+        removed = [s["sheet"] for s in sheets if s["sheet"].strip().upper() in drop]
+        sheets = [s for s in sheets if s["sheet"].strip().upper() not in drop]
+        folders = [a.src] + a.fallback
+        files, unparsed = scan_folder(a.src)
+        fb_scans = []
+        for f in a.fallback:
+            fs, _ = scan_folder(f)
+            fb_scans.append(fs)
+        files = merge_sources(files, fb_scans)
+        plan, missing, dups, excluded = build_plan(sheets, files)
+        excluded = [e for e in excluded if not any(e == c[1] for k in drop for c in files.get(k, []))]
     exists = os.path.exists(a.out)
     old = read_manifest(a.out) if exists else None
     changes = diff_manifest(old, plan) if old else []
@@ -194,7 +242,7 @@ def main(argv=None):
     for s in removed:
         print("REMOVED BY USER  " + s)
     for p in plan:
-        if p["folder"]:
+        if p.get("folder"):
             print("FALLBACK  %s from %s: %s (%s)" % (p["sheet"], folders[p["folder"]], p["file"], p["mtime"]))
     for p in plan:
         if "raw" in p:
@@ -225,16 +273,21 @@ def main(argv=None):
         return 4
 
     w = PdfWriter()
+    readers = {}
     for i, it in enumerate(plan):
-        r = PdfReader(os.path.join(folders[it["folder"]], it["file"]))
-        if len(r.pages) != 1:
+        path = it.get("path") or os.path.join(folders[it["folder"]], it["file"])
+        if path not in readers:
+            readers[path] = PdfReader(long_path(path))
+        r = readers[path]
+        if "path" not in it and len(r.pages) != 1:
             print("STOP: %s has %d pages. This script takes single-sheet PDFs only." % (it["file"], len(r.pages)))
             return 6
-        w.add_page(r.pages[0])
+        w.add_page(r.pages[it.get("page", 0)])
         w.add_outline_item(title=it["bookmark"], page_number=i)
     w.page_mode = "/UseOutlines"
+    manifest = [{k: v for k, v in p.items() if k != "path"} for p in plan]
     w.add_metadata({"/Title": os.path.splitext(os.path.basename(a.out))[0],
-                    "/SheetManifest": json.dumps(plan, ensure_ascii=False)})
+                    "/SheetManifest": json.dumps(manifest, ensure_ascii=False)})
     tmp = a.out + ".partial"
     with open(tmp, "wb") as fh:
         w.write(fh)
