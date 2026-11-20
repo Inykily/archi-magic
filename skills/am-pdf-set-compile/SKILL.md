@@ -22,10 +22,19 @@ These rules are the same for every package. Do not ask the user about them again
 
 1. Only sheets that the issue column marks go in. Leave out every other PDF, and list it in the report.
 2. When one sheet number has two or more PDFs, use the newest file (modified time). List the files you ignore.
-3. The bookmark is the PDF file name without ".pdf". Make the separator after the sheet number one space: `A-101 - PLAN.pdf` and `A-101-PLAN.pdf` both give `A-101 PLAN`. Do not use the titles from the Excel list.
+3. The bookmark is the PDF file name without ".pdf", on one naming rule: `<SHEET> <TITLE>`, one space after the sheet number, no leading "-" or "_" in the title, single spaces, upper case. `A-101 - Plan.pdf`, `A-101-PLAN.pdf` and `A-101 _PLAN.pdf` all give `A-101 PLAN`. The script does this and prints a NAME FIXED line for each change. Do not use the titles from the Excel list.
 4. Bookmarks are flat (one level) and in the same order as the pages.
 5. A marked sheet with no PDF is left out. Report it as missing. Do not add a blank page.
-6. When sheets change, rebuild the whole set. It takes seconds. Do not patch single pages.
+6. When sheets change, rebuild the whole set. It takes seconds when the PDFs are on the computer. Online-only cloud files (OneDrive, SharePoint) download first, so the first build can take about a minute. Do not patch single pages.
+
+## Package options
+
+Record these for each package. Use them on every rebuild of that package.
+
+| User says | Option |
+|---|---|
+| "Remove A-730 from this package" (the list still marks it) | `--exclude A-730` (repeat for each sheet). The script prints REMOVED BY USER. |
+| "If a sheet is not in folder B, take it from folder A" | `--fallback "<folder A>"`. The main folder always wins. The fallback fills only sheet numbers that the main folder does not have. The script prints FALLBACK. |
 
 ## Steps
 
@@ -49,7 +58,7 @@ These rules are the same for every package. Do not ask the user about them again
    - Exit 5: the output is open in another program. Ask the user to close it.
    - Exit 6: a source PDF has more than one page. Stop and tell the user.
    - Exit 7: the check failed. Tell the user. Do not hand over the file as good.
-7. **Report.** Give the full output path. Give the page count, the VERIFY line, the TIME line, and every MISSING, NEWEST and NOT LISTED line in plain words.
+7. **Report.** Give the full output path. Give the page count, the VERIFY line, the TIME line, and every MISSING, NEWEST, NOT LISTED, FALLBACK, REMOVED BY USER and NAME FIXED line in plain words.
 
 ## Rebuild after changes
 

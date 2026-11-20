@@ -94,6 +94,36 @@ def test_compile_verify_refuse_overwrite_and_diff(tmp_path, capsys):
     assert pypdf.PdfReader(str(out)).outline[3].title == "A-101 PLAN REV"
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ("_ENLARGED PLANS-SHARED LOUNGES B", "ENLARGED PLANS-SHARED LOUNGES B"),
+    ("- MILLWORK DETAILS - LIBRARY", "MILLWORK DETAILS - LIBRARY"),
+    ("MEZZANINE  PLAN", "MEZZANINE PLAN"),
+    ("9th FLOOR FURNITURE PLAN", "9TH FLOOR FURNITURE PLAN"),
+])
+def test_normalize_title(raw, expected):
+    assert cs.normalize_title(raw) == expected
+
+
+def test_fallback_folder_and_user_exclude(tmp_path, capsys):
+    main, old = tmp_path / "main", tmp_path / "old"
+    main.mkdir()
+    old.mkdir()
+    make_pdf(main / "T-001 TITLE SHEET.pdf", mtime=2_000_000)
+    make_pdf(old / "T-001 TITLE SHEET.pdf", mtime=3_000_000)  # newer, but main folder wins
+    make_pdf(old / "G-001 _GENERAL  NOTES.pdf")
+    make_pdf(main / "A-101 PLAN.pdf")
+    sheets = tmp_path / "s.json"
+    sheets.write_text(json.dumps(SHEETS), encoding="utf-8")
+    out = tmp_path / "set.pdf"
+    rc = cs.main([str(main), str(sheets), str(out), "--fallback", str(old), "--exclude", "g-002"])
+    assert rc == 0
+    text = capsys.readouterr().out
+    assert "REMOVED BY USER  G-002" in text
+    assert "FALLBACK  G-001" in text
+    assert "MISSING" not in text
+    assert [o.title for o in pypdf.PdfReader(str(out)).outline] == ["T-001 TITLE SHEET", "G-001 GENERAL NOTES", "A-101 PLAN"]
+
+
 def test_multi_page_source_stops(tmp_path):
     src = tmp_path / "src"
     src.mkdir()

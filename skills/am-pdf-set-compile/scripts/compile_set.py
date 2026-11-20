@@ -44,6 +44,25 @@ def parse_name(filename):
     return m.group(1).upper(), m.group(2).strip()
 
 
+def normalize_title(title):
+    """One naming rule for bookmarks: no leading '-', '_' or spaces, single spaces, upper case.
+    Pure logic, used by the tests."""
+    t = re.sub(r"^[\s_\-]+", "", title)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t.upper()
+
+
+def merge_sources(primary, fallbacks):
+    """Pure logic: sheets found in the primary scan win; a fallback scan fills only sheet numbers
+    the primary does not have. Each entry gets its folder index (0 = primary)."""
+    merged = {}
+    for idx, scan in enumerate([primary] + list(fallbacks)):
+        for k, v in scan.items():
+            if k not in merged:
+                merged[k] = [(mt, n, t, idx) for (mt, n, t) in v]
+    return merged
+
+
 def scan_folder(src):
     """Map sheet number -> list of (mtime, filename, title), newest first. Also return names not parsed."""
     files, unparsed = {}, []
@@ -81,10 +100,15 @@ def build_plan(sheets, files):
         if not cands:
             missing.append(s["sheet"] + " " + s.get("title", ""))
             continue
-        mt, name, title = cands[0]
+        mt, name, title = cands[0][:3]
+        folder = cands[0][3] if len(cands[0]) > 3 else 0
         if len(cands) > 1:
             dups.append({"sheet": key, "used": name, "ignored": [c[1] for c in cands[1:]]})
-        plan.append({"sheet": key, "bookmark": key + " " + title, "file": name, "mtime": stamp(mt)})
+        bookmark = key + " " + normalize_title(title)
+        entry = {"sheet": key, "bookmark": bookmark, "file": name, "mtime": stamp(mt), "folder": folder}
+        if bookmark != key + " " + title:
+            entry["raw"] = key + " " + title
+        plan.append(entry)
     excluded = sorted(c[1] for k, v in files.items() if k not in listed for c in v)
     return plan, missing, dups, excluded
 
@@ -130,6 +154,10 @@ def main(argv=None):
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--report")
+    ap.add_argument("--fallback", action="append", default=[],
+                    help="extra source folder; used only for sheets the main folder does not have (repeat in priority order)")
+    ap.add_argument("--exclude", action="append", default=[],
+                    help="sheet number the user removed from this package, even if the list marks it (repeatable)")
     a = ap.parse_args(argv)
     t0 = time.time()
     try:
@@ -146,13 +174,31 @@ def main(argv=None):
         return 2
     with open(a.sheets, encoding="utf-8") as fh:
         sheets = json.load(fh)
+    drop = {x.strip().upper() for x in a.exclude}
+    removed = [s["sheet"] for s in sheets if s["sheet"].strip().upper() in drop]
+    sheets = [s for s in sheets if s["sheet"].strip().upper() not in drop]
+    folders = [a.src] + a.fallback
     files, unparsed = scan_folder(a.src)
+    fb_scans = []
+    for f in a.fallback:
+        fs, _ = scan_folder(f)
+        fb_scans.append(fs)
+    files = merge_sources(files, fb_scans)
     plan, missing, dups, excluded = build_plan(sheets, files)
+    excluded = [e for e in excluded if not any(e == c[1] for k in drop for c in files.get(k, []))]
     exists = os.path.exists(a.out)
     old = read_manifest(a.out) if exists else None
     changes = diff_manifest(old, plan) if old else []
 
     print("PAGES     %d" % len(plan))
+    for s in removed:
+        print("REMOVED BY USER  " + s)
+    for p in plan:
+        if p["folder"]:
+            print("FALLBACK  %s from %s: %s (%s)" % (p["sheet"], folders[p["folder"]], p["file"], p["mtime"]))
+    for p in plan:
+        if "raw" in p:
+            print("NAME FIXED  %r -> %r" % (p["raw"], p["bookmark"]))
     for m in missing:
         print("MISSING   " + m)
     for d in dups:
@@ -180,7 +226,7 @@ def main(argv=None):
 
     w = PdfWriter()
     for i, it in enumerate(plan):
-        r = PdfReader(os.path.join(a.src, it["file"]))
+        r = PdfReader(os.path.join(folders[it["folder"]], it["file"]))
         if len(r.pages) != 1:
             print("STOP: %s has %d pages. This script takes single-sheet PDFs only." % (it["file"], len(r.pages)))
             return 6
