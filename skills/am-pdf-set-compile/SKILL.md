@@ -11,18 +11,19 @@ A "package" is one issue of the set (for example "80% CD, 2026-11-20"). Each pac
 
 | Script | What it does |
 |---|---|
-| `scripts/read_sheet_list.py` | Shows the columns of the Excel list. Writes the sheets that one issue column marks, in list order, to JSON. Read only. |
-| `scripts/compile_set.py` | Plans the set (dry run), builds the PDF with bookmarks, checks it, and reports the changes since the last build. |
-| `scripts/find_sources.py` | Many-folder mode. Scans many folders and their subfolders, also inside combined PDFs, and writes a page plan for `compile_set.py --plan`. Read only. |
-| `scripts/source_chart.py` | Writes an English Excel chart for the team: each sheet, included or missing, source folder and file, last modified time, list name against source name. |
+| `scripts/read_sheet_list.py` | Shows the columns of the Excel list. Writes the sheets that one issue column marks, in list order, to JSON. Reads lists with two or more column blocks. Read only. |
+| `scripts/compile_set.py` | Plans the set (dry run), builds the PDF with bookmarks, checks it, and reports the changes since the last build. `--compress` makes the file smaller. |
+| `scripts/find_sources.py` | Many-folder mode. Scans many folders and their subfolders, also inside combined PDFs, and writes a page plan for `compile_set.py --plan`. Keeps a cache, so the next scan is fast. Read only. |
+| `scripts/source_chart.py` | Writes an English Excel chart for the team: each sheet, included or missing, source folder and file, last modified time, list name against source name, and a Note column. |
 
-Run these scripts. Do not rewrite them. They need Python 3 with `pypdf` and `openpyxl`. `find_sources.py` also uses `pdfplumber` to read sheet numbers from title blocks when a combined PDF has no bookmarks.
+Run these scripts. Do not rewrite them. They need Python 3 with `pypdf` and `openpyxl`. Both modes also use `pdfplumber` to read sheet numbers from title blocks: pages in a combined PDF with no bookmarks, and files that share one sheet number.
 
 ## Two modes
 
 | The sheets are | Mode |
 |---|---|
 | Single-sheet PDFs in one folder (plus an optional fallback folder) | One-folder mode: Steps below. |
+| In one folder and its subfolders | Many-folder mode with one `--folder`. One-folder mode does not search subfolders. |
 | In many folders, or some only inside combined PDFs (typical for consultant drawings) | Many-folder mode: see "Many folders and combined PDFs". |
 
 ## Fixed rules
@@ -30,7 +31,7 @@ Run these scripts. Do not rewrite them. They need Python 3 with `pypdf` and `ope
 These rules are the same for every package. Do not ask the user about them again.
 
 1. Only sheets that the issue column marks go in. A list tab made only for this set (no issue column) puts every row with a sheet number in: use `--all-rows`. Leave out every other PDF, and list it in the report.
-2. When one sheet number has two or more PDFs, use the newest file (modified time). List the files you ignore.
+2. When one sheet number has two or more PDFs, the script first reads the sheet number in each title block. A file whose title block shows a different listed number goes to that number (NUMBER FROM TITLE BLOCK). Then the newest file (modified time) wins. List the files you ignore. A SAME NUMBER, CHECK line means a title block was not readable: show the files to the user and ask which is which.
 3. The bookmark is the PDF file name without ".pdf", on one naming rule: `<SHEET> <TITLE>`, one space after the sheet number, no leading "-" or "_" in the title, single spaces, upper case. `A-101 - Plan.pdf`, `A-101-PLAN.pdf` and `A-101 _PLAN.pdf` all give `A-101 PLAN`. The script does this and prints a NAME FIXED line for each change. Do not use the titles from the Excel list.
    A page taken from a combined PDF has no file name: its bookmark is the sheet number plus the title from the source's own bookmark. With no source bookmark, the title comes from the drawing list, and the chart says so.
 4. Bookmarks are flat (one level) and in the same order as the pages.
@@ -45,6 +46,8 @@ Record these for each package. Use them on every rebuild of that package.
 |---|---|
 | "Remove A-730 from this package" (the list still marks it) | `--exclude A-730` (repeat for each sheet). The script prints REMOVED BY USER. |
 | "If a sheet is not in folder B, take it from folder A" | `--fallback "<folder A>"`. The main folder always wins. The fallback fills only sheet numbers that the main folder does not have. The script prints FALLBACK. |
+| "Make the file smaller" | `--compress` on the build. It compresses page content and writes repeated fonts and images once. The pages look the same. Compare the SIZE line with the last build. |
+| "Memo this in the chart" (many-folder mode) | `source_chart.py --note "<SHEET>=<text>"` (repeat for each sheet), or `--notes <notes.json>` with `{"<SHEET>": "<text>"}`. The text goes in the Note column. |
 
 ## Steps
 
@@ -60,15 +63,16 @@ Record these for each package. Use them on every rebuild of that package.
 4. **Read the list.**
    `python "<skill dir>\scripts\read_sheet_list.py" "<list.xlsx>" --tab "<tab>" --number-col B --title-col C --mark-col M --json "<work>\sheets.json"`
    Use your own column letters. Use a work folder such as `$env:TEMP\am-pdf-set-compile\<package>`.
+   A list with two or more column blocks (a HINT line in step 3): use `--block` once per block, in reading order, for example `--block B:C:M --block I:J:P`. Do not run the script once per block and merge the files by hand.
 5. **Dry run.**
    `python "<skill dir>\scripts\compile_set.py" "<source folder>" "<work>\sheets.json" "<output.pdf>" --dry --report "<work>\plan.json"`
-   Show the user a table: page, sheet, bookmark, source file, modified time. Then list MISSING, NEWEST (duplicates), NOT LISTED (left out) and NAME NOT READ lines. Before the first build, wait for the user to approve the order.
+   Show the user a table: page, sheet, bookmark, source file, modified time. Then list MISSING, NEWEST (duplicates), NUMBER FROM TITLE BLOCK, SAME NUMBER, CHECK, NOT LISTED (left out) and NAME NOT READ lines. Before the first build, wait for the user to approve the order.
 6. **Build.** Ask the user to close the output PDF in Bluebeam or Acrobat. Then run the same command without `--dry`. Add `--overwrite` only when the user allowed replacement for this package.
    - Exit 4: the output exists. Ask: replace it, or save with a new name.
    - Exit 5: the output is open in another program. Ask the user to close it.
    - Exit 6: a source PDF has more than one page. Stop and tell the user.
    - Exit 7: the check failed. Tell the user. Do not hand over the file as good.
-7. **Report.** Give the full output path. Give the page count, the VERIFY line, the TIME line, and every MISSING, NEWEST, NOT LISTED, FALLBACK, REMOVED BY USER and NAME FIXED line in plain words.
+7. **Report.** Give the full output path. Give the page count, the VERIFY line, the SIZE line, the TIME line, and every MISSING, NEWEST, NUMBER FROM TITLE BLOCK, SAME NUMBER, CHECK, NOT LISTED, FALLBACK, REMOVED BY USER and NAME FIXED line in plain words.
 
 ## Many folders and combined PDFs
 
@@ -76,19 +80,23 @@ Use this mode when the user names several folders, or when a first scan shows co
 
 1. **Read the list.** For a list tab made only for this set:
    `python "<skill dir>\scripts\read_sheet_list.py" "<list.xlsx>" --tab "<tab>" --number-col B --title-col C --all-rows --group-col A --header-rows 1 --json "<work>\sheets.json"`
-   `--group-col` keeps the discipline name for the chart.
+   `--group-col` keeps the discipline name for the chart. With `--all-rows`, a row whose number cell is not a sheet number (for example "GENERAL") is a group header. The script skips it, prints GROUP HEADER, and uses its text as the group when there is no `--group-col`.
+   A list with two or more column blocks: use `--block` once per block, in reading order (for example `--block B:C --block I:J` in place of `--number-col` and `--title-col`).
 2. **Get the folders from the user.** Ask which folders to search. Ask if one folder must win for some disciplines (for example "architectural sheets from the latest EOD folder"). Never add folders the user did not name. When sheets stay missing, show the user which older folders have them, and ask before you add those folders.
 3. **Find the sources.**
    `python "<skill dir>\scripts\find_sources.py" "<work>\sheets.json" --folder "<dir 1>" --folder "<dir 2>" --prefer "<dir that wins>" --prefer-prefix A,G,T --plan "<work>\plan.json"`
+   `--prefer` counts the folder and its subfolders. Without `--prefer-prefix` (or with `--prefer-prefix *`), the `--prefer` folder wins for every sheet.
    The script takes the newest source for each sheet, with one exception: a page in a combined PDF loses to any other source in that PDF's own folder or subfolders. A combined PDF there was made from those files, so its date is the date it was combined. An earlier compiled full set in another folder can still win by date: when a SOURCE line names an old issue's full set, ask the user whether to leave it out with `--skip-file "<part of its name>"`.
-   Folders named archive, superseded, combined or specification are skipped. Add `--skip-dir <word>` for other folders the user wants left out. Large sets take a few minutes; run the command in the background.
-4. **Show the dry run.** Give: FOUND (single PDFs and pages from combined PDFs), the SOURCE lines, every MISSING line, every READ BY TITLE BLOCK and READ BY POSITION line, and any PAGE USED TWICE line. A READ BY line is a guess from the page itself: spot-check a few with the user. PAGE USED TWICE means a wrong match: stop and fix it before you build. Ask the user what to do with the missing sheets: wait for more folders, or build without them.
+   Folders named archive, superseded, combined or specification are skipped. Add `--skip-dir <word>` for other folders the user wants left out. Add `--max-mb <N>` to leave out very big files (for example specification books) without opening them; the script prints NOT READ (over N MB).
+   The first scan of large sets takes a few minutes; run the command in the background. The script keeps a cache (`find_sources_cache.json` next to the plan). The next scan of the same folders opens only new or changed files. Keep the same work folder for every rebuild of a package.
+4. **Show the dry run.** Give: FOUND (single PDFs and pages from combined PDFs), the SOURCE lines, every MISSING line, every READ BY TITLE BLOCK and READ BY POSITION line, every NUMBER FROM TITLE BLOCK and SAME NUMBER, CHECK line, and any PAGE USED TWICE line. A READ BY line is a guess from the page itself: spot-check a few with the user. PAGE USED TWICE means a wrong match: stop and fix it before you build. Ask the user what to do with the missing sheets: wait for more folders, or build without them.
 5. **Ask the output folder and file name** (Fixed rule: always ask). Then build:
    `python "<skill dir>\scripts\compile_set.py" --plan "<work>\plan.json" "<output.pdf>"`
-   The exit codes, overwrite rule, manifest and VERIFY line are the same as in one-folder mode. Pages from big consultant sets can make the file large; tell the user the SIZE line.
+   The exit codes, overwrite rule, manifest and VERIFY line are the same as in one-folder mode. Pages from big consultant sets can make the file large. Always tell the user the SIZE line. If the file is too big for the user, offer a rebuild with `--compress`.
 6. **Make the source chart** when the user wants to share the result with the team:
    `python "<skill dir>\scripts\source_chart.py" "<work>\plan.json" "<chart.xlsx>" --pdf-name "<output.pdf name>" --base "<common parent folder>"`
    Ask where to save it (default: next to the PDF, same name plus "_Sheet Sources"). Red rows are missing sheets. Yellow rows are sheets whose source name differs from the drawing list name: the team decides which name is right. Do not change either name yourself.
+   The last column, "Note", fills by itself for a file renumbered by its title block ("file name says X-221, title block says X-222") and for a sheet that is not in the `--prefer` folder. Add the user's own notes with `--note "<SHEET>=<text>"` or `--notes <notes.json>`. Do not edit the chart by hand.
 7. **Report** as in step 7 above, plus the chart path, the count of yellow rows, and the sheets that came from combined PDFs.
 
 On a rebuild, run steps 3 to 6 again with the same folders and options. `compile_set.py --plan` prints the CHANGE lines.
@@ -115,6 +123,10 @@ When the user says that sheets changed (for example "T-005 was updated, recompil
 | Give up on sheets that exist only in a combined consultant PDF | Use many-folder mode. It takes the page from the combined PDF. |
 | Use a combined PDF's group bookmark (one title on many pages) as a sheet | The script drops it and reads the title block. Check the READ BY lines. |
 | Rename a sheet to match the drawing list, or the other way round | Keep the source name in the bookmark. Show the difference in the chart for the team to decide. |
+| Treat several files with one sheet number as versions | Check the title blocks first. Show every NUMBER FROM TITLE BLOCK and SAME NUMBER, CHECK line. |
+| Read a list with two column blocks in two runs and merge the files by hand | Use `--block` once per block in one run. |
+| List every prefix to make one folder win (`--prefer-prefix T,G,Z,A`) | Leave out `--prefer-prefix`, or use `--prefer-prefix *`. |
+| Add a Note column to the chart by hand | Use `source_chart.py --note` or `--notes`. |
 
 ## House rules (all am-* skills)
 

@@ -311,3 +311,284 @@ def test_non_ascii_file_name_with_cp1252_console(tmp_path):
                        capture_output=True, env=env)
     assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
     assert b"FOUND     2" in r.stdout
+
+
+# ---- round 4: multi-block lists, title-block numbers, cache, prefer for all, notes, compress -----
+
+def make_text_pdf(path, big, small="", mtime=None, repeat=1):
+    """One 36x24 sheet with `big` in large type in the title block corner (bottom right)."""
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+    w = pypdf.PdfWriter()
+    page = w.add_blank_page(width=72 * 36, height=72 * 24)
+    font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"),
+                             NameObject("/BaseFont"): NameObject("/Helvetica")})
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): w._add_object(font)})})
+    ops = "BT /F1 36 Tf 2300 60 Td (%s) Tj ET " % big
+    if small:
+        ops += "BT /F1 8 Tf 2300 30 Td (%s) Tj ET " % small
+    ops += "BT /F1 8 Tf 100 1600 Td (GENERAL NOTES TEXT LINE) Tj ET " * (repeat - 1)
+    st = DecodedStreamObject()
+    st.set_data(ops.encode("latin-1"))
+    page[NameObject("/Contents")] = w._add_object(st)
+    with open(path, "wb") as fh:
+        w.write(fh)
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+
+
+TWO_BLOCKS = [
+    ("", "NUMBER", "NAME", None, None, None, None, None, "NUMBER", "NAME"),
+    ("", "GENERAL", None, None, None, None, None, None, "ARCHITECTURAL", None),
+    ("", "G-001", "Cover", None, None, None, None, None, "A-101", "Plan 1"),
+    ("", "G-002", "Notes", None, None, None, None, None, "A-102", "Plan 2"),
+    ("", "ZONING", None, None, None, None, None, None, None, None),
+    ("", "Z-001", "Zoning", None, None, None, None, None, "A-201", "Elevations"),
+]
+
+
+def test_sheet_list_two_blocks_and_group_headers():
+    headers = {}
+    blocks = [(1, 2, None), (8, 9, None)]
+    got = rsl.extract_blocks(TWO_BLOCKS, blocks, header_rows=1, headers=headers)
+    assert [(g["sheet"], g["group"], g["block"]) for g in got] == [
+        ("G-001", "GENERAL", 1), ("G-002", "GENERAL", 1), ("Z-001", "ZONING", 1),
+        ("A-101", "ARCHITECTURAL", 2), ("A-102", "ARCHITECTURAL", 2), ("A-201", "ARCHITECTURAL", 2)]
+    assert headers == {1: [(2, "GENERAL"), (5, "ZONING")], 2: [(2, "ARCHITECTURAL")]}
+    assert rsl.parse_block("i:j") == (8, 9, None) and rsl.parse_block("B:C:M") == (1, 2, 12)
+    assert rsl.sheet_columns(TWO_BLOCKS, header_rows=1) == [1, 8]
+
+
+@pytest.mark.parametrize("text,ok", [("A-101", True), ("FS1.0", True), ("TA-101M", True), ("A101", True),
+                                     ("P-900.00", True), ("GENERAL", False), ("T Series", False), ("ZONING", False)])
+def test_looks_like_sheet(text, ok):
+    assert rsl.looks_like_sheet(text) is ok
+
+
+def test_sheet_list_blocks_from_xlsx(tmp_path, capsys):
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "SET"
+    for r in TWO_BLOCKS:
+        ws.append(r)
+    p = tmp_path / "list.xlsx"
+    wb.save(p)
+    assert rsl.main([str(p), "--columns", "--header-rows", "1"]) == 0
+    assert "HINT  sheet numbers in columns B, I" in capsys.readouterr().out
+    out = tmp_path / "s.json"
+    assert rsl.main([str(p), "--tab", "SET", "--block", "B:C", "--block", "I:J", "--all-rows",
+                     "--header-rows", "1", "--json", str(out)]) == 0
+    text = capsys.readouterr().out
+    assert "GROUP HEADER  2 GENERAL" in text and "GROUP HEADER  2 ARCHITECTURAL" in text
+    got = json.loads(out.read_text(encoding="utf-8"))
+    assert [s["sheet"] for s in got] == ["G-001", "G-002", "Z-001", "A-101", "A-102", "A-201"]
+
+
+def cand(path, mtime, title="T"):
+    return {"kind": "single", "file": path, "page": 0, "title": title, "mtime": mtime, "how": "file name"}
+
+
+def test_renumber_by_title_block_pure():
+    single = {"X-221": [cand("d/X-221 - DETAIL-B.pdf", 1, "DETAIL-B"), cand("d/X-221 - DETAIL-C.pdf", 2, "DETAIL-C"),
+                        cand("d/X-221 - DETAIL-D.pdf", 3, "DETAIL-D")],
+              "Y-100": [cand("d/Y-100 PLAN.pdf", 1, "PLAN"), cand("d/Y-100 PLAN REV.pdf", 2, "PLAN REV")],
+              "Z-100": [cand("d/Z-100 A.pdf", 1, "A"), cand("d/Z-100 B.pdf", 2, "B")]}
+    assert sorted(fs.same_number_groups(single)) == sorted(c["file"] for v in single.values() for c in v)
+    tb = {"d/X-221 - DETAIL-B.pdf": "X-221", "d/X-221 - DETAIL-C.pdf": "X-222", "d/X-221 - DETAIL-D.pdf": "X-223",
+          "d/Y-100 PLAN.pdf": "Y-100", "d/Y-100 PLAN REV.pdf": "Y-100", "d/Z-100 A.pdf": None, "d/Z-100 B.pdf": "Z-100"}
+    out, moved, check = fs.renumber_by_title_block(single, tb)
+    assert [c["file"] for c in out["X-222"]] == ["d/X-221 - DETAIL-C.pdf"]
+    assert out["X-223"][0]["note"] == "file name says X-221, title block says X-223"
+    assert len(out["X-221"]) == 1 and len(out["Y-100"]) == 2
+    assert ("d/X-221 - DETAIL-D.pdf", "X-221", "X-223") in moved
+    assert check == [("Z-100", ["d/Z-100 A.pdf", "d/Z-100 B.pdf"])]
+
+
+def test_same_number_groups_skips_plain_versions_in_other_folders():
+    single = {"A-101": [cand(os.path.join("issue1", "A-101 PLAN.pdf"), 1, "PLAN"),
+                        cand(os.path.join("issue2", "A-101 PLAN.pdf"), 2, "PLAN")]}
+    assert fs.same_number_groups(single) == []
+
+
+def write_sheets(tmp_path, nums):
+    sj = tmp_path / "sheets.json"
+    sj.write_text(json.dumps([{"sheet": n, "title": "List " + n} for n in nums]), encoding="utf-8")
+    return sj
+
+
+def test_find_sources_number_from_title_block(tmp_path, capsys):
+    pytest.importorskip("pdfplumber")
+    src = tmp_path / "src"
+    src.mkdir()
+    make_text_pdf(src / "X-221 - DETAIL-B.pdf", "X-221", mtime=1_000_000)
+    make_text_pdf(src / "X-221 - DETAIL-C.pdf", "X-222", small="X-221", mtime=1_000_030)
+    make_text_pdf(src / "X-221 - DETAIL-D.pdf", "X-223", mtime=1_000_060)
+    make_text_pdf(src / "Y-100 PLAN.pdf", "Y-100", mtime=1_000_000)          # two real versions
+    make_text_pdf(src / "Y-100 PLAN REV.pdf", "Y-100", mtime=2_000_000)
+    sj = write_sheets(tmp_path, ["X-221", "X-222", "X-223", "Y-100"])
+    pj = tmp_path / "plan.json"
+    assert fs.main([str(sj), "--folder", str(src), "--workers", "1", "--plan", str(pj)]) == 0
+    d = json.loads(pj.read_text(encoding="utf-8"))
+    by = {p["sheet"]: p for p in d["plan"]}
+    assert d["missing"] == []
+    assert os.path.basename(by["X-221"]["file"]) == "X-221 - DETAIL-B.pdf"
+    assert os.path.basename(by["X-222"]["file"]) == "X-221 - DETAIL-C.pdf"
+    assert by["X-222"]["bookmark"] == "X-222 DETAIL-C"
+    assert by["X-223"]["note"] == "file name says X-221, title block says X-223"
+    assert os.path.basename(by["Y-100"]["file"]) == "Y-100 PLAN REV.pdf"    # newest still wins
+    text = capsys.readouterr().out
+    assert "NUMBER FROM TITLE BLOCK  X-221 - DETAIL-D.pdf -> X-223 (file name says X-221)" in text
+    assert "SAME NUMBER, CHECK" not in text
+    # Second run reads nothing again: everything comes from the cache next to the plan.
+    assert fs.main([str(sj), "--folder", str(src), "--workers", "1", "--plan", str(pj)]) == 0
+    assert "CACHE     5 files reused, 0 read" in capsys.readouterr().out
+    assert json.loads(pj.read_text(encoding="utf-8"))["plan"] == d["plan"]
+
+
+def test_find_sources_same_number_unreadable_title_block(tmp_path, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    make_pdf(src / "X-221 - DETAIL-B.pdf", mtime=1_000_000)               # blank: nothing to read
+    make_pdf(src / "X-221 - DETAIL-C.pdf", mtime=1_000_060)
+    sj = write_sheets(tmp_path, ["X-221"])
+    assert fs.main([str(sj), "--folder", str(src), "--workers", "1", "--no-cache", "--plan", str(tmp_path / "p.json")]) == 0
+    text = capsys.readouterr().out
+    assert "SAME NUMBER, CHECK  X-221" in text or "pdfplumber missing" in text
+
+
+def test_cache_is_reused_and_refreshed_on_change(tmp_path, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    make_combined(src / "Set.pdf", ["A-101 PLAN", "A-102 PLAN 2"], mtime=1_000_000)
+    make_pdf(src / "A-103 PLAN 3.pdf", mtime=1_000_000)
+    sj = write_sheets(tmp_path, ["A-101", "A-102", "A-103"])
+    pj, cache = tmp_path / "plan.json", tmp_path / "c.json"
+    args = [str(sj), "--folder", str(src), "--no-text", "--cache", str(cache), "--plan", str(pj)]
+    assert fs.main(args) == 0
+    assert "CACHE     0 files reused, 2 read" in capsys.readouterr().out
+    assert fs.main(args) == 0
+    assert "CACHE     2 files reused, 0 read" in capsys.readouterr().out
+    make_combined(src / "Set.pdf", ["A-101 PLAN", "A-102 PLAN 2 REV"], mtime=2_000_000)   # changed file
+    assert fs.main(args) == 0
+    assert "CACHE     1 files reused, 1 read" in capsys.readouterr().out
+    by = {p["sheet"]: p for p in json.loads(pj.read_text(encoding="utf-8"))["plan"]}
+    assert by["A-102"]["bookmark"] == "A-102 PLAN 2 REV"
+
+
+def test_max_mb_leaves_big_files_unopened(tmp_path, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    make_combined(src / "Spec Book.pdf", ["A-101 PLAN", "A-102 PLAN"])
+    sj = write_sheets(tmp_path, ["A-101", "A-102"])
+    pj = tmp_path / "p.json"
+    assert fs.main([str(sj), "--folder", str(src), "--no-text", "--no-cache", "--max-mb", "0.0001", "--plan", str(pj)]) == 0
+    d = json.loads(pj.read_text(encoding="utf-8"))
+    assert d["plan"] == [] and len(d["too_big"]) == 1
+    assert "NOT READ (over 0.0001 MB)" in capsys.readouterr().out
+
+
+def inside_dir(f, d):
+    return fs.inside(os.path.dirname(f), str(d))
+
+
+def test_prefer_all_prefixes_and_subfolders(tmp_path):
+    main, old = tmp_path / "main", tmp_path / "old"
+    (main / "arch").mkdir(parents=True)
+    (main / "mep").mkdir()
+    old.mkdir()
+    make_pdf(main / "arch" / "A-101 PLAN.pdf", mtime=1_000_000)
+    make_pdf(main / "mep" / "M-101 MECH.pdf", mtime=1_000_000)
+    make_pdf(old / "A-101 PLAN.pdf", mtime=5_000_000)
+    make_pdf(old / "M-101 MECH.pdf", mtime=5_000_000)
+    make_pdf(old / "T-001 TITLE.pdf", mtime=5_000_000)
+    sj = write_sheets(tmp_path, ["T-001", "A-101", "M-101"])
+
+    def run(*extra):
+        pj = tmp_path / "p.json"
+        assert fs.main([str(sj), "--folder", str(main), "--folder", str(old), "--prefer", str(main),
+                        "--no-text", "--no-cache", "--plan", str(pj)] + list(extra)) == 0
+        return json.loads(pj.read_text(encoding="utf-8"))
+
+    star, listed, none = run("--prefer-prefix", "*"), run("--prefer-prefix", "T,A,M"), run()
+    assert star["plan"] == listed["plan"] == none["plan"]
+    by = {p["sheet"]: p for p in star["plan"]}
+    assert inside_dir(by["A-101"]["file"], main) and inside_dir(by["M-101"]["file"], main)
+    assert inside_dir(by["T-001"]["file"], old)                    # not in main: newest elsewhere
+    assert star["prefer_prefix"] == ["*"]
+    assert fs.parse_prefixes("a, g") == {"A", "G"} and fs.parse_prefixes("*") is None and fs.parse_prefixes("") is None
+
+
+def test_source_chart_notes(tmp_path, capsys):
+    openpyxl = pytest.importorskip("openpyxl")
+    main, old = tmp_path / "main", tmp_path / "old"
+    main.mkdir()
+    old.mkdir()
+    make_pdf(main / "A-101 PLAN.pdf", mtime=1_000_000)
+    make_pdf(old / "A-120 DETAILS.pdf", mtime=1_000_000)
+    sj = write_sheets(tmp_path, ["A-101", "A-120", "A-130"])
+    pj = tmp_path / "p.json"
+    assert fs.main([str(sj), "--folder", str(main), "--folder", str(old), "--prefer", str(main),
+                    "--no-text", "--no-cache", "--plan", str(pj)]) == 0
+    notes = tmp_path / "notes.json"
+    notes.write_text(json.dumps({"A-130": "waiting for consultant"}), encoding="utf-8")
+    chart = tmp_path / "chart.xlsx"
+    assert sc.main([str(pj), str(chart), "--base", str(tmp_path), "--note", "A-120=older copy",
+                    "--notes", str(notes), "--note", "Q-999=not listed"]) == 0
+    text = capsys.readouterr().out
+    assert "NOTE NOT USED  Q-999" in text and "notes 2" in text
+    ws = openpyxl.load_workbook(chart)["Sheet Sources"]
+    assert ws.cell(5, 17).value == "Note"
+    col = {ws.cell(r, 3).value: ws.cell(r, 17).value for r in range(6, 9)}
+    assert col["A-101"] is None
+    assert col["A-120"] == "Not in the preferred folder; taken from old; older copy"
+    assert col["A-130"] == "waiting for consultant"
+    assert sc.parse_notes(["a-1=x = y"]) == {"A-1": "x = y"}
+    with pytest.raises(ValueError):
+        sc.parse_notes(["no equals sign"])
+
+
+def test_compile_one_folder_title_block_with_fake_reader():
+    files = {"X-221": [(3, "X-221 - D.pdf", "D", 0), (2, "X-221 - C.pdf", "C", 0), (1, "X-221 - B.pdf", "B", 0)]}
+    says = {"X-221 - B.pdf": "X-221", "X-221 - C.pdf": "X-222", "X-221 - D.pdf": "X-223"}
+    out, moved, check, note = cs.check_same_number(files, {"X-221", "X-222", "X-223"}, ["src"],
+                                                   reader=lambda p, w: says[os.path.basename(p)])
+    assert note is None and check == []
+    sheets = [{"sheet": s, "title": ""} for s in ("X-221", "X-222", "X-223")]
+    plan, missing, dups, excluded = cs.build_plan(sheets, out)
+    assert [p["bookmark"] for p in plan] == ["X-221 B", "X-222 C", "X-223 D"]
+    assert missing == [] and dups == [] and excluded == []
+    assert plan[1]["note"] == "file name says X-221, title block says X-222"
+    _, _, check, _ = cs.check_same_number(files, {"X-221"}, ["src"], reader=lambda p, w: None)
+    assert check == [("X-221", ["X-221 - D.pdf", "X-221 - C.pdf", "X-221 - B.pdf"])]
+
+
+def test_compile_one_folder_title_block_real_pdfs(tmp_path, capsys):
+    pytest.importorskip("pdfplumber")
+    src = tmp_path / "src"
+    src.mkdir()
+    make_text_pdf(src / "X-221 - DETAIL-B.pdf", "X-221", mtime=1_000_000)
+    make_text_pdf(src / "X-221 - DETAIL-C.pdf", "X-222", mtime=1_000_030)
+    make_text_pdf(src / "X-221 - DETAIL-D.pdf", "X-223", mtime=1_000_060)
+    sj = write_sheets(tmp_path, ["X-221", "X-222", "X-223"])
+    out = tmp_path / "Set.pdf"
+    assert cs.main([str(src), str(sj), str(out)]) == 0
+    assert [o.title for o in pypdf.PdfReader(str(out)).outline] == ["X-221 DETAIL-B", "X-222 DETAIL-C", "X-223 DETAIL-D"]
+    text = capsys.readouterr().out
+    assert "NUMBER FROM TITLE BLOCK  X-221 - DETAIL-C.pdf -> X-222" in text
+    assert "MISSING" not in text and "NEWEST" not in text
+
+
+def test_compress_makes_smaller_and_verifies(tmp_path, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    for n in ("A-101", "A-102"):
+        make_text_pdf(src / ("%s PLAN.pdf" % n), n, repeat=400)
+    sj = write_sheets(tmp_path, ["A-101", "A-102"])
+    plain, small = tmp_path / "plain.pdf", tmp_path / "small.pdf"
+    assert cs.main([str(src), str(sj), str(plain), "--no-title-block"]) == 0
+    assert cs.main([str(src), str(sj), str(small), "--no-title-block", "--compress"]) == 0
+    text = capsys.readouterr().out
+    assert text.count("plan 2, OK") == 2 and "(compressed)" in text
+    assert small.stat().st_size < plain.stat().st_size / 2
+    assert [o.title for o in pypdf.PdfReader(str(small)).outline] == ["A-101 PLAN", "A-102 PLAN"]

@@ -3,7 +3,8 @@
 Usage:
   python compile_set.py --check
   python compile_set.py <src_folder> <sheets.json> <out.pdf> [--dry] [--overwrite] [--report <report.json>]
-  python compile_set.py --plan <plan.json> <out.pdf> [--dry] [--overwrite] [--report <report.json>]
+         [--compress] [--no-title-block]
+  python compile_set.py --plan <plan.json> <out.pdf> [--dry] [--overwrite] [--report <report.json>] [--compress]
 
 --plan builds from the page plan of find_sources.py (many folders, pages inside combined PDFs).
 The scan rules below then belong to find_sources.py; the build, overwrite, manifest and verify
@@ -15,11 +16,16 @@ Rules (fixed, so every package compiles the same way):
 - Only sheets in <sheets.json> go in. PDFs for other sheet numbers are left out and listed.
 - A PDF matches a sheet by the sheet number at the start of its file name. The separator after
   the number can be a space or a hyphen: "A-101 PLAN.pdf", "A-101-PLAN.pdf", "A-101 - PLAN.pdf".
-- When two or more PDFs have the same sheet number, the newest file (modified time) wins.
+- When two or more PDFs have the same sheet number, the script first reads the sheet number in
+  each title block (needs pdfplumber). A file whose title block shows another listed sheet goes to
+  that sheet (NUMBER FROM TITLE BLOCK, bookmark "<title block number> <title>"). A title block that
+  cannot be read gives SAME NUMBER, CHECK. Then the newest file (modified time) wins.
 - The bookmark is the PDF file name without ".pdf", with the separator made one space:
   "A-101 - PLAN.pdf" -> "A-101 PLAN".
 - A listed sheet with no PDF is left out and listed as missing.
 - Source PDFs are only read. They never change.
+- --compress compresses page content and merges identical objects (fonts, title block images)
+  before the write. It never changes what a page shows. The SIZE line shows the result.
 - An existing output is never replaced without --overwrite. The new file is written to
   "<out>.partial" and then renamed, so a failed run leaves the old file whole.
 - The PDF stores the page manifest (sheet, bookmark, file, mtime) in its metadata as
@@ -92,6 +98,65 @@ def stamp(t):
     return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M")
 
 
+def renumber_files(files, tb):
+    """Pure logic. files: {sheet: [(mtime, name, title, folder)]}. tb: {(folder, name): listed sheet
+    from the title block, or None when it could not be read}, only for checked files. A file whose
+    title block shows another listed sheet moves there (5th item = the number in its name).
+    Returns (files, moved [(name, from, to)], check [(sheet, [names])])."""
+    out, moved, check = {}, [], []
+    for k, cands in files.items():
+        unknown = []
+        for c in cands:
+            folder = c[3] if len(c) > 3 else 0
+            if (folder, c[1]) not in tb:
+                out.setdefault(k, []).append(c)
+                continue
+            t = tb[(folder, c[1])]
+            if t and t != k:
+                out.setdefault(t, []).append((c[0], c[1], c[2], folder, k))
+                moved.append((c[1], k, t))
+                continue
+            if not t:
+                unknown.append(c[1])
+            out.setdefault(k, []).append(c)
+        if unknown:
+            check.append((k, [c[1] for c in cands if ((c[3] if len(c) > 3 else 0), c[1]) in tb]))
+    for v in out.values():
+        v.sort(key=lambda c: -c[0])
+    return out, moved, check
+
+
+def check_same_number(files, listed, folders, reader=None):
+    """Read the title block of every file of a listed sheet that has two or more files.
+    reader(path, want) -> listed sheet or None. Returns renumber_files(...) and a note or None."""
+    want = {}
+    note = None
+    if reader is None:
+        try:
+            import pdfplumber  # noqa: F401
+            import find_sources as fs
+        except ImportError:
+            fs = None
+            note = "pdfplumber missing: title blocks of files with one sheet number are not read"
+
+        def reader(path, w):
+            if fs is None:
+                return None
+            return fs.pick_title_block(fs.title_block_tokens((path, 0))[2], w)
+    for k in listed:
+        want[re.sub(r"[\s\-\.]", "", k).upper()] = k
+    tb = {}
+    for k in listed:
+        cands = files.get(k, [])
+        if len(cands) < 2:
+            continue
+        for c in cands:
+            folder = c[3] if len(c) > 3 else 0
+            tb[(folder, c[1])] = reader(os.path.join(folders[folder], c[1]), want)
+    out, moved, check = renumber_files(files, tb)
+    return out, moved, check, note
+
+
 def build_plan(sheets, files):
     """Pure logic: return (plan, missing, duplicates, excluded)."""
     plan, missing, dups = [], [], []
@@ -113,6 +178,8 @@ def build_plan(sheets, files):
         entry = {"sheet": key, "bookmark": bookmark, "file": name, "mtime": stamp(mt), "folder": folder}
         if bookmark != key + " " + title:
             entry["raw"] = key + " " + title
+        if len(cands[0]) > 4 and cands[0][4]:
+            entry["note"] = "file name says %s, title block says %s" % (cands[0][4], key)
         plan.append(entry)
     excluded = sorted(c[1] for k, v in files.items() if k not in listed for c in v)
     return plan, missing, dups, excluded
@@ -174,6 +241,20 @@ def load_plan(path, drop):
     return plan, missing, removed
 
 
+def compress_writer(w):
+    """Lossless size step: compress each page's content stream, then write identical objects
+    (fonts, images that repeat on every sheet) once."""
+    for pg in w.pages:
+        try:
+            pg.compress_content_streams()
+        except Exception:
+            pass
+    try:
+        w.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    except Exception:
+        pass
+
+
 def read_manifest(path):
     from pypdf import PdfReader
     try:
@@ -197,6 +278,9 @@ def main(argv=None):
     ap.add_argument("--plan", help="page plan from find_sources.py (replaces <src_folder> and <sheets.json>)")
     ap.add_argument("--exclude", action="append", default=[],
                     help="sheet number the user removed from this package, even if the list marks it (repeatable)")
+    ap.add_argument("--compress", action="store_true", help="compress page content and merge identical objects")
+    ap.add_argument("--no-title-block", action="store_true",
+                    help="do not read title blocks of files that share one sheet number")
     a = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):  # file names can hold characters the Windows console code page lacks
         if hasattr(stream, "reconfigure"):
@@ -220,6 +304,7 @@ def main(argv=None):
             return 2
         plan, missing, removed = load_plan(a.plan, drop)
         dups, excluded, unparsed, folders = [], [], [], [""]
+        moved, check, tb_note = [], [], None
     else:
         if not (a.src and a.sheets and a.out):
             ap.print_usage()
@@ -235,6 +320,10 @@ def main(argv=None):
             fs, _ = scan_folder(f)
             fb_scans.append(fs)
         files = merge_sources(files, fb_scans)
+        moved, check, tb_note = [], [], None
+        if not a.no_title_block:
+            listed = {s["sheet"].strip().upper() for s in sheets}
+            files, moved, check, tb_note = check_same_number(files, listed, folders)
         plan, missing, dups, excluded = build_plan(sheets, files)
         excluded = [e for e in excluded if not any(e == c[1] for k in drop for c in files.get(k, []))]
     exists = os.path.exists(a.out)
@@ -250,6 +339,12 @@ def main(argv=None):
     for p in plan:
         if "raw" in p:
             print("NAME FIXED  %r -> %r" % (p["raw"], p["bookmark"]))
+    if tb_note:
+        print("NOTE      " + tb_note)
+    for name, frm, to in moved:
+        print("NUMBER FROM TITLE BLOCK  %s -> %s (file name says %s)" % (name, to, frm))
+    for sh, names in check:
+        print("SAME NUMBER, CHECK  %s: title block not read in %s; newest used" % (sh, ", ".join(names)))
     for m in missing:
         print("MISSING   " + m)
     for d in dups:
@@ -265,7 +360,9 @@ def main(argv=None):
         if old is not None and not changes:
             print("CHANGE    none")
     report = {"pages": plan, "missing": missing, "duplicates": dups, "excluded": excluded,
-              "unparsed": unparsed, "changes": changes, "output_exists": exists}
+              "unparsed": unparsed, "changes": changes, "output_exists": exists,
+              "number_from_title_block": [{"file": n, "name_says": f, "sheet": t} for n, f, t in moved],
+              "same_number_check": [{"sheet": sh, "files": n} for sh, n in check]}
     if a.report:
         with open(a.report, "w", encoding="utf-8") as fh:
             json.dump(report, fh, indent=1, ensure_ascii=False)
@@ -287,6 +384,8 @@ def main(argv=None):
             return 6
         w.add_page(r.pages[it.get("page", 0)])
         w.add_outline_item(title=it["bookmark"], page_number=i)
+    if a.compress:
+        compress_writer(w)
     w.page_mode = "/UseOutlines"
     manifest = [{k: v for k, v in p.items() if k != "path"} for p in plan]
     w.add_metadata({"/Title": os.path.splitext(os.path.basename(a.out))[0],
@@ -309,7 +408,7 @@ def main(argv=None):
             bad.append("%d %s" % (i + 1, o.title))
     ok = len(r.pages) == len(plan) == len(outline) and not bad
     print("VERIFY    pages %d, bookmarks %d, plan %d, %s" % (len(r.pages), len(outline), len(plan), "OK" if ok else "FAILED " + "; ".join(bad)))
-    print("SIZE      %.1f MB" % (os.path.getsize(a.out) / 1e6))
+    print("SIZE      %.1f MB%s" % (os.path.getsize(a.out) / 1e6, "  (compressed)" if a.compress else ""))
     print("TIME      %.1f s" % (time.time() - t0))
     return 0 if ok else 7
 
