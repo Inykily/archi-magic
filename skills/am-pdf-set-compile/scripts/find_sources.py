@@ -246,6 +246,9 @@ def main(argv=None):
     ap.add_argument("--no-text", action="store_true")
     ap.add_argument("--workers", type=int, default=0)
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # file names can hold characters the Windows console code page lacks
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         import pypdf  # noqa: F401
     except ImportError:

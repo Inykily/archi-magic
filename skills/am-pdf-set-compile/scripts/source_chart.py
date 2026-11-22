@@ -59,6 +59,9 @@ def main(argv=None):
     ap.add_argument("--exclude", action="append", default=[])
     ap.add_argument("--overwrite", action="store_true")
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # file names can hold characters the Windows console code page lacks
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         import openpyxl
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side

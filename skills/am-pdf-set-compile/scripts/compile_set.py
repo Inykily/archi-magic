@@ -198,6 +198,9 @@ def main(argv=None):
     ap.add_argument("--exclude", action="append", default=[],
                     help="sheet number the user removed from this package, even if the list marks it (repeatable)")
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # file names can hold characters the Windows console code page lacks
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     t0 = time.time()
     try:
         from pypdf import PdfReader, PdfWriter

@@ -88,6 +88,9 @@ def main(argv=None):
     ap.add_argument("--header-rows", type=int, default=3)
     ap.add_argument("--json")
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # file names can hold characters the Windows console code page lacks
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         import openpyxl
     except ImportError:

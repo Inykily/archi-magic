@@ -295,3 +295,19 @@ def test_compiled_pdf_loses_to_sources_in_its_own_folder(tmp_path):
     assert by["A-101"]["kind"] == "single"                    # same folder tree: the single wins
     assert by["M-101"]["kind"] == "page"                      # other tree: newest wins
     assert fs.inside(str(issue / "arch"), str(issue)) and not fs.inside(str(other), str(issue))
+
+
+def test_non_ascii_file_name_with_cp1252_console(tmp_path):
+    """A file name with characters outside the Windows console code page must not crash the summary."""
+    import subprocess
+    src = tmp_path / "src"
+    src.mkdir()
+    make_combined(src / ("Lighting " + chr(0x2013) + " Set " + chr(0xFFFD) + ".pdf"), ["A-101 PLAN", "A-102 PLAN"])
+    sj = tmp_path / "s.json"
+    sj.write_text(json.dumps([{"sheet": "A-101", "title": "Plan"}, {"sheet": "A-102", "title": "Plan 2"}]), encoding="utf-8")
+    env = dict(os.environ, PYTHONIOENCODING="cp1252")
+    script = os.path.join(HERE, "..", "scripts", "find_sources.py")
+    r = subprocess.run([sys.executable, script, str(sj), "--folder", str(src), "--no-text", "--plan", str(tmp_path / "p.json")],
+                       capture_output=True, env=env)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
+    assert b"FOUND     2" in r.stdout
