@@ -167,7 +167,10 @@ try {
     if (-not $activity) { $activity = 'unknown' }
 
     $when = (Get-Date).ToUniversalTime().ToString('o')
-    $incident = if ($failureTimes.ContainsKey($primary)) { $failureTimes[$primary].ToUniversalTime().ToString('o') }
+    # Assign $null first. An 'if' with no else gives AutomationNull, and Windows PowerShell 5.1
+    # ConvertTo-Json writes that as {} (issue #303). A missing incident time must save as null.
+    $incident = $null
+    if ($failureTimes.ContainsKey($primary)) { $incident = $failureTimes[$primary].ToUniversalTime().ToString('o') }
     $body = "Signals seen at the end of the session: " + ($found -join ', ') + ".`n" +
             "Session ended (UTC): $when.`n" +
             "File it at https://github.com/zsenarchitect/archi-magic/issues/new or with: gh issue create --repo zsenarchitect/archi-magic --title `"$title`""

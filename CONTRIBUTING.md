@@ -61,8 +61,16 @@ These steps come from sessions where a stale base, a missing write permission or
   ```
   When `main` moves on while your pull request is open, merge it in (`git fetch upstream`, then `git merge upstream/main`). Do not rebase or force-push.
 - **Read upstream from `upstream/main`, not from the local marketplace clone.** `~/.claude/plugins/marketplaces/archi-magic` and the plugin cache can be weeks old. To decide whether a skill or a file is already upstream, use `git show upstream/main:<path>` after a fetch, or GitHub.
+  - **In Git Bash, MSYS path conversion breaks this command.** Git Bash reads `upstream/main:.github/...` as a list of POSIX paths and rewrites it, and git then fails with `fatal: ambiguous argument 'upstream\main;.github\...'`. Use one of these:
+    - Run the command in PowerShell. PowerShell does not rewrite arguments.
+    - Start the path with `./`, in single quotes, from the repo root: `git show 'upstream/main:./.github/workflows/check-skills.yml'`. A `./` path is relative to the current folder.
+    - Set `MSYS_NO_PATHCONV=1` for the command: `MSYS_NO_PATHCONV=1 git show upstream/main:<path>`. This also stops the conversion of `/c/...` paths. With `git -C`, give the folder as `C:/...`, not `/c/...`, or git fails with `fatal: cannot change to '/c/...'`.
 - **Check the pull request state before you add commits.** Run `gh pr view <n> --repo zsenarchitect/archi-magic --json state,mergedAt`. If it is `MERGED` or `CLOSED`, do not push to its branch. Make a new branch from `upstream/main` and open a new pull request.
 - **Watch CI after every push.** Run `gh pr checks <n> --repo zsenarchitect/archi-magic --watch` and report the result. `mergeable` does not say that the checks passed. A pull request from a fork can wait for maintainer approval before CI runs: then write "CI waits for approval", not "CI passed".
+- **The required `check` job runs the Python tests on Linux (`ubuntu-latest`).** A pass on your Windows PC does not prove that the `check` job passes. Tests that pass on Windows can fail on Linux, for example when the code accepts only a drive letter or a UNC path and the test gives it a pytest `tmp_path` such as `/tmp/pytest-of-runner/...`. For tests that touch file paths:
+  - Make paths with `tmp_path` and `os.path` (or `pathlib`). Do not assume a drive letter or `\` in a test.
+  - When the code is Windows-only on purpose (it runs in Revit), accept a POSIX absolute path only when `os.sep == "/"`, so only on a Linux test host. Mark the test cases that need Windows behavior with `@pytest.mark.skipif(os.sep == "/", reason="Windows paths only")`.
+  - Read the `check` job log when it fails, even when your local run passed.
 - **Delete your personal copy after a merge.** If you kept a skill in your personal skills folder (`~/.claude/skills/<name>`) while you worked on it, delete that copy after the skill is merged (ask the user first), then type `/reload-plugins`. A personal copy with the same name shows next to the plugin copy and drifts from it. When you copy it back into the repo, it can overwrite the synced house rules, and `check-skills.ps1` fails with `house rules differ from HOUSE-RULES.md`.
 
 ## Working with an AI agent
