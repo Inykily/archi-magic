@@ -85,6 +85,15 @@ Search these tables for the exact error text. A row that starts with "No error" 
 | `The type typeId is not valid for this element. Parameter name: typeId` | `IndependentTag.Create(..., TagMode.TM_ADDBY_CATEGORY, ...)` with a keynote tag type, or `ChangeTypeId` to a keynote tag type on a material tag | Use the overload that takes the tag type id: `IndependentTag.Create(doc, tag_type_id, view_id, reference, add_leader, orientation, point)`. |
 | No error: new keynote tags show empty text | `IndependentTag.Create` made keynote tags with an empty `TagText` | Copy an existing keynote tag that shows text, then change its references (see `am-corner-guard`). Check `TagText` on each new tag in the dry run. See also "Material keynote tags on cut layers". |
 
+### Documents and worksharing (issue #281)
+
+| Error text you see | Cause | Fix |
+|---|---|---|
+| No error: a read query answers for the wrong model | The user opened a second project model, and it became the active document. `run_query` reads the active document. The title check before modify and select steps (see "Rules") does not cover reads. | With more than one project document open, call `get_context` before each read query. Find the model by title in `doc.Application.Documents`, read that document, and put its title in the `result`. Never report a result without the title of the document it read. |
+| Sync or Reload Latest says "Your local file is not compatible with the central model" | The local file is broken, often after a crash while Revit saved the local after a sync | Follow the rescue recipe in `am-revit-crash-doctor` (`recipes/local-not-compatible.md`). Do not copy anything into central before its compare step. |
+| No error: `GetModelUpdatesStatus` says `NotYetInCentral` for elements that central already has | The broken local did not record its last sync, so the status is stale | Do not trust it in a broken local. Compare a UniqueId and geometry map against a new local before you copy (same recipe). |
+| No error: `WorksharingUtils.GetWorksharingTooltipInfo` shows the current user as `Creator` for every element | The document is a Save As copy. Save As made it a new file-based central and reset the creator. | Read `Creator` and `LastChangedBy` only in a local of the live central, never in a Save As copy. Not verified: the same after Detach from Central. |
+
 ### Python
 
 | Error text you see | Cause | Fix |
