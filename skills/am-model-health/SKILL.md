@@ -35,6 +35,8 @@ Use this opt-in query when the user needs the actual file name, current and cent
 
 The current file name comes from the current path. Central and cloud paths have separate fields. The build describes the running Revit application. Workset counts distinguish total and user worksets. The link list covers top-level link types and includes unloaded and unplaced types. Stored, resolved and provider paths are separate. A loaded document title is available only when a placed instance exposes its document.
 
+To keep a BIM execution plan in step with the model (facts, drafting-view notes and a document check), follow [recipes/bep-sync.md](recipes/bep-sync.md).
+
 ## What the script returns
 
 `result` is JSON: `model`, `revit_year`, `timestamp`, `path`, `workshared`, and `metrics[]`. Each metric has `id`, `label`, `value`, `unit`, `threshold {warn, bad}`, `status` (`ok`, `warn`, `bad` or `info`), `hint`, and `details[]` (`label`, `count`, `ids` = element IDs).

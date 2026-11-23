@@ -143,6 +143,7 @@ Optional add-ons, installed only when the user needs them:
 | pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
 | "rename types", "clean up type names", "naming standards", "standardize type names" | `am-naming-standards` | Inventory first, settle the global rules for all categories and get sign-off, then build the approved rename table; the apply itself goes through `am-safe-change` |
+| "fix my Excel macro", a VBA compile error, "show the VBA code in this workbook" | `am-excel-vba` | Ask for the workbook path; dump and scan the code without Excel (read only); show the edit as a diff; apply only to a new copy after the user says yes |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
 If you are connected to Revit through the `pyrevit` MCP server, call `get_context` first and `get_skill("revit-scripting")` before you send any script. pyRevit's own built-in skills (scheduling, views, drawings, modeling, family-editing) cover general Revit know-how. The `am-*` skills add archi-magic's workflows, previews and checks on top of them.
@@ -217,6 +218,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
 | `am-grilling` | The interview method behind `am-grill-me`. It also starts when you say "grill me". Adapted from Matt Pocock (MIT). |
 | `am-naming-standards` | Settles one naming rule set for all categories first, then renames: inventory, global rules with user sign-off, an approved rename table, a view and schedule filter scan, guarded deletes, and reference-view label updates. The approved table goes through `am-safe-change`. Ask "rename types" or "clean up type names". |
+| `am-excel-vba` | Reads the VBA macros in an Excel macro workbook (for example a keynote master or a sheet list) without Excel and without extra packages. It finds likely undeclared variables, shows each code edit as a diff, and applies an approved edit to a new copy, never to your file. It never changes Excel security settings. Ask "fix my Excel macro". |
 
 ### Mods
 
