@@ -53,6 +53,8 @@ Recipes (the task-specific parts):
 
 - [Place existing views on sheets](recipes/place-sheet-views.md). Place reviewed views and repeat a legend or schedule at the same coordinates.
 
+- Annotate a detail view: [recipes/detail-annotation.md](recipes/detail-annotation.md). Use it to add filled regions, detail lines and text notes with leaders in the style of the finished details, with a drawing preview over a capture of the view ("finish this empty detail like the others").
+
 For a change with no recipe yet, follow the same 8 steps. Write the read query, the pure compute function and the apply script in the recipe style: one transaction, a stale-state guard, and a result that lists the values after the change.
 
 ## The 8 steps (do all of them, in this order)
@@ -135,6 +137,7 @@ An agent run cannot synchronize with central. Revit blocks Synchronize with Cent
 - Do not change the user's active view or selection.
 - If Revit answers `revit_busy`, read the open windows in the error first. A window whose name ends in `Monitor` during a sync or a reload is a progress window, not a dialog. Tell the user to wait until it closes. Do not ask the user to answer it. If it names a dialog, stop. Tell the user which dialog blocks Revit, in plain words. Do not try again. Do not close windows. If it names another agent run or another client instead, wait 20 to 30 seconds and try again. Try at most 8 times, then stop and report. If the error names no windows, call `get_context` once, then stop and ask the user what is open in Revit.
 - `run_modify` and `show_elements` act on the active document only. Before each modify or select step, compare the `get_context` document title with the step 1 title. If the title changed, stop. Ask the user to switch windows. Do not assume the active document stays the same.
+- `run_query` also reads the active document only. When more than one project model is open, call `get_context` before each read query too. Make the script target the step 1 model: compare `doc.Title` (or `doc.PathName`) with the step 1 title, or pick that document by title from `doc.Application.Documents`. Put the document title in the result. If the title does not match, stop and do not use the answer (issue #281).
 - If `list_revit_instances` returns an empty list after a pipe or connection error, Revit closed. Tell the user unsaved work may be lost. Offer to run `am-revit-crash-doctor` once Revit is closed. If `get_context` fails because no Revit answers, treat it the same way.
 - If something fails part way, report the state and how to undo it:
   - The apply script uses one transaction. If it fails, Revit rolls back all of it, and the model stays as it was.
