@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """am-schedule-view: list or read Revit schedules exactly as Revit displays them. READ ONLY.
 
 Run through the pyRevit agent runtime, query mode only:
-  MCP:  run_query(script=<this file's text>, inputs={"mode": "read", "names": ["Door Schedule"]})
+  MCP:  run_query with the short loader from SKILL.md step 2 as `script` (it reads this file
+        inside Revit, so nobody retypes it), inputs={"mode": "read", "names": ["Door Schedule"]}
   CLI:  pyrevit agent run read_schedules.py --mode=query --revit=2026
         (no --inputs = list mode)
 
@@ -22,10 +22,22 @@ Output (the `result` variable, JSON-compatible):
   rowKinds values: body | group | total | blank. Revit has no API for row kind; group and
   total rows are detected from the layout (merged cells, grand total title), so they are a heuristic.
 
-Rules: IronPython 2.7 (no f-strings). Never modifies the model, never changes the active view.
+Rules: IronPython 2.7 and CPython 3 (no f-strings). Never modifies the model, never changes the
+active view. Keep this file ASCII-only: the loader reads it as plain text in both engines.
 """
 from pyrevit.api import DB
 import datetime
+
+# Change this when the script changes. The result returns it as `scriptVersion`, so a run of an
+# old or retyped copy shows a different value than the file.
+SCRIPT_VERSION = "2026-11-22"
+
+try:
+    unicode  # noqa: F821  (IronPython 2.7)
+except NameError:  # CPython 3
+    unicode = str
+    basestring = str
+    long = int
 
 try:
     INPUTS = inputs  # noqa: F821  (provided by the agent runtime)
@@ -294,6 +306,11 @@ def to_ascii_json(o):
                 parts.append('\\"')
             elif ch == '\\':
                 parts.append('\\\\')
+            elif n > 0xffff:
+                # CPython 3 keeps a character above U+FFFF as one code point. JSON needs a
+                # surrogate pair. (IronPython 2.7 strings already hold the pair.)
+                n -= 0x10000
+                parts.append('\\u%04x\\u%04x' % (0xd800 + (n >> 10), 0xdc00 + (n & 0x3ff)))
             elif n < 0x20 or n > 0x7e:
                 parts.append('\\u%04x' % n)
             else:
@@ -370,6 +387,7 @@ else:
 # One ASCII JSON string (see to_ascii_json). Only ASCII-safe values sit beside it.
 result = {
     "kind": data["kind"],
+    "scriptVersion": SCRIPT_VERSION,
     "count": len(data["schedules"]),
     "missingCount": len(data.get("missing", [])),
     "payloadFormat": "ascii-json",

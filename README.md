@@ -57,9 +57,14 @@ Check these before step 1 of the install. An office PC often has none of them. E
 |---|---|---|---|
 | git | Step 1 and every update: Claude Code clones the marketplace with git. Without git, step 1 fails with `Command 'git' not found`. | `git --version` | `winget install --id Git.Git -e --scope user` |
 | GitHub CLI (`gh`) | `am-feedback` (posts an issue) and pull requests | `gh auth status` | `winget install --id GitHub.cli -e --scope user`, then `gh auth login` |
-| Python 3 (a real one) | Skills that run `python .../scripts/...` on this computer (for example `am-feedback`, `am-doctor`, `am-area-report`) and the skill tests. Scripts that run inside Revit do not need it. | `(Get-Command python).Source` is not in `\WindowsApps\` | `winget install --id Python.Python.3.12 -e --scope user` |
+| Python 3 (a real one) | Skills that run `python .../scripts/...` on this computer (for example `am-feedback`, `am-doctor`, `am-area-report`) and the skill tests. Scripts that run inside Revit do not need it. | `python --version` prints a version and `(Get-Command python).Source` is not in `\WindowsApps\`; else `py -3 --version` | `winget install --id Python.Python.3.12 -e --scope user` |
 
 - **The Microsoft Store alias is not Python.** On many PCs `python` is only `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`. It prints `Python was not found; run without arguments to install from the Microsoft Store ...`, and it can exit with code 0. Treat it as "no Python". After the install, call Python by its full path (for example `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`). When there is no Python, skip the Python step, tell the user, and do not report the step as done.
+- **Use the Python Launcher `py` when `python` is the Store alias.** A per-user install also adds `py`. If `py -3 --version` works, run each skill script as `py -3 <skill>\scripts\<script>.py ...` where the skill says `python scripts/...`. `am-doctor -Only tools` names the command that works on this PC.
+- **The CPython inside the pyRevit folder is not enough.** pyRevit ships a CPython in `%APPDATA%\pyRevit-Master\bin\cengines\`. It has no pip and no pytest, and you cannot add packages to it. Do not use it for skill scripts or the skill tests. `am-doctor` reports it as PYTHON_PYREVIT_ONLY.
+- **Do not expect extra packages.** A new per-user Python has only the standard library. Some scripts use optional packages (for example `openpyxl` for `.xlsx`, `pypdf` for PDF). When one is missing, ask the user before you install it (`py -3 -m pip install --user <package>`). To only read an `.xlsx`, the standard library is enough: an `.xlsx` is a zip file, so read `xl/sharedStrings.xml` and `xl/worksheets/sheet1.xml` with `zipfile` and `xml.etree.ElementTree`.
+- **PDF pages do not need poppler.** If the Read tool says `pdftoppm is not installed`, `am-markup-intake` renders the pages to PNG with `render-pdf-pages.ps1`, which uses the PDF engine in Windows (no Python, no admin). Do not install poppler and do not write your own renderer.
+- **Skill tests:** install the test packages with `py -3 -m pip install --user -r requirements-dev.txt`, then run `scripts\run-python-tests.ps1`. See CONTRIBUTING.md, "Python skill tests on Windows".
 - **A new install is not on PATH in the current session.** Call the tool by the full path that winget prints, or start a new session. In PowerShell, put `&` before a quoted path: `& "<path>\gh.exe" auth login`. Without `&`, PowerShell stops with `Unexpected token 'auth'`.
 
 ### Install procedure
@@ -102,7 +107,7 @@ Optional add-ons, installed only when the user needs them:
 
 | The user says (or means) | Use | First action |
 |---|---|---|
-| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help") | `am-welcome` | Run its setup check, then show the skill table it builds |
+| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help"), "where is our office template" | `am-welcome` | Run its setup check, then show the skill table it builds. For an office file, read the saved location first (section "Office files"); never scan a network drive without asking |
 | "set up pyRevit", "connect Claude to Revit", Revit shows pyRevit 6.x | `am-pyrevit7-setup` | Data warning, then ask the user to close Revit, then run the script |
 | "Claude can't see my Revit", any setup error, after a pyRevit update | `am-doctor` | Run `doctor.ps1` (read-only) and explain each finding |
 | "time spent by model", "summarize Revit journal activity" | `am-revit-crash-doctor` | Run the local journal effort report for the date range and show coverage before interpreting estimated windows |
@@ -143,6 +148,7 @@ Optional add-ons, installed only when the user needs them:
 | pyRevit question, bundles, output window, CLI | `am-pyrevit-docs` | If connected, `lookup_pyrevit_api`; else search the docs index, then confirm in the installed source |
 | "grill me", stress-test a plan | `am-grilling` (user command: `/am-grill-me`) | Start the interview rounds |
 | "rename types", "clean up type names", "naming standards", "standardize type names" | `am-naming-standards` | Inventory first, settle the global rules for all categories and get sign-off, then build the approved rename table; the apply itself goes through `am-safe-change` |
+| "fix my Excel macro", a VBA compile error, "show the VBA code in this workbook" | `am-excel-vba` | Ask for the workbook path; dump and scan the code without Excel (read only); show the edit as a diff; apply only to a new copy after the user says yes |
 | plan, debug, test, review code (general) | `superpowers` skills | Follow those skills |
 
 If you are connected to Revit through the `pyrevit` MCP server, call `get_context` first and `get_skill("revit-scripting")` before you send any script. pyRevit's own built-in skills (scheduling, views, drawings, modeling, family-editing) cover general Revit know-how. The `am-*` skills add archi-magic's workflows, previews and checks on top of them.
@@ -184,7 +190,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 
 | Skill | What it does |
 |---|---|
-| `am-welcome` | Introduces archi-magic in plain words for architects who are new to these tools. It lists what you can ask, checks your setup, and gives a safe first-run path. Ask "what is archi-magic?" or "I'm new, help me start". |
+| `am-welcome` | Introduces archi-magic in plain words for architects who are new to these tools. It lists what you can ask, checks your setup, and gives a safe first-run path. It also remembers where your office template and libraries live, on your computer only. Ask "what is archi-magic?" or "I'm new, help me start". |
 | `am-pyrevit7-setup` | Installs pyRevit 7 per-user **without admin rights** and repoints Revit 2024–2026 to it, even when IT installed pyRevit 6.x machine-wide. It also connects the pyRevit Agent Runtime to Claude Code. Ask Claude to "set up pyRevit 7". |
 | `am-doctor` | Finds and fixes problems with pyRevit 7, the Revit connection and archi-magic. It checks your setup and recent logs, explains each problem, runs the fix you approve, and can draft a bug report. Ask Claude to "run the doctor". |
 | `am-revit-crash-doctor` | Finds out why Revit crashed or froze. It reads Revit journals, crash dumps, Autodesk crash reports and the Windows event log, then explains the likely cause and the next step. It only reads, and works with Revit closed. Ask "why did Revit crash?" |
@@ -205,6 +211,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-area-report` | Reports room areas by level and department, gross totals from area plans, and unplaced or unenclosed rooms; compares against a program you paste. Ask for "a room area report". Adapted from Utopia5327 (MIT). |
 | `am-modeling-helpers` | Read-only helpers for room finishing. It finds sliver and ring rooms and rooms whose location point is outside their boundary. It finds room finish values that a key schedule drives. It measures how much of each floor lies in each room with Revit solids, then asks one question per finish floor (retype or split by room) and never touches the structural slab. The change goes through `am-safe-change`. Ask "which floors are in these rooms?". |
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
+| `am-pdf-set-compile` | Combines single-sheet PDFs into one drawing set, in the order of one issue column of your Excel drawing list, with one bookmark per sheet. It uses the newest PDF of each sheet, leaves out sheets the column does not mark, checks every page and bookmark, and reports what changed when you rebuild. Ask "compile the PDF set". |
 | `am-schedule-view` | Shows a Revit schedule as Revit displays it, in an interactive table: search, sort, filter, copy, export CSV, compare. It also shows the `am-safe-change` preview. Ask "show me the door schedule". |
 | `am-bim-viewer` | Shows the model in 3D with Rhino mouse controls, element data on click, category filters, and Top, Front, Right and Perspective views. Ask "show this model in 3D". |
 | `am-feedback` | Looks back over your session, finds what went wrong or cost time, removes private data, and posts it as a GitHub issue on archi-magic after you click Post. After more than 10 Post clicks, it posts clean feedback without asking (state: `%LOCALAPPDATA%\archi-magic\feedback-state.json`; say "ask before posting" to stop this). Ask "send feedback to archi-magic". |
@@ -217,6 +224,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-grill-me` | Type `/am-grill-me` to have Claude interview you hard about a plan until nothing is left assumed. Adapted from Matt Pocock's MIT-licensed [skills](https://github.com/mattpocock/skills). |
 | `am-grilling` | The interview method behind `am-grill-me`. It also starts when you say "grill me". Adapted from Matt Pocock (MIT). |
 | `am-naming-standards` | Settles one naming rule set for all categories first, then renames: inventory, global rules with user sign-off, an approved rename table, a view and schedule filter scan, guarded deletes, and reference-view label updates. The approved table goes through `am-safe-change`. Ask "rename types" or "clean up type names". |
+| `am-excel-vba` | Reads the VBA macros in an Excel macro workbook (for example a keynote master or a sheet list) without Excel and without extra packages. It finds likely undeclared variables, shows each code edit as a diff, and applies an approved edit to a new copy, never to your file. It never changes Excel security settings. Ask "fix my Excel macro". |
 
 ### Mods
 

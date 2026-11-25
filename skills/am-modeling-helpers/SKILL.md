@@ -1,6 +1,6 @@
 ---
 name: am-modeling-helpers
-description: Read-only helpers for room finishing work in the open Revit model, through the pyRevit Agent Runtime. Finds sliver, ring and broken rooms (a small area-to-perimeter width, or a location point outside the room's own boundary). Finds room parameters that a room key schedule drives (the "parameter is read-only" error) and plans a new key or a key edit. Measures how much of each floor lies in each room with Revit solids, then plans one question per finish floor (retype it, or split it along the room boundaries) and never touches the structural slab. Writes a change preview for am-safe-change. Use when the user asks "which floors are in these rooms", "split the finish floor by room", "floor finish is read-only", "room key schedule check", "find sliver rooms", "ring room", or "is this room safe to model a finish from". NOT for the model change itself (use am-safe-change), NOT for room area totals (use am-area-report), and NOT for unplaced or not-enclosed room counts (use am-model-health).
+description: Read-only helpers for room finishing work in the open Revit model, through the pyRevit Agent Runtime. Finds sliver, ring and broken rooms (a small area-to-perimeter width, or a location point outside the room's own boundary). Finds room parameters that a room key schedule drives (the "parameter is read-only" error) and plans a new key or a key edit. Measures how much of each floor lies in each room with Revit solids, then plans one question per finish floor (retype it, or split it along the room boundaries) and never touches the structural slab. Plans door sill values from the floor finishes on both sides and the transition details. Writes a change preview for am-safe-change. Use when the user asks "which floors are in these rooms", "split the finish floor by room", "floor finish is read-only", "room key schedule check", "find sliver rooms", "ring room", "is this room safe to model a finish from", or "fill the door sill from the transition details". NOT for the model change itself (use am-safe-change), NOT for room area totals (use am-area-report), and NOT for unplaced or not-enclosed room counts (use am-model-health).
 ---
 
 # am-modeling-helpers
@@ -50,6 +50,10 @@ These rules come from the user in the #132 field sessions. Follow them every tim
 
 `am-safe-change` also has a boundary query for up to 20 rooms (`scripts/read_room_finish_boundaries.py`, section "Check room boundaries before planning finishes"). Use it before you create finishes from room boundaries.
 
+## Door sill values from the floor finishes
+
+To fill an empty door sill (threshold) parameter with the transition detail reference (`<detail>/<sheet>`), use [recipes/door-thresholds.md](recipes/door-thresholds.md). It matches the floor finish of the From Room and the To Room to the finish pair in each transition detail name, with a code-to-word map that the user confirms. Only clear matches go to the preview. Every other door is listed with its reason (issue #299).
+
 ## Model writes go through am-safe-change
 
 This skill ships no apply script. The plan scripts write a change preview with `steps` and `ownership_ids`. Give it to `am-safe-change`. If `am-safe-change` has a recipe for the step, use that recipe. If not, follow its path for "a change with no recipe yet": one transaction, a stale-state guard (read the floors or keys again and compare them with the preview), and a result that lists the values after the change. The dry run is mandatory.
@@ -78,7 +82,7 @@ If no recipe exists, follow the `am-safe-change` 8 steps for a change with no re
 
 ## Tests
 
-`python -m pytest -q tests` in this skill folder. The tests need no Revit. They run the three read scripts against small stand-ins with no write API, and they test the pure plan logic and the command line scripts.
+`python -m pytest -q tests` in this skill folder. The tests need no Revit. They run the read scripts against small stand-ins with no write API, and they test the pure plan logic and the command line scripts.
 
 ## House rules (all am-* skills)
 

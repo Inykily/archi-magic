@@ -96,6 +96,10 @@ try {
     $r = Invoke-Hook $t $f
     $n = Read-Note $f
     Assert-True 'user words: signal named' ($n -and $n.signals -contains 'user_reported_broken') ''
+    $raw = [IO.File]::ReadAllText($f)
+    Assert-True 'user words: no incident time saves null, never {} (issue #303)' (
+        $raw -match '"occurred_at":null' -and $raw -notmatch '"occurred_at":\{' -and $null -eq $n.occurred_at
+    ) $raw
     $t = Write-Transcript 'assistantwords.jsonl' @('{"type":"assistant","message":{"role":"assistant","content":"That approach does not work, try another one"}}')
     $f = Join-Path $Root 'note6b.json'
     $r = Invoke-Hook $t $f

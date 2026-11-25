@@ -63,6 +63,7 @@
 })();
 // am-theme:end
 </script>
+<script>document.documentElement.className += " am-js";  /* scripts run: hide the plain view */</script>
 <!-- online-fonts:start -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -371,9 +372,23 @@ tr.fold button:hover { color: var(--ink); }
   .toolbar .field { width: 100%; }
   .wrap, .warnings, .notes, .notice { margin-left: 16px; margin-right: 16px; }
 }
+
+/* ---------- plain view (issue #296): render-table.ps1 writes it; it shows only when page scripts do not run ---------- */
+html:not(.am-js) #app, html:not(.am-js) #toast { display: none; }
+.am-js .static { display: none; }
+.static { padding: var(--space-4); }
+.static h1 { margin: var(--space-1) 0 0; font-size: var(--fs-lead); font-weight: var(--w-medium); }
+.static h2 { margin: var(--space-4) 0 var(--space-2); font-size: var(--fs-body); font-weight: var(--w-medium); }
+.static .st-note, .static .st-meta { color: var(--ink-2); margin: var(--space-1) 0; }
+.static .wrap { margin: var(--space-2) 0 0; }
+.static .bannerrow { padding: var(--space-3) 0; }
+.static .warnings, .static .notes { margin: var(--space-3) 0 0; }
+.static details > summary { cursor: pointer; margin-top: var(--space-3); color: var(--ink-2); }
+.static thead th { cursor: default; }
 </style>
 </head>
 <body class="am-surface">
+<div class="static" id="static">__STATIC_HTML__</div>
 <div class="app" id="app">
   <header class="titlebar reveal">
     <div>
@@ -966,6 +981,8 @@ tr.fold button:hover { color: var(--ink); }
     $("cols").classList.toggle("open", open); $("colbtn").setAttribute("aria-expanded", String(open));
   });
   function start() {
+    var plain = $("static");   /* the plain view for pages without scripts; the table below replaces it */
+    if (plain) plain.parentNode.removeChild(plain);
     if (kind === "change-preview") { initPreview(data); return; }
     var scheds = kind === "schedule-list" ? [listToSchedule(data)] : tagSchedules(data, data2 ? "A" : "");
     if (data2) scheds = scheds.concat(data2.kind === "schedule-list" ? [] : tagSchedules(data2, "B"));
