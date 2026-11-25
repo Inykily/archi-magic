@@ -107,7 +107,7 @@ Optional add-ons, installed only when the user needs them:
 
 | The user says (or means) | Use | First action |
 |---|---|---|
-| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help") | `am-welcome` | Run its setup check, then show the skill table it builds |
+| "I'm new to archi-magic", "what is archi-magic", "what can you do in Revit" (not a bare "help"), "where is our office template" | `am-welcome` | Run its setup check, then show the skill table it builds. For an office file, read the saved location first (section "Office files"); never scan a network drive without asking |
 | "set up pyRevit", "connect Claude to Revit", Revit shows pyRevit 6.x | `am-pyrevit7-setup` | Data warning, then ask the user to close Revit, then run the script |
 | "Claude can't see my Revit", any setup error, after a pyRevit update | `am-doctor` | Run `doctor.ps1` (read-only) and explain each finding |
 | "time spent by model", "summarize Revit journal activity" | `am-revit-crash-doctor` | Run the local journal effort report for the date range and show coverage before interpreting estimated windows |
@@ -135,7 +135,7 @@ Optional add-ons, installed only when the user needs them:
 | finish floors by room, "which floors are in these rooms", "floor finish is read-only", sliver or ring rooms | `am-modeling-helpers` | Read-only queries and a plan with one question per floor or key; the change goes through `am-safe-change` |
 | "show me the ... schedule", compare schedules | `am-schedule-view` | List schedules, ask which one |
 | "show the model in 3D" | `am-bim-viewer` | Export the active 3D view (read-only), build the viewer |
-| "send feedback to archi-magic", "reflect on this session", "report this to the archi-magic team" | `am-feedback` | Reflect read-only, remove private data, check duplicates, show the draft, post only after the user says yes |
+| "send feedback to archi-magic", "reflect on this session", "report this to the archi-magic team" | `am-feedback` | Reflect read-only, remove private data, check duplicates, show the draft, post only after the user says yes (after more than 10 "Post" answers, clean feedback posts without asking; say "ask before posting" to stop this) |
 | "confirm dimensions from this product PDF" | `am-markup-intake` | Review mapped PDF values and record their source pages before family authoring |
 | "compare room data from Excel", "check a local project document" | `am-markup-intake` | Extract a local XLSX, DOCX, or PDF table and compare selected values against an itemized Revit schedule snapshot |
 | "turn this narrated screen recording into tasks" | `am-markup-intake` | Transcribe a local MP4, sample frames, and review the numbered proposals locally |
@@ -189,7 +189,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 
 | Skill | What it does |
 |---|---|
-| `am-welcome` | Introduces archi-magic in plain words for architects who are new to these tools. It lists what you can ask, checks your setup, and gives a safe first-run path. Ask "what is archi-magic?" or "I'm new, help me start". |
+| `am-welcome` | Introduces archi-magic in plain words for architects who are new to these tools. It lists what you can ask, checks your setup, and gives a safe first-run path. It also remembers where your office template and libraries live, on your computer only. Ask "what is archi-magic?" or "I'm new, help me start". |
 | `am-pyrevit7-setup` | Installs pyRevit 7 per-user **without admin rights** and repoints Revit 2024–2026 to it, even when IT installed pyRevit 6.x machine-wide. It also connects the pyRevit Agent Runtime to Claude Code. Ask Claude to "set up pyRevit 7". |
 | `am-doctor` | Finds and fixes problems with pyRevit 7, the Revit connection and archi-magic. It checks your setup and recent logs, explains each problem, runs the fix you approve, and can draft a bug report. Ask Claude to "run the doctor". |
 | `am-revit-crash-doctor` | Finds out why Revit crashed or froze. It reads Revit journals, crash dumps, Autodesk crash reports and the Windows event log, then explains the likely cause and the next step. It only reads, and works with Revit closed. Ask "why did Revit crash?" |
@@ -212,7 +212,7 @@ Logs: archi-magic writes one JSON line per event to `%LOCALAPPDATA%\archi-magic\
 | `am-markup-intake` | Reads all your review markups: PDF and Bluebeam comments, photos and scans. It makes one action list that removes duplicates, shows conflicts between reviewers, and marks text it cannot read well. It checks sheet, room and door numbers against your open model (read only). Changes to the model go to `am-safe-change`. Ask "go through these markups". |
 | `am-schedule-view` | Shows a Revit schedule as Revit displays it, in an interactive table: search, sort, filter, copy, export CSV, compare. It also shows the `am-safe-change` preview. Ask "show me the door schedule". |
 | `am-bim-viewer` | Shows the model in 3D with Rhino mouse controls, element data on click, category filters, and Top, Front, Right and Perspective views. Ask "show this model in 3D". |
-| `am-feedback` | Looks back over your session, finds what went wrong or cost time, removes private data, and posts it as a GitHub issue on archi-magic after you click Post. Ask "send feedback to archi-magic". |
+| `am-feedback` | Looks back over your session, finds what went wrong or cost time, removes private data, and posts it as a GitHub issue on archi-magic after you click Post. After more than 10 Post clicks, it posts clean feedback without asking (state: `%LOCALAPPDATA%\archi-magic\feedback-state.json`; say "ask before posting" to stop this). Ask "send feedback to archi-magic". |
 | `am-rhino-setup` | Connects Claude Code to Rhino 8 **without admin rights**, using McNeel's official `rhino-mcp` plugin. It checks Rhino and Node.js, installs the Rhino package, and makes Claude ask before any tool that changes a file or the model. It also documents the RhinoCode CLI fallback. Ask Claude to "set up Rhino". |
 | `am-rhino-model-health` | Read-only health check of the open Rhino document: units and tolerance, invalid geometry, small strays, open polysurfaces, objects on Default, empty layers, unused blocks. Ask Claude to "check my Rhino model". |
 | `am-rhino-area-report` | Read-only areas by layer (and by a user text key such as "Room") from closed planar curves, planar surfaces and hatches, in m2 and ft2, with a CSV option. Ask for "Rhino areas by layer". |
