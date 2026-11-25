@@ -92,6 +92,14 @@ The agent policy tells pyRevit what an agent run may do. The doctor reports it a
 - Switch back: `pyrevit configs agent policy ask`.
 - Change the policy only when the user asks for it in chat (for example "we do not need to confirm in Revit"). Say the new policy back, and say how to switch back. Never change it on your own, and never to skip a Keep/Discard prompt.
 
+## Problems that belong to am-revit-crash-doctor
+
+The connection can be fine while Revit or the computer has a problem. Send these to `am-revit-crash-doctor`:
+
+- Revit crashed or froze: the crash check.
+- Revit or the computer is slow: the read-only slow check (`scripts/slow_check.py`, issue #287). It names what started each heavy process. It never ends a process or changes a setting.
+- Synchronize with Central says "Your local file is not compatible with the central model": the rescue recipe (`recipes/local-not-compatible.md`, issue #281). Do not copy anything into central before its compare step.
+
 ## When archi-magic does not load
 
 If a dependency is missing, or a Claude Code JSON file has a byte-order mark, archi-magic fails to load. Then this skill cannot start, and no archi-magic hook can warn. Signs: `/reload-plugins` says "errors during load", or the session lists no `archi-magic:` skills. Run the script directly in a terminal:
