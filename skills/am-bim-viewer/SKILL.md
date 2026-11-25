@@ -29,7 +29,7 @@ Show Revit geometry as an interactive 3D page next to the conversation.
 
    **A section box or hidden categories give a small export.** The exporter reads what the 3D view shows. When that view has a section box, or many categories are hidden, only a few elements export (for example 57 elements for one level). The summary line has `"sectionBox": true` when the view has an active section box. Tell the user the element count and that the view limits it. To export more, the user can switch to a 3D view without a section box, or you can set `SOURCE = "model"`.
 
-   **No `pyrevit` command line? Use the pyRevit MCP.** Call `run_query` with `engine: "cpython"` and a script that loads the exporter and runs it:
+   **No `pyrevit` command line? Use the pyRevit MCP.** Call `run_query` with `engine: "cpython"` and this short loader as `script`. Do not read or retype the exporter: the loader reads the file inside Revit.
    ```python
    import io
    p = r"<this skill dir>\scripts\export_bim_json.py"
@@ -165,6 +165,11 @@ The Browser pane is the web view next to the conversation. These points come fro
 ## Tests
 
 From this skill's folder: `npm install`, then `npm test` (orientation, camera mapping, click and double-click, ground grid, inline SVG; on the real three.js 0.160.0 cameras), then `npm run mutate` (breaks the code in 29 known ways; every break must make a test fail). `npm test` also covers the design system (token and theme blocks, gray-only colors, the clean viewport) the gumball (axis mapping, snap, Esc, undo, the JSON contract), typed values (the unit parser), the view cube and the walk. In the browser, run `tests/browser-check.js` in the built demo page. It also checks the theme switch, the cursors, the grid at a low angle, the help panel, a gumball drag, typed values, the view cube and the walk. The mod has its own tests: `claude plugin test mods/am-bim-viewer`.
+
+## Recipes
+
+- [Match the live model to an existing axon drawing](recipes/drawing-to-live-model.md) (issue #272): fit a locked parallel camera from 4 landmark pairs with `scripts/axon_fit.py`, prove it with an overlay, then match the graphics.
+- [Public embed page for a whiteboard](recipes/public-embed.md) (issue #288): URL settings (`option`, `bar`, `view`, `display`, `spin`) and exact-file link checks with `scripts/embed_settings.py`, plus the three.js pitfalls.
 
 ## Local project page (issue #187 Phase 1)
 

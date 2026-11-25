@@ -17,20 +17,32 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
 ## Steps
 
 1. **Get the context.** Call the `pyrevit` MCP tool `get_context`. Confirm that a model is open. If no Revit responds, tell the user to run `am-pyrevit7-setup`.
-2. **List the schedules.** Run `read_schedules.py` with `run_query` and no inputs (list mode). Pass the file text as `script`.
+2. **List the schedules.** Run `read_schedules.py` with `run_query` and no inputs (list mode). Do not read or retype the script. Pass this short loader as `script`. Replace `<skill dir>` with the absolute path of this skill's folder:
+   ```python
+   p = r"<skill dir>\scripts\read_schedules.py"
+   with open(p) as f:
+       src = f.read()
+   exec(compile(src, p, "exec"), globals())
+   ```
+   - The loader reads the file inside Revit. The script reads `inputs` and sets `result` in the same namespace, so the run returns the normal result. It works in the IronPython and CPython engines.
+   - The result has `scriptVersion`. Compare it with `SCRIPT_VERSION` near the top of the file. If they differ, the run used another copy. Stop and tell the user.
+   - If the loader fails (for example, the runtime cannot read the file), use the CLI alternative. Do not retype the script.
    - CLI alternative: `pyrevit agent run "<skill dir>\scripts\read_schedules.py" --mode=query --revit=<year>`.
    - The list gives name, category, kind, row count, and the sheets that show the schedule. Revision, keynote and panel schedules are skipped. Set `includeInternal: true` only when the user asks for them.
 3. **Ask which schedule, if it is not clear.** Use AskUserQuestion. Put the most likely schedule first, with "(Recommended)". Prefer schedules that are on a sheet. Give up to 4 options.
-4. **Read the schedules.** Run `read_schedules.py` again with inputs `{"mode": "read", "names": ["Door Schedule"]}`. You can also use `"ids": [510933]`. The default cap is 5000 rows for each schedule; `maxRows` changes it.
-5. **Find the result file on the user's side.** Do not copy the data by hand. Every run writes its full record to `%APPDATA%\pyRevit\agent\runs\<date>-<time>-<run_id>\response.json`. Use the `run_id` from the result. `render-table.ps1` reads that file directly.
+4. **Read the schedules.** Run the same loader again with inputs `{"mode": "read", "names": ["Door Schedule"]}`. You can also use `"ids": [510933]`. The default cap is 5000 rows for each schedule; `maxRows` changes it.
+5. **Find the result file on the user's side.** Do not copy the data by hand. Every run writes its full record to `%APPDATA%\pyRevit\agent\runs\<date>-<time>-<run_id>\response.json`. Give the `run_id` from the result to `render-table.ps1 -RunId <run_id>`. The script finds that folder. Do not search the runs folder yourself.
    - The result holds `payload`, one ASCII JSON string. The agent's own JSON writer fails on non-ASCII text (for example "Cafe" with an accent), so the script sends the data as a string. `render-table.ps1` accepts the run record, the `result`, or the decoded payload.
    - CLI read mode: PowerShell 5.1 removes the double quotes from `--inputs`. Run it from the Bash tool instead:
      `"$APPDATA/pyRevit-Master/bin/pyrevit.exe" agent run read_schedules.py --mode=query --revit=2026 '--inputs={"mode":"read","names":["Door Schedule"]}' > run.json`
 6. **Render the page.**
-   `powershell -NoProfile -ExecutionPolicy Bypass -File "<skill dir>\scripts\render-table.ps1" -Json <file> -Out <page.html>`
+   `powershell -NoProfile -ExecutionPolicy Bypass -File "<skill dir>\scripts\render-table.ps1" -RunId <run_id> -Out <page.html>`
+   - Use `-Json <file>` instead of `-RunId` for a saved JSON file. Use `-RunsDir <folder>` when the runs folder is not in the default place.
    - Add `-CsvDir <folder>` to also write one CSV for each schedule (UTF-8 with BOM, so Excel opens it).
    - Add `-Json2 <later.json>` to compare two snapshots. The page labels the sets [A] and [B].
-7. **Show the page.** Open it in the app's Browser pane (`preview_start` with the file URL, or `navigate`). If the pane shows a static snapshot of a local file, serve the folder on `127.0.0.1` and open that URL. Tell the user the file path, so they can open it in their own browser.
+7. **Show the page.** Open it in the app's Browser pane (`preview_start` with the file URL, or `navigate`). Tell the user the file path, so they can open it in their own browser.
+   - A static snapshot (a local file outside the project folder) runs no page scripts. The page then shows its plain view: the same rows as plain tables, with no sort, filter or export. It is not empty. For the full page, copy the file into the project folder, or serve the folder on `127.0.0.1` and open that URL.
+   - Page tools cannot read a local-file tab. To check the page yourself, take a screenshot with headless Edge, then read the PNG: `msedge --headless=old --disable-gpu --user-data-dir=<new temp folder> --window-size=1400,1000 --screenshot=<file.png> file:///<page.html>`. A new `--user-data-dir` for each run keeps Edge from reusing an open window, which writes no file.
 8. **Explain the result** in ASD-STE100: the schedule name, the row count, the group and total rows, and any cap note.
 
 ## What the page does
@@ -61,6 +73,7 @@ Two scripts in this skill do the work. Run them; do not rewrite them.
 - Warnings are pinned at the top. A click on a warning scrolls to its row. Rows with a warning always show.
 - Unchanged rows fold into "Show N unchanged". The default sort is the new value of the first changed column.
 - `blocked: true` shows "Apply is blocked: resolve warnings first." `params` shows as an "Interpreted as" line. `steps` shows as an ordered list. Other keys are ignored.
+- The page also holds a plain view, written by `render-table.ps1` with no page script: status line, counts, warnings, notes, steps, the changed rows (old value struck through, new value next to it) and the unchanged rows under "Show N unchanged". It shows when page scripts do not run, for example in a static snapshot of the Browser pane. So a preview is never blank.
 - Sample: `assets/fixtures/change-preview.sample.json`.
 
 ## Rules
