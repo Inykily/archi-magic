@@ -68,10 +68,8 @@ function Read-SavedNote([string]$Path) {
     if ($signals.Count -eq 0 -or -not $note.ended_at) { throw 'Feedback signal or date is missing.' }
     $date = [DateTimeOffset]$note.ended_at
     $incident = $null
-    if ($note.occurred_at) {
-        $occurred = [DateTimeOffset]$note.occurred_at
-        $incident = $occurred.ToUniversalTime().ToString('o')
-    }
+    $occurred = ConvertTo-IncidentTime $note.occurred_at
+    if ($null -ne $occurred) { $incident = $occurred.ToUniversalTime().ToString('o') }
     $activity = switch -CaseSensitive ([string]$note.activity) {
         'revit_query' { 'The session tried a read-only Revit query.' }
         'revit_modify' { 'The session tried a Revit modification.' }
@@ -89,6 +87,26 @@ function Read-SavedNote([string]$Path) {
         incident_line = $incidentLine
         note_sha256 = Get-FeedbackDigest $bytes
     }
+}
+
+# Returns the saved incident time, or $null when it is missing or not usable. Older notes
+# can hold "occurred_at":{} (issue #303), which must read as "no incident time", never as
+# year 0001. PowerShell 7 ConvertFrom-Json can already give a DateTime for an ISO string.
+function ConvertTo-IncidentTime($Value) {
+    if ($null -eq $Value) { return $null }
+    $parsed = $null
+    if ($Value -is [DateTimeOffset]) { $parsed = $Value }
+    elseif ($Value -is [DateTime]) { $parsed = [DateTimeOffset]$Value }
+    elseif ($Value -is [string]) {
+        if ($Value.Trim() -eq '') { return $null }
+        $tmp = [DateTimeOffset]::MinValue
+        $styles = [Globalization.DateTimeStyles]::AssumeUniversal
+        if (-not [DateTimeOffset]::TryParse($Value, [Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$tmp)) { return $null }
+        $parsed = $tmp
+    }
+    else { return $null }
+    if ($parsed -lt [DateTimeOffset]'2000-01-01T00:00:00Z') { return $null }
+    return $parsed
 }
 
 function Write-Json($Record) {
