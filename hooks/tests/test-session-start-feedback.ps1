@@ -126,6 +126,29 @@ try {
     $result = Invoke-Hook $file
     Assert-True 'next startup is quiet after dismissal or offer' ($result.Code -eq 0 -and $result.Out -eq '') $result.Out
 
+    # Issue #303: an old note can hold "occurred_at":{}; a bad value must read as no incident time.
+    $badTimes = [ordered]@{
+        'empty object' = '{}'
+        'null' = 'null'
+        'empty string' = '""'
+        'year 0001' = '"0001-01-01T00:00:00.0000000+00:00"'
+        'not a date' = '"soon"'
+    }
+    $i = 0
+    foreach ($case in $badTimes.Keys) {
+        $i++
+        $badFile = Join-Path $Root ("bad-time-$i.json")
+        $json = '{"signals":["user_reported_broken"],"activity":"unknown","ended_at":"2026-11-20T18:00:00.0000000Z","occurred_at":' + $badTimes[$case] + '}'
+        [IO.File]::WriteAllText($badFile, $json)
+        $badResult = Invoke-Hook $badFile @('-Read')
+        $badRead = $badResult.Out | ConvertFrom-Json
+        Assert-True "occurred_at $case`: reads as no incident time, no year 0001" (
+            $badResult.Code -eq 0 -and $badRead.title -match 'broken' -and
+            $null -eq $badRead.occurred_at -and $null -eq $badRead.incident_line -and
+            $badResult.Out -notmatch '0001-01-01'
+        ) $badResult.Out
+    }
+
     $file = Join-Path $Root 'corrupt.json'
     [IO.File]::WriteAllText($file, '{not json')
     $result = Invoke-Hook $file
