@@ -1,6 +1,6 @@
 ---
 name: am-revit-crash-doctor
-description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when the user says "Revit crashed", "Revit froze", "Revit closed by itself", "Revit has experienced a fatal error", or "Revit keeps crashing". Also summarizes local journal activity by model and command family. NOT for pyRevit or Claude connection problems (use am-doctor), and NOT for model QA (use am-model-health).
+description: Find out why Revit crashed or froze, read-only and with Revit closed. Reads Revit journals, Revit crash dumps, Autodesk crash reports, the Windows event log and add-in manifests, then explains in plain words what Revit was doing, the likely cause (memory, graphics driver, add-in, Revit itself, file or network access) with a confidence level, and what to try next. Use when the user says "Revit crashed", "Revit froze", "Revit closed by itself", "Revit has experienced a fatal error", or "Revit keeps crashing". Also summarizes local journal activity by model and command family, runs a read-only check when "Revit is slow" or "the computer is slow" (it names what started each heavy process), and gives the rescue recipe when sync says "not compatible with the central model". NOT for pyRevit or Claude connection problems (use am-doctor), and NOT for model QA (use am-model-health).
 ---
 
 # am-revit-crash-doctor
@@ -38,6 +38,31 @@ Finds the crash evidence on this computer, analyzes it, and explains it. The tes
    - `RADAR_PRE_LEAK` events: Windows saw Revit memory grow fast. This is a warning, not a crash.
 5. Offer a support pack for IT or Autodesk. Ask first (AskUserQuestion), and say that nothing is uploaded automatically. Only after a yes, run step 2 again with `-SupportPack "<folder the user picks, default Desktop>"`. Tell the user to read the zip before they send it, because redaction cannot catch every project name.
 6. Offer to check again after the user tries the fix. Run step 2 again and compare.
+
+## Revit or PC is slow (issue #287)
+
+Use this read-only check when the user says Revit or the computer is slow. It names the heavy processes and what started each one: Revit (an add-in), Windows sign-in (a Run entry or a Startup folder shortcut), a Windows service, a scheduled task, or Windows Explorer. It also reads graphics driver resets, application hangs, low-memory events, large Revit files saved into OneDrive today, and the size of the Revit cloud cache (CollaborationCache) and %TEMP%.
+
+```powershell
+python "<this skill dir>\scripts\slow_check.py"
+```
+
+- It takes about 15 to 60 seconds. The folder reads stop after 25 seconds and then say "partial" or "or more".
+- Add `--days 2` to read events from two days before today as well.
+- Exit 0: report done. Exit 2: the process list could not be read, so the check is not possible. Exit 1: script error.
+- The check never ends a process, never changes a setting and never deletes a file. Do not do these things for the user either.
+
+Explain the result in this order:
+
+1. **Uptime, memory and events.** A graphics driver reset (LiveKernelEvent 141 or 117, Display 4101, or `DXGI_ERROR_DEVICE_REMOVED` in a journal) points to the graphics driver. Then run the crash check above for the Revit side.
+2. **Heavy processes.** For each one, say what started it. Use the words of the report. A process that Revit or Windows sign-in started runs in the background. Never say that the user "runs" or "uses" that app. For example: "Revit starts the renderer helper each time Revit opens, even if you do not render."
+3. **Safe next steps.** Give the report's steps. The user does each step. The steps are Task Manager > Startup apps > Disable, an add-in setting, a restart, or a question to IT. Never change a service, a scheduled task or a registry value for the user.
+
+Privacy: the report shows process names, startup entry names and Revit file names, not full paths. `--save-snapshot <file>` writes the raw data with command lines. Keep that file on the computer. Never paste it into an issue.
+
+## Rescue work: local file "not compatible with central" (issue #281)
+
+When Synchronize with Central and Reload Latest fail at once with "Your local file is not compatible with the central model", follow [recipes/local-not-compatible.md](recipes/local-not-compatible.md). It reads the journal first, maps the user's borrowed elements by UniqueId, and compares them with a new local before anything is copied. Most of the "missing" work is often already in central.
 
 ## Estimate effort from local journals
 
